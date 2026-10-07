@@ -1,0 +1,36 @@
+import type { Metadata } from "next"
+import { Fraunces, Outfit } from "next/font/google"
+import { Shell } from "@/components/directory/shell"
+import { DirectoryProvider } from "@/lib/directory-context"
+import "./globals.css"
+
+const outfit = Outfit({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-outfit",
+})
+
+const fraunces = Fraunces({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-fraunces",
+})
+
+export const metadata: Metadata = {
+  title: {
+    default: "Pinora",
+    template: "%s · Pinora",
+  },
+  description:
+    "Yakındaki işletmeyi yorum, fiyat, mesafe ve randevuyla bulun. Pinora, yazdığınız cümleye göre eşleştirir.",
+}
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html lang="tr" className={`${outfit.variable} ${fraunces.variable} h-full antialiased`}>
+      <body className="flex min-h-full flex-col">
+        <DirectoryProvider>
+          <Shell>{children}</Shell>
+        </DirectoryProvider>
+      </body>
+    </html>
+  )
+}
