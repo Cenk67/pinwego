@@ -32,12 +32,12 @@ export function HomeScreen() {
   return (
     <div>
       <section className="atlas border-b border-foreground/10">
-        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 md:py-16 lg:grid-cols-[1.15fr_0.85fr]">
-          <div>
+        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 md:py-16 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <div className="min-w-0">
             <p className="text-sm font-medium text-primary">
               Ticari rehber · {businesses.length} örnek kayıt · 5 şehir
             </p>
-            <h1 className="mt-3 max-w-xl font-heading text-4xl leading-[1.05] text-balance md:text-6xl">
+            <h1 className="mt-3 max-w-full font-heading text-4xl leading-[1.05] text-balance md:max-w-xl md:text-6xl">
               Doğru işletme, tek cümle.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">

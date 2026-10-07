@@ -42,9 +42,9 @@ export function SearchScreen() {
 
   const query = params.get("q") ?? ""
   const catalog = useMemo(() => allBusinesses(listings), [listings])
-  const inferredCity = parseQuery(query, catalog).city
-  const sehir = params.get("sehir") ?? inferredCity ?? city
-  const kategori = (params.get("kategori") ?? "hepsi") as CategoryId | "hepsi"
+  const parsed = parseQuery(query, catalog)
+  const sehir = params.get("sehir") ?? parsed.city ?? city
+  const kategori = (params.get("kategori") ?? parsed.category ?? "hepsi") as CategoryId | "hepsi"
   const minRating = Number(params.get("puan") ?? "0")
   const maxPrice = Number(params.get("fiyat") ?? "4")
   const openNow = params.get("acik") === "1"
@@ -110,7 +110,7 @@ export function SearchScreen() {
         <select
           className={fieldClass}
           value={kategori}
-          onChange={(event) => update({ kategori: event.target.value === "hepsi" ? null : event.target.value })}
+          onChange={(event) => update({ kategori: event.target.value })}
         >
           <option value="hepsi">Hepsi</option>
           {categories.map((item) => (
@@ -186,8 +186,8 @@ export function SearchScreen() {
         <button
           type="button"
           className="text-left text-sm text-primary"
-          onClick={() =>
-            update({ kategori: null, puan: null, fiyat: null, acik: null, dogru: null, one: null })
+            onClick={() =>
+            update({ kategori: "hepsi", puan: null, fiyat: null, acik: null, dogru: null, one: null })
           }
         >
           Süzgeçleri temizle
@@ -202,7 +202,7 @@ export function SearchScreen() {
         <SearchForm
           key={query}
           initial={query}
-          onSearch={(value) => update({ q: value || null, sehir: null })}
+          onSearch={(value) => update({ q: value || null, sehir: null, kategori: null })}
         />
       </div>
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
@@ -286,7 +286,7 @@ export function SearchScreen() {
                   type="button"
                   variant="outline"
                   className="h-10 rounded-xl"
-                  onClick={() => update({ kategori: null, puan: null, fiyat: null, acik: null, dogru: null, one: null, sehir: "hepsi" })}
+                  onClick={() => update({ kategori: "hepsi", puan: null, fiyat: null, acik: null, dogru: null, one: null, sehir: "hepsi" })}
                 >
                   Süzgeçleri kaldır
                 </Button>
