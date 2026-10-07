@@ -6,12 +6,20 @@ Katalog örnek kayıtlardan oluşur. Eşleştirme tarayıcıda çalışır; hari
 
 ## Çalıştırma
 
+Node.js 20.9 veya daha yenisi gerekir.
+
 ```bash
 npm install
 npm run dev
 ```
 
-Geliştirme sunucusu varsayılan olarak [http://localhost:3000](http://localhost:3000) adresindedir.
+Site [http://127.0.0.1:43123](http://127.0.0.1:43123) adresinde açılır. `localhost:3000` bu projede kullanılmıyor.
+
+Açılmazsa:
+
+- `npm install` bittikten sonra komutu proje klasörünün içinde çalıştır.
+- Port doluysa terminaldeki adresi kullan. Başka bir porta almak için: `npx next dev --hostname 0.0.0.0 --port 43124`
+- Eski bir Node sürümü `next: command not found` veya derleme hatası verirse Node 20.9+ kur.
 
 ## Ne var?
 

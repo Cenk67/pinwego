@@ -54,7 +54,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
           Bağlantı eski olabilir. Aramadan yeniden bakabilirsin.
         </p>
-        <Button className="mt-6 h-11 rounded-full px-5" render={<Link href="/ara" />}>
+        <Button className="mt-6 h-11 rounded-full px-5" nativeButton={false} render={<Link href="/ara" />}>
           Aramaya dön
         </Button>
       </div>
@@ -243,11 +243,11 @@ export function BusinessScreen({ slug }: { slug: string }) {
               <Button type="button" className="h-11 rounded-xl" onClick={() => { setNote(""); setOpen(true) }}>
                 {bookingLabel(business.booking)}
               </Button>
-              <Button variant="outline" className="h-11 rounded-xl" render={<a href={`tel:${business.phone.replace(/\s/g, "")}`} />}>
+              <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={`tel:${business.phone.replace(/\s/g, "")}`} />}>
                 <Phone className="size-4" />
                 {business.phone}
               </Button>
-              <Button variant="outline" className="h-11 rounded-xl" render={<a href={maps} target="_blank" rel="noreferrer" />}>
+              <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={maps} target="_blank" rel="noreferrer" />}>
                 <Navigation className="size-4" />
                 Yol tarifi
               </Button>

@@ -49,7 +49,7 @@ export function SavedScreen() {
           <p className="mt-2 text-sm text-muted-foreground">
             Bir işletme kartındaki yer imine bas. Liste burada toplanır.
           </p>
-          <Button className="mt-4 h-11 rounded-full px-5" render={<Link href="/ara" />}>
+          <Button className="mt-4 h-11 rounded-full px-5" nativeButton={false} render={<Link href="/ara" />}>
             İşletme ara
           </Button>
         </div>

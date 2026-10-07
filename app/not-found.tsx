@@ -8,7 +8,7 @@ export default function NotFound() {
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
         Bu adres Pinora’da yok. Aramadan devam edebilirsin.
       </p>
-      <Button className="mt-6 h-11 rounded-full px-5" render={<Link href="/" />}>
+      <Button className="mt-6 h-11 rounded-full px-5" nativeButton={false} render={<Link href="/" />}>
         Ana sayfa
       </Button>
     </div>

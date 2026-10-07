@@ -160,6 +160,7 @@ export function HomeScreen() {
           <Button
             variant="secondary"
             className="h-11 rounded-full px-5"
+            nativeButton={false}
             render={<Link href="/talep" />}
           >
             Talep oluştur

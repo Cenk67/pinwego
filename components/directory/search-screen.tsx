@@ -290,7 +290,7 @@ export function SearchScreen() {
                 >
                   Süzgeçleri kaldır
                 </Button>
-                <Button className="h-10 rounded-xl" render={<Link href="/talep" />}>
+                <Button className="h-10 rounded-xl" nativeButton={false} render={<Link href="/talep" />}>
                   Talep oluştur
                 </Button>
               </div>
