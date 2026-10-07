@@ -25,7 +25,7 @@ Açılmazsa:
 
 - Doğal dille arama: semt, bütçe, aciliyet ve kategori aynı cümleden okunur.
 - İşletme profili: fotoğraf, puan, yorum, saat, hizmet fiyatı, doğrulama ve öne çıkan rozeti.
-- Harita: sonuçtaki kayıtlar yakınlaştırılmış bir pinde durur. Yol tarifi harici haritayı açar.
+- Harita: pinler işletmenin enlem ve boylamına göre Google Haritalar üzerinde durur; yakınlık semte göre ayarlanır. Yol tarifi Google Haritalar’ı açar.
 - Talep: işi yaz, üç kayıt fiyat aralığı ve gerekçeyle gelsin; randevu ya da teklif bu tarayıcıda saklanır.
 - Karşılaştırma: kaydettiğin işletmeleri yan yana bak.
 - Kendi kaydın: işletme ekle formu aramaya düşer ve yalnızca bu tarayıcıda durur.

@@ -1,5 +1,7 @@
+"use client"
+
 import Link from "next/link"
-import { useId, useMemo } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import { categoryTint } from "@/components/directory/bits"
 import { cn } from "cn"
 
@@ -12,28 +14,58 @@ type Pin = {
   category: Parameters<typeof categoryTint>[0]
 }
 
-function boundsOf(points: Pin[]) {
-  if (!points.length) {
-    return { minLat: 36.4, maxLat: 41.4, minLng: 26.4, maxLng: 33.2 }
+type View = { lat: number; lng: number; zoom: number }
+
+function project(lat: number, lng: number, zoom: number) {
+  const scale = 256 * 2 ** zoom
+  const x = ((lng + 180) / 360) * scale
+  const sine = Math.sin((lat * Math.PI) / 180)
+  const y = (0.5 - Math.log((1 + sine) / (1 - sine)) / (4 * Math.PI)) * scale
+  return { x, y }
+}
+
+function unproject(x: number, y: number, zoom: number) {
+  const scale = 256 * 2 ** zoom
+  const lng = (x / scale) * 360 - 180
+  const mercator = Math.PI - (2 * Math.PI * y) / scale
+  const lat = (180 / Math.PI) * Math.atan(Math.sinh(mercator))
+  return { lat, lng }
+}
+
+function viewOf(points: Pin[], width: number, height: number): View {
+  if (!points.length) return { lat: 39.1, lng: 35.2, zoom: 5 }
+  if (points.length === 1) return { lat: points[0].lat, lng: points[0].lng, zoom: 16 }
+
+  for (let zoom = 16; zoom >= 5; zoom -= 1) {
+    const placed = points.map((point) => project(point.lat, point.lng, zoom))
+    const xs = placed.map((point) => point.x)
+    const ys = placed.map((point) => point.y)
+    const spanX = Math.max(...xs) - Math.min(...xs)
+    const spanY = Math.max(...ys) - Math.min(...ys)
+    if (spanX <= width - 56 && spanY <= height - 96) {
+      return {
+        ...unproject((Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2, zoom),
+        zoom,
+      }
+    }
   }
-  let minLat = Infinity
-  let maxLat = -Infinity
-  let minLng = Infinity
-  let maxLng = -Infinity
-  for (const point of points) {
-    minLat = Math.min(minLat, point.lat)
-    maxLat = Math.max(maxLat, point.lat)
-    minLng = Math.min(minLng, point.lng)
-    maxLng = Math.max(maxLng, point.lng)
+
+  const lat = points.reduce((sum, point) => sum + point.lat, 0) / points.length
+  const lng = points.reduce((sum, point) => sum + point.lng, 0) / points.length
+  return { lat, lng, zoom: 5 }
+}
+
+function googleEmbed(view: View) {
+  const lat = view.lat.toFixed(6)
+  const lng = view.lng.toFixed(6)
+  return `https://maps.google.com/maps?ll=${lat},${lng}&z=${view.zoom}&t=m&hl=tr&output=embed`
+}
+
+function googleLink(view: View, points: Pin[]) {
+  if (points.length === 1) {
+    return `https://www.google.com/maps/search/?api=1&query=${points[0].lat},${points[0].lng}`
   }
-  const latPad = Math.max(0.03, (maxLat - minLat) * 0.45 || 0.03)
-  const lngPad = Math.max(0.03, (maxLng - minLng) * 0.45 || 0.03)
-  return {
-    minLat: minLat - latPad,
-    maxLat: maxLat + latPad,
-    minLng: minLng - lngPad,
-    maxLng: maxLng + lngPad,
-  }
+  return `https://www.google.com/maps/@${view.lat.toFixed(6)},${view.lng.toFixed(6)},${view.zoom}z`
 }
 
 export function MiniMap({
@@ -45,40 +77,86 @@ export function MiniMap({
   className?: string
   label?: string
 }) {
-  const bounds = useMemo(() => boundsOf(points), [points])
-  const patternId = useId().replace(/:/g, "")
+  const frame = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const node = frame.current
+    if (!node) return
+    const measure = () => {
+      const { width, height } = node.getBoundingClientRect()
+      if (width < 8 || height < 8) return
+      setSize((current) => {
+        if (current && Math.abs(current.w - width) < 2 && Math.abs(current.h - height) < 2) return current
+        return { w: width, h: height }
+      })
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  const view = size ? viewOf(points, size.w, size.h) : null
+  const origin = view ? project(view.lat, view.lng, view.zoom) : null
+
   return (
-    <div className={cn("overflow-hidden rounded-3xl bg-[#e4eee8] ring-1 ring-foreground/10", className)}>
-      <div className="flex items-center justify-between px-4 py-3 text-sm">
+    <div className={cn("overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10", className)}>
+      <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
         <span className="font-medium">{label}</span>
         <span className="text-muted-foreground">{points.length} pin</span>
       </div>
-      <svg viewBox="0 0 100 78" role="img" aria-label={label} className="h-64 w-full md:h-72">
-        <defs>
-          <pattern id={patternId} width="6" height="6" patternUnits="userSpaceOnUse">
-            <path d="M 6 0 L 0 0 0 6" fill="none" stroke="#c5d6cc" strokeWidth="0.35" />
-          </pattern>
-        </defs>
-        <rect width="100" height="78" fill={`url(#${patternId})`} />
-        <path
-          d="M0 52 C 18 46, 28 62, 46 54 S 74 40, 100 50 L 100 78 L 0 78 Z"
-          fill="#d3e3da"
-        />
-        {points.map((point) => {
-          const x =
-            8 +
-            ((point.lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 84
-          const y =
-            8 +
-            ((bounds.maxLat - point.lat) / (bounds.maxLat - bounds.minLat)) * 58
-          return (
-            <Link key={point.id} href={`/isletme/${point.slug}`} aria-label={point.name}>
-              <circle cx={x} cy={y} r="1.7" fill={categoryTint(point.category)} stroke="white" strokeWidth="0.55" />
-              <title>{point.name}</title>
-            </Link>
-          )
-        })}
-      </svg>
+      <div ref={frame} className="relative h-72 bg-[#e7eef2] md:h-80">
+        {view ? (
+          <iframe
+            key={`${view.lat.toFixed(5)}-${view.lng.toFixed(5)}-${view.zoom}`}
+            title={`${label} — Google haritası`}
+            src={googleEmbed(view)}
+            className="pointer-events-none absolute inset-0 h-full w-full border-0"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        ) : null}
+        {view ? (
+          <a
+            href={googleLink(view, points)}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute top-2 left-2 z-20 rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-[#1a73e8] shadow-md"
+          >
+            Google Haritalar’da aç
+          </a>
+        ) : null}
+        {view && origin && size
+          ? points.map((point) => {
+              const placed = project(point.lat, point.lng, view.zoom)
+              const left = (0.5 + (placed.x - origin.x) / size.w) * 100
+              const top = (0.5 + (placed.y - origin.y) / size.h) * 100
+              return (
+                <Link
+                  key={point.id}
+                  href={`/isletme/${point.slug}`}
+                  aria-label={point.name}
+                  className="group absolute z-10 -translate-x-1/2 -translate-y-full"
+                  style={{ left: `${left}%`, top: `${top}%`, zIndex: Math.round(top) }}
+                >
+                  <span className="pointer-events-none absolute bottom-full left-1/2 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background group-hover:block group-focus-visible:block">
+                    {point.name}
+                  </span>
+                  <svg width="28" height="36" viewBox="0 0 28 36" aria-hidden className="drop-shadow-md">
+                    <path
+                      d="M14 35c4.2-6.2 12-12.4 12-20.2A12 12 0 1 0 2 14.8C2 22.6 9.8 28.8 14 35z"
+                      fill={categoryTint(point.category)}
+                      stroke="white"
+                      strokeWidth="2"
+                    />
+                    <circle cx="14" cy="14.5" r="4.2" fill="white" />
+                  </svg>
+                </Link>
+              )
+            })
+          : null}
+      </div>
     </div>
   )
 }

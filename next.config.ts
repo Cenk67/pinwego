@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Playwright and the local link use 127.0.0.1; Next blocks those dev assets otherwise.
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
