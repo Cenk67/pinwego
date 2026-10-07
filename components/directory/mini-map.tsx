@@ -55,10 +55,15 @@ function viewOf(points: Pin[], width: number, height: number): View {
   return { lat, lng, zoom: 5 }
 }
 
+// Ground span Google uses for /maps/embed at zoom 0 on the equator.
+const EMBED_SPAN_ZOOM0 = 522953451.522212
+
 function googleEmbed(view: View) {
-  const lat = view.lat.toFixed(6)
-  const lng = view.lng.toFixed(6)
-  return `https://maps.google.com/maps?ll=${lat},${lng}&z=${view.zoom}&t=m&hl=tr&output=embed`
+  const lat = Number(view.lat.toFixed(6))
+  const lng = Number(view.lng.toFixed(6))
+  const span = (EMBED_SPAN_ZOOM0 * Math.cos((lat * Math.PI) / 180)) / 2 ** view.zoom
+  const pb = `!1m11!1m8!1m3!1d${span}!2d${lng}!3d${lat}!3m2!1i1024!2i768!4f13.1!5e0!6i${view.zoom}!3m1!1str!5m1!1str`
+  return `https://www.google.com/maps/embed?origin=mfe&pb=${pb}`
 }
 
 function googleLink(view: View, points: Pin[]) {
@@ -78,7 +83,7 @@ export function MiniMap({
   label?: string
 }) {
   const frame = useRef<HTMLDivElement>(null)
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+  const [size, setSize] = useState({ w: 480, h: 320 })
 
   useLayoutEffect(() => {
     const node = frame.current
@@ -97,8 +102,8 @@ export function MiniMap({
     return () => observer.disconnect()
   }, [])
 
-  const view = size ? viewOf(points, size.w, size.h) : null
-  const origin = view ? project(view.lat, view.lng, view.zoom) : null
+  const view = viewOf(points, size.w, size.h)
+  const origin = project(view.lat, view.lng, view.zoom)
 
   return (
     <div className={cn("overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10", className)}>
@@ -107,55 +112,48 @@ export function MiniMap({
         <span className="text-muted-foreground">{points.length} pin</span>
       </div>
       <div ref={frame} className="relative h-72 bg-[#e7eef2] md:h-80">
-        {view ? (
-          <iframe
-            key={`${view.lat.toFixed(5)}-${view.lng.toFixed(5)}-${view.zoom}`}
-            title={`${label} — Google haritası`}
-            src={googleEmbed(view)}
-            className="pointer-events-none absolute inset-0 h-full w-full border-0"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-        ) : null}
-        {view ? (
-          <a
-            href={googleLink(view, points)}
-            target="_blank"
-            rel="noreferrer"
-            className="absolute top-2 left-2 z-20 rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-[#1a73e8] shadow-md"
-          >
-            Google Haritalar’da aç
-          </a>
-        ) : null}
-        {view && origin && size
-          ? points.map((point) => {
-              const placed = project(point.lat, point.lng, view.zoom)
-              const left = (0.5 + (placed.x - origin.x) / size.w) * 100
-              const top = (0.5 + (placed.y - origin.y) / size.h) * 100
-              return (
-                <Link
-                  key={point.id}
-                  href={`/isletme/${point.slug}`}
-                  aria-label={point.name}
-                  className="group absolute z-10 -translate-x-1/2 -translate-y-full"
-                  style={{ left: `${left}%`, top: `${top}%`, zIndex: Math.round(top) }}
-                >
-                  <span className="pointer-events-none absolute bottom-full left-1/2 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background group-hover:block group-focus-visible:block">
-                    {point.name}
-                  </span>
-                  <svg width="28" height="36" viewBox="0 0 28 36" aria-hidden className="drop-shadow-md">
-                    <path
-                      d="M14 35c4.2-6.2 12-12.4 12-20.2A12 12 0 1 0 2 14.8C2 22.6 9.8 28.8 14 35z"
-                      fill={categoryTint(point.category)}
-                      stroke="white"
-                      strokeWidth="2"
-                    />
-                    <circle cx="14" cy="14.5" r="4.2" fill="white" />
-                  </svg>
-                </Link>
-              )
-            })
-          : null}
+        <iframe
+          key={`${view.lat.toFixed(5)}-${view.lng.toFixed(5)}-${view.zoom}`}
+          title={`${label} — Google haritası`}
+          src={googleEmbed(view)}
+          className="pointer-events-none absolute inset-0 z-0 h-full w-full border-0"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+        <a
+          href={googleLink(view, points)}
+          target="_blank"
+          rel="noreferrer"
+          className="absolute top-2 left-2 z-20 rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-[#1a73e8] shadow-md"
+        >
+          Google Haritalar’da aç
+        </a>
+        {points.map((point) => {
+          const placed = project(point.lat, point.lng, view.zoom)
+          const left = (0.5 + (placed.x - origin.x) / size.w) * 100
+          const top = (0.5 + (placed.y - origin.y) / size.h) * 100
+          return (
+            <Link
+              key={point.id}
+              href={`/isletme/${point.slug}`}
+              aria-label={point.name}
+              className="group absolute z-10 -translate-x-1/2 -translate-y-full"
+              style={{ left: `${left}%`, top: `${top}%`, zIndex: Math.round(top) }}
+            >
+              <span className="pointer-events-none absolute bottom-full left-1/2 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background group-hover:block group-focus-visible:block">
+                {point.name}
+              </span>
+              <svg width="28" height="36" viewBox="0 0 28 36" aria-hidden className="drop-shadow-md">
+                <path
+                  d="M14 35c4.2-6.2 12-12.4 12-20.2A12 12 0 1 0 2 14.8C2 22.6 9.8 28.8 14 35z"
+                  fill={categoryTint(point.category)}
+                  stroke="white"
+                  strokeWidth="2"
+                />
+                <circle cx="14" cy="14.5" r="4.2" fill="white" />
+              </svg>
+            </Link>
+          )
+        })}
       </div>
     </div>
   )

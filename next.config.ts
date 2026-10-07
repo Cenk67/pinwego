@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Playwright and the local link use 127.0.0.1; Next blocks those dev assets otherwise.
-  allowedDevOrigins: ["127.0.0.1", "localhost"],
+  // The preview host and 127.0.0.1 both load this dev server. Without
+  // them Next blocks the client bundle, so the map never mounts.
+  allowedDevOrigins: ["127.0.0.1", "localhost", "*.agent.cvm.dev"],
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
