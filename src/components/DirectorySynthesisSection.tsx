@@ -13,7 +13,6 @@ import {
   Globe2,
   CheckCircle2
 } from "lucide-react";
-import { TOP_GLOBAL_DIRECTORIES_SYNTHESIS } from "@/data/mockBusinesses";
 
 export const DirectorySynthesisSection: React.FC = () => {
   const directoryMatrix = [
@@ -75,7 +74,7 @@ export const DirectorySynthesisSection: React.FC = () => {
             Neden Tek Bir Rehberle Yetinesiniz?
           </h2>
           <p className="mt-3 text-sm sm:text-base text-zinc-600 dark:text-zinc-400">
-            Yelp'in yorum gücünü, Booksy'nin anında randevusunu, Thumbtack'in teklif sistemini ve Dun & Bradstreet'in ticari güven skorunu yapay zeka ile tek platformda birleştirdik.
+            Yelp'in yorum gücünü, Booksy'nin anında randevusunu, Thumbtack'in teklif sistemini ve Dun & Bradstreet'in ticari güven skorunu yapay zeka ile Lumina'da birleştirdik.
           </p>
         </div>
 
@@ -109,7 +108,7 @@ export const DirectorySynthesisSection: React.FC = () => {
               <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3.5 dark:border-indigo-950 dark:bg-indigo-950/30">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950 dark:text-indigo-200">
                   <Zap className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                  <span>NexusBiz AI Entegrasyonu:</span>
+                  <span>Lumina AI Entegrasyonu:</span>
                 </div>
                 <p className="mt-1 text-xs text-indigo-900/80 dark:text-indigo-300/80">
                   {item.nexusFeature}

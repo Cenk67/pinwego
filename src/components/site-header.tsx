@@ -21,6 +21,7 @@ const NAV = [
   { href: "/dizin", label: "Dizin" },
   { href: "/teklif", label: "Teklif al" },
   { href: "/asistan", label: "AI asistan" },
+  { href: "/#features-synthesis", label: "20 Global Rehber" },
 ]
 
 export function SiteHeader() {
