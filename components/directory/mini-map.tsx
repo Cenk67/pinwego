@@ -129,15 +129,15 @@ export function MiniMap({
         </a>
         {points.map((point) => {
           const placed = project(point.lat, point.lng, view.zoom)
-          const left = (0.5 + (placed.x - origin.x) / size.w) * 100
-          const top = (0.5 + (placed.y - origin.y) / size.h) * 100
+          const left = ((0.5 + (placed.x - origin.x) / size.w) * 100).toFixed(4)
+          const top = ((0.5 + (placed.y - origin.y) / size.h) * 100).toFixed(4)
           return (
             <Link
               key={point.id}
               href={`/isletme/${point.slug}`}
               aria-label={point.name}
               className="group absolute z-10 -translate-x-1/2 -translate-y-full"
-              style={{ left: `${left}%`, top: `${top}%`, zIndex: Math.round(top) }}
+              style={{ left: `${left}%`, top: `${top}%`, zIndex: Math.round(Number(top)) }}
             >
               <span className="pointer-events-none absolute bottom-full left-1/2 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background group-hover:block group-focus-visible:block">
                 {point.name}

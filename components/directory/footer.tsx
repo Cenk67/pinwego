@@ -23,7 +23,8 @@ export function Footer() {
         <div className="text-sm">
           <p className="font-medium">Not</p>
           <p className="mt-3 leading-6 text-muted-foreground">
-            İşletmeler, yorumlar ve fiyatlar ürünü göstermek için hazırlanmış örnek kayıtlardır.
+            İşletmeler, yorumlar ve fiyatlar ürünü göstermek için hazırlanmış örnek kayıtlardır. Hesap doğrulaması
+            ve yüklenen belgeler bu tarayıcıda kalır.
             Yol tarifi harici haritayı açar. Fotoğraflar Unsplash kaynaklıdır.
           </p>
         </div>

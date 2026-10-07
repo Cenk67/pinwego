@@ -4,9 +4,11 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Bookmark, Compass, Plus, Search, Sparkles } from "lucide-react"
 import { Suspense, type ReactNode } from "react"
+import { AuthScreen } from "@/components/auth/auth-screen"
 import { Assistant } from "@/components/directory/assistant"
 import { Footer } from "@/components/directory/footer"
 import { Header } from "@/components/directory/header"
+import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
 import { cn } from "cn"
 
@@ -60,15 +62,23 @@ function BottomNav() {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
+  const { ready, account } = useAuth()
+  const open = ready && Boolean(account)
   return (
     <>
-      <Header />
-      <main className="flex-1 pb-20 md:pb-0">{children}</main>
-      <Footer />
-      <Suspense fallback={<div className="h-16 md:hidden" />}>
-        <BottomNav />
-      </Suspense>
-      <Assistant />
+      {!ready ? (
+        <div className="grid min-h-svh place-items-center px-4 text-sm text-muted-foreground">Pinora açılıyor</div>
+      ) : null}
+      {ready && !account ? <AuthScreen /> : null}
+      <div hidden={!open} inert={!open} aria-hidden={!open}>
+        <Header />
+        <main className="flex-1 pb-20 md:pb-0">{children}</main>
+        <Footer />
+        <Suspense fallback={<div className="h-16 md:hidden" />}>
+          <BottomNav />
+        </Suspense>
+        <Assistant />
+      </div>
     </>
   )
 }

@@ -31,8 +31,14 @@ export function Header() {
           <Link href="/kaydedilenler" className="hover:text-primary">
             Kayıtlı{saved.length ? ` (${saved.length})` : ""}
           </Link>
+          <Link href="/hesap" className="hover:text-primary">
+            Hesap
+          </Link>
         </nav>
-        <label className="ml-auto">
+        <Link href="/hesap" className="ml-auto text-sm hover:text-primary md:hidden">
+          Hesap
+        </Link>
+        <label className="md:ml-auto">
           <span className="sr-only">Şehir</span>
           <select
             value={city}

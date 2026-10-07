@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Fraunces, Outfit } from "next/font/google"
 import { Shell } from "@/components/directory/shell"
+import { AuthProvider } from "@/lib/auth-context"
 import { DirectoryProvider } from "@/lib/directory-context"
 import "./globals.css"
 
@@ -28,7 +29,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="tr" className={`${outfit.variable} ${fraunces.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <DirectoryProvider>
-          <Shell>{children}</Shell>
+          <AuthProvider>
+            <Shell>{children}</Shell>
+          </AuthProvider>
         </DirectoryProvider>
       </body>
     </html>

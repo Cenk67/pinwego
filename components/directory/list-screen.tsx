@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/lib/auth-context"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -16,6 +17,7 @@ const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartes
 
 export function ListScreen() {
   const router = useRouter()
+  const { account } = useAuth()
   const { addListing, listings } = useDirectory()
   const [name, setName] = useState("")
   const [category, setCategory] = useState<CategoryId>("yeme")
@@ -74,6 +76,18 @@ export function ListScreen() {
     }
     addListing(business)
     router.push(`/isletme/${slug}`)
+  }
+
+  if (account?.role !== "isletme") {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-16">
+        <h1 className="font-heading text-4xl text-balance">İşletme eklemek için işletme hesabı gerekir.</h1>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          Müşteri hesabı arama, harita ve talep için yeter. Kendi işletmeni rehbere koymak için çıkış yapıp vergi
+          levhası, imza sirküleri, sicil belgesi ve yetkili kimliğiyle işletme kaydı aç.
+        </p>
+      </div>
+    )
   }
 
   return (

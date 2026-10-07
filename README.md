@@ -28,7 +28,8 @@ Açılmazsa:
 - Harita: pinler işletmenin enlem ve boylamına göre Google Haritalar üzerinde durur; yakınlık semte göre ayarlanır. Yol tarifi Google Haritalar’ı açar.
 - Talep: işi yaz, üç kayıt fiyat aralığı ve gerekçeyle gelsin; randevu ya da teklif bu tarayıcıda saklanır.
 - Karşılaştırma: kaydettiğin işletmeleri yan yana bak.
-- Kendi kaydın: işletme ekle formu aramaya düşer ve yalnızca bu tarayıcıda durur.
+- Hesap kapısı: kayıtlı olmayan hesap arama, harita, randevu ve kayıt eklemeyi açamaz. Müşteri T.C. kimlik bilgisi ve teyit belgesi girer. İşletme vergi levhası, imza sirküleri, sicil belgesi ve yetkili kimliğini yükler. Kayıt ve belgeler bu tarayıcıda durur.
+- Kendi kaydın: doğrulanmış işletme hesabı işletme ekle formunu aramaya düşürür; kayıt yalnızca bu tarayıcıda durur.
 - Asistan: aynı eşleştiriciyle kısa bir sohbet.
 
 Fotoğraflar Unsplash kaynaklıdır.
