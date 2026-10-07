@@ -1,25 +1,38 @@
-# Pusula
+# RehberIQ — Yapay Zekâlı Ticari Firma Rehberi
 
-Pusula; yerel işletmeleri, doğrulanmış yorumları ve yapay zekâ destekli kısa özetleri tek deneyimde birleştiren mobil uyumlu ticari firma rehberi prototipidir.
+Listedeki 20 küresel rehberin (Yelp, Tripadvisor, MapQuest, Whitepages, Booksy, Thumbtack, Dun & Bradstreet, Yellow Pages, Angi, Houzz, Brownbook, TaskRabbit, HomeAdvisor, Manta, Kompass, Infobel, Loc8NearMe, MerchantCircle, Hotfrog, Cybo) en iyi özellikleri tek mobil uyumlu web uygulamasında birleştirildi.
 
-## Özellikler
+## Özellik → İlham tablosu
 
-- Doğal dil destekli işletme ve hizmet araması
-- Konum, kategori ve anahtar kelime filtreleme
-- Yapay zekâ tarzı yorum ve güven özeti
-- Doğrulanmış işletme, puan, mesafe ve uygunluk sinyalleri
-- Favoriye ekleme ve mobil navigasyon
-- Boş arama sonucu ve etkileşim durumları
+| Özellik | İlham |
+|---|---|
+| Arama + yorum + fotoğraf + işletme profili | Yelp |
+| Yapay zekâ yorum özeti + itibar paneli | Tripadvisor |
+| Yakınımda filtresi + mesafe + yol tarifi | MapQuest, Loc8NearMe |
+| Hızlı kişi/firma/telefon araması | Whitepages, Infobel |
+| Hizmet → fiyat → anında randevu | Booksy |
+| İhtiyaç yaz → uzman eşleşmesi (Teklif Al) | Thumbtack, TaskRabbit |
+| B2B künye (kuruluş, çalışan, ihracat) | Dun & Bradstreet, Kompass |
+| Kategori dizini + sponsorlu vitrin | Yellow Pages US, Manta, Hotfrog, Cybo, Brownbook |
+| Teklif topla + karşılaştır | Angi, HomeAdvisor |
+| Fotoğraf galerisi + proje vitrini | Houzz |
+| Profil + yerel pazarlama (ücretsiz listele) | MerchantCircle |
 
-## Yerelde çalıştırma
+## Sayfalar
+
+- `/` — AI asistan + hero arama + kategoriler + öneriler
+- `/kesfet` — AI skorlu sonuçlar, filtreler (açık / randevulu / teklifli / puan), sıralama
+- `/isletme/[id]` — profil, hizmet+fiyat, yorumlar, fotoğraflar, B2B künye, randevu/teklif modalı
+- `/teklif-al` — 3 adımlı akıllı eşleşme akışı
+- `/isletme-ekle` — ücretsiz işletme kaydı
+- `/api/ai-search?q=...` — JSON AI arama API'si
+
+## Çalıştırma
 
 ```bash
 npm install
-npm run dev
+npm run dev      # http://localhost:43127
+npm run build
 ```
 
-Ardından tarayıcıda terminalde gösterilen adresi açın.
-
-## Teknoloji
-
-Next.js 16, React 19, TypeScript, Tailwind CSS 4, shadcn/ui ve Lucide Icons.
+AI katmanı (`src/lib/ai.ts`) tamamen istemcide çalışır; harici anahtar gerekmez. Randevu/teklif/yorum/favoriler `localStorage`'da saklanır.
