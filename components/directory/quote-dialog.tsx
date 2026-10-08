@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { fieldClass } from "@/components/directory/bits"
+import { WhenField } from "@/components/directory/when-field"
 import { useDirectory } from "@/lib/directory-context"
 import { bookingLabel, formatResponse } from "@/lib/format"
 import type { Business } from "@/lib/types"
@@ -23,20 +23,26 @@ export function QuoteDialog({
   open,
   onOpenChange,
   initialNote = "",
+  initialWhen = "Bu hafta",
+  initialWhenDate = "",
 }: {
   business: Business
   open: boolean
   onOpenChange: (open: boolean) => void
   initialNote?: string
+  initialWhen?: string
+  initialWhenDate?: string
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         {open ? (
           <QuoteForm
-            key={`${business.id}-${initialNote}`}
+            key={`${business.id}-${initialNote}-${initialWhen}-${initialWhenDate}`}
             business={business}
             initialNote={initialNote}
+            initialWhen={initialWhen}
+            initialWhenDate={initialWhenDate}
             onOpenChange={onOpenChange}
           />
         ) : null}
@@ -48,16 +54,21 @@ export function QuoteDialog({
 function QuoteForm({
   business,
   initialNote,
+  initialWhen,
+  initialWhenDate,
   onOpenChange,
 }: {
   business: Business
   initialNote: string
+  initialWhen: string
+  initialWhenDate: string
   onOpenChange: (open: boolean) => void
 }) {
   const { addRequest } = useDirectory()
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
-  const [when, setWhen] = useState("Bu hafta")
+  const [when, setWhen] = useState(initialWhen)
+  const [whenDate, setWhenDate] = useState(initialWhenDate)
   const [note, setNote] = useState(initialNote)
   const [error, setError] = useState("")
   const [sent, setSent] = useState(false)
@@ -130,15 +141,14 @@ function QuoteForm({
           className="h-11"
         />
       </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor="lead-when">Ne zaman</Label>
-        <select id="lead-when" className={fieldClass} value={when} onChange={(event) => setWhen(event.target.value)}>
-          <option>Bugün</option>
-          <option>Yarın</option>
-          <option>Bu hafta</option>
-          <option>Esnek</option>
-        </select>
-      </div>
+      <WhenField
+        value={when}
+        date={whenDate}
+        onChange={(next) => {
+          setWhen(next.when)
+          setWhenDate(next.date)
+        }}
+      />
       <div className="grid gap-1.5">
         <Label htmlFor="lead-note">Not</Label>
         <Textarea

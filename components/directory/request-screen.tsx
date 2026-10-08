@@ -6,11 +6,14 @@ import { fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
 import { PlaceEditor } from "@/components/directory/place-picker"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
+import { WhenField, todayIso } from "@/components/directory/when-field"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { allBusinesses } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
+import { fold } from "@/lib/format"
 import { defaultFilters, searchDirectory } from "@/lib/match"
 import { applyPlace, placeLabel } from "@/lib/place"
 import type { Business, CategoryId } from "@/lib/types"
@@ -18,13 +21,26 @@ import type { Business, CategoryId } from "@/lib/types"
 const steps = ["Anlat", "Yer", "Eşleşme"]
 const popular = ["yeme", "temizlik", "usta", "saglik", "oto", "hukuk", "konaklama", "guzellik"]
 
+function budgetMaxPrice(budget: string) {
+  const folded = fold(budget)
+  if (!folded || folded.includes("fark etmez")) return 4
+  if (["ekonomik", "ucuz", "uygun"].some((word) => folded.includes(word))) return 2
+  if (folded.includes("orta")) return 3
+  if (["ust", "luks", "premium"].some((word) => folded.includes(word))) return 4
+  const amount = Number(budget.replace(/\./g, "").replace(/,/g, "").match(/\d+/)?.[0] ?? "")
+  if (amount > 0 && amount <= 3000) return 2
+  if (amount > 3000 && amount <= 20000) return 3
+  return 4
+}
+
 export function RequestScreen() {
   const { listings, requests, place, setPlace, sectors } = useDirectory()
   const [step, setStep] = useState(0)
   const [description, setDescription] = useState("")
   const [category, setCategory] = useState<CategoryId | "hepsi">("hepsi")
   const [when, setWhen] = useState("Bu hafta")
-  const [budget, setBudget] = useState("Fark etmez")
+  const [whenDate, setWhenDate] = useState("")
+  const [budget, setBudget] = useState("")
   const [error, setError] = useState("")
   const [target, setTarget] = useState<Business | null>(null)
 
@@ -33,9 +49,9 @@ export function RequestScreen() {
     place.neighborhood,
     place.district,
     place.province,
-    when === "Bugün" ? "bugün acil" : "",
-    budget === "Ekonomik" ? "uygun fiyat" : "",
-    budget === "Üst" ? "lüks" : "",
+    when === "Bugün" || whenDate === todayIso() ? "bugün acil" : "",
+    budgetMaxPrice(budget) <= 2 ? "uygun fiyat" : "",
+    ["ust", "luks", "premium"].some((word) => fold(budget).includes(word)) ? "lüks" : "",
   ]
     .filter(Boolean)
     .join(" ")
@@ -47,7 +63,7 @@ export function RequestScreen() {
       ...defaultFilters,
       sehir: "hepsi",
       kategori: category,
-      maxPrice: budget === "Ekonomik" ? 2 : budget === "Orta" ? 3 : 4,
+      maxPrice: budgetMaxPrice(budget),
     }, origin)
     const scoped = applyPlace(ranked, place)
     return { items: scoped.items.slice(0, 3), widened: scoped.widened }
@@ -157,23 +173,24 @@ export function RequestScreen() {
             </div>
             <PlaceEditor current={place} onChange={setPlace} embedded />
           </div>
-          <label className="grid gap-1.5 text-sm">
-            Ne zaman
-            <select className={fieldClass} value={when} onChange={(event) => setWhen(event.target.value)}>
-              <option>Bugün</option>
-              <option>Bu hafta</option>
-              <option>Esnek</option>
-            </select>
-          </label>
-          <label className="grid gap-1.5 text-sm">
-            Bütçe
-            <select className={fieldClass} value={budget} onChange={(event) => setBudget(event.target.value)}>
-              <option>Ekonomik</option>
-              <option>Orta</option>
-              <option>Üst</option>
-              <option>Fark etmez</option>
-            </select>
-          </label>
+          <WhenField
+            value={when}
+            date={whenDate}
+            onChange={(next) => {
+              setWhen(next.when)
+              setWhenDate(next.date)
+            }}
+          />
+          <div className="grid gap-1.5">
+            <Label htmlFor="job-budget">Bütçe</Label>
+            <Input
+              id="job-budget"
+              value={budget}
+              onChange={(event) => setBudget(event.target.value)}
+              placeholder="İstediğini yaz: 8.000 TL, malzeme dahil, fark etmez…"
+              className="h-11"
+            />
+          </div>
           <div className="flex gap-2">
             <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => setStep(0)}>
               Geri
@@ -248,7 +265,15 @@ export function RequestScreen() {
           onOpenChange={(next) => {
             if (!next) setTarget(null)
           }}
-          initialNote={description}
+          initialWhen={when}
+          initialWhenDate={whenDate}
+          initialNote={[
+            description,
+            when ? `Ne zaman: ${when}` : "",
+            budget.trim() ? `Bütçe: ${budget.trim()}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n")}
         />
       ) : null}
     </div>
