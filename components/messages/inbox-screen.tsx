@@ -49,7 +49,7 @@ function BusinessPicker({
   autoFocus?: boolean
 }) {
   return (
-    <div className="flex min-h-[28rem] flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b border-foreground/10 px-4 py-3">
         <p className="font-medium">İşletme seç ve yaz</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -207,8 +207,8 @@ export function InboxScreen() {
           <p className="text-sm text-muted-foreground">Tarayıcı bildirimleri açık.</p>
         ) : null}
       </div>
-      <div className="mt-6 grid overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className={cn("border-b border-foreground/10 lg:border-r lg:border-b-0", active || picking ? "hidden lg:block" : "block")}>
+      <div className="mt-6 grid h-[min(42rem,72vh)] overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className={cn("min-h-0 overflow-y-auto border-b border-foreground/10 lg:border-r lg:border-b-0", active || picking ? "hidden lg:block" : "block")}>
           <div className="flex items-center justify-between gap-2 px-4 py-3">
             <div className="flex items-center gap-2">
               <p className="text-sm font-medium">Konuşmalar</p>
@@ -263,7 +263,7 @@ export function InboxScreen() {
           )}
         </aside>
 
-        <section className={cn("flex min-h-[28rem] flex-col", active || picking ? "flex" : "hidden lg:flex")}>
+        <section className={cn("flex min-h-0 flex-col", active || picking ? "flex" : "hidden lg:flex")}>
           {active ? (
             <>
               <div className="flex items-center gap-2 border-b border-foreground/10 px-4 py-3">
@@ -332,7 +332,7 @@ export function InboxScreen() {
               </form>
             </>
           ) : (
-            <div className="flex min-h-[28rem] flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex items-center gap-2 border-b border-foreground/10 px-4 py-3 lg:hidden">
                 <button
                   type="button"
