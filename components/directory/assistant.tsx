@@ -55,7 +55,7 @@ export function Assistant() {
       <button
         type="button"
         onClick={() => setAssistantOpen(true)}
-        className="fixed right-4 bottom-6 z-40 hidden h-12 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-lg md:flex"
+        className="fixed right-4 bottom-24 z-40 flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-lg md:bottom-6"
       >
         <Sparkles className="size-4" />
         Asistan

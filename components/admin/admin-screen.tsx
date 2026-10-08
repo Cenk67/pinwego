@@ -345,6 +345,7 @@ function CreateBusiness({
   onClose: () => void
   onCreate: (business: Business) => void
 }) {
+  const { account } = useAuth()
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
   const [city, setCity] = useState("İstanbul")
@@ -402,6 +403,7 @@ function CreateBusiness({
               hours: DAYS.map((day) => ({ day, hours: day === "Pazar" ? "Kapalı" : "09:00–18:00" })),
               facts: [],
               source: "senin",
+              ownerAccountId: account?.id,
             })
           }}
         >

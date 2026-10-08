@@ -75,6 +75,7 @@ export function ListScreen() {
       hours: DAYS.map((day) => ({ day, hours: day === "Pazar" ? "Kapalı" : "09:00–18:00" })),
       facts: [],
       source: "senin",
+      ownerAccountId: account?.id,
     }
     addListing(business)
     router.push(`/isletme/${slug}`)

@@ -3,6 +3,7 @@ import { Fraunces, Outfit } from "next/font/google"
 import { Shell } from "@/components/directory/shell"
 import { AuthProvider } from "@/lib/auth-context"
 import { DirectoryProvider } from "@/lib/directory-context"
+import { MessageProvider } from "@/lib/message-context"
 import "./globals.css"
 
 const outfit = Outfit({
@@ -30,7 +31,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <DirectoryProvider>
           <AuthProvider>
-            <Shell>{children}</Shell>
+            <MessageProvider>
+              <Shell>{children}</Shell>
+            </MessageProvider>
           </AuthProvider>
         </DirectoryProvider>
       </body>

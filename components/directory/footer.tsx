@@ -16,6 +16,7 @@ export function Footer() {
           <div className="mt-3 grid gap-2 text-muted-foreground">
             <Link href="/ara">Arama</Link>
             <Link href="/talep">Uzman talebi</Link>
+            <Link href="/mesajlar">Mesajlar</Link>
             <Link href="/listele">İşletme kaydı</Link>
             <Link href="/kaydedilenler">Karşılaştırma</Link>
             <Link href="/yonetim">Yönetim</Link>

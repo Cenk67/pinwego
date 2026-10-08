@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useAuth } from "@/lib/auth-context"
 import { CLAIM_KEY, claimListing } from "@/lib/claim"
 import { useDirectory } from "@/lib/directory-context"
+import { adoptListingThreads } from "@/lib/message-store"
 import type { Business } from "@/lib/types"
 
 export function ClaimPrompt({ business }: { business: Business }) {
@@ -23,7 +24,8 @@ export function ClaimPrompt({ business }: { business: Business }) {
 
   function accept() {
     if (account?.role === "isletme") {
-      addListing(claimListing(business))
+      addListing(claimListing(business, account.id))
+      adoptListingThreads(business.id, account.id)
       setOpen(false)
       router.push(`/isletme/${business.slug}`)
       return

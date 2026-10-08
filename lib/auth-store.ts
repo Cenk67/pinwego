@@ -92,11 +92,38 @@ function writeAccounts(accounts: Account[]) {
   localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts))
 }
 
+function readSessionId() {
+  try {
+    return sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY)
+  } catch {
+    return localStorage.getItem(SESSION_KEY)
+  }
+}
+
+function writeSessionId(id: string | null) {
+  try {
+    if (id) sessionStorage.setItem(SESSION_KEY, id)
+    else sessionStorage.removeItem(SESSION_KEY)
+  } catch {
+    /* ignore */
+  }
+  if (id) localStorage.removeItem(SESSION_KEY)
+  else localStorage.removeItem(SESSION_KEY)
+}
+
 function load(): Snapshot {
   const accounts = ensureAdmin(readAccounts())
-  const id = localStorage.getItem(SESSION_KEY)
+  const id = readSessionId()
   const account = accounts.find((item) => item.id === id) ?? null
-  if (!account) localStorage.removeItem(SESSION_KEY)
+  if (!account) writeSessionId(null)
+  else {
+    try {
+      sessionStorage.setItem(SESSION_KEY, account.id)
+      localStorage.removeItem(SESSION_KEY)
+    } catch {
+      /* ignore */
+    }
+  }
   return { ready: true, account, accounts }
 }
 
@@ -186,7 +213,7 @@ export async function openDocument(account: Account, documentId: string) {
 }
 
 function enter(account: Account) {
-  localStorage.setItem(SESSION_KEY, account.id)
+  writeSessionId(account.id)
   memory = { ready: true, account, accounts: readAccounts() }
   loaded = true
   notify()
@@ -237,7 +264,7 @@ export async function login(email: string, password: string) {
 }
 
 export function logout() {
-  localStorage.removeItem(SESSION_KEY)
+  writeSessionId(null)
   memory = { ready: true, account: null, accounts: ensureAdmin(readAccounts()) }
   loaded = true
   notify()

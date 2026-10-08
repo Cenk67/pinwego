@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth-context"
-import { ADMIN_EMAIL } from "@/lib/auth-store"
+import { ADMIN_EMAIL, getSnapshot } from "@/lib/auth-store"
 import { businesses, cities } from "@/lib/catalog"
 import { CLAIM_KEY, claimListing } from "@/lib/claim"
+import { adoptListingThreads } from "@/lib/message-store"
 import { useDirectory } from "@/lib/directory-context"
 import type { Business } from "@/lib/types"
 import {
@@ -401,7 +402,9 @@ function BusinessForm({
         uploads: uploads.map((item) => ({ label: item.label, file: item.file as File })),
       })
       if (!message && claim) {
-        addListing(claimListing(claim))
+        const ownerId = getSnapshot().account?.id
+        addListing(claimListing(claim, ownerId || ""))
+        if (ownerId) adoptListingThreads(claim.id, ownerId)
         sessionStorage.removeItem(CLAIM_KEY)
         router.push(`/isletme/${claim.slug}`)
       }

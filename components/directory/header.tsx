@@ -4,10 +4,12 @@ import Link from "next/link"
 import { PlaceButton } from "@/components/directory/place-picker"
 import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
+import { useMessages } from "@/lib/message-context"
 
 export function Header() {
   const { saved } = useDirectory()
   const { account } = useAuth()
+  const { unread } = useMessages()
   return (
     <header className="sticky top-0 z-40 border-b border-foreground/10 bg-background/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
@@ -29,6 +31,9 @@ export function Header() {
           </Link>
           <Link href="/listele" className="hover:text-primary">
             İşletme ekle
+          </Link>
+          <Link href="/mesajlar" className="hover:text-primary">
+            Mesajlar{unread ? ` (${unread})` : ""}
           </Link>
           <Link href="/kaydedilenler" className="hover:text-primary">
             Kayıtlı{saved.length ? ` (${saved.length})` : ""}

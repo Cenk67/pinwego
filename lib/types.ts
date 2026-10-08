@@ -73,6 +73,39 @@ export type Business = {
   source: "katalog" | "senin" | "google"
   website?: string
   googleUrl?: string
+  ownerAccountId?: string
+}
+
+export type ChatKind = "musteri-isletme" | "isletme-isletme"
+
+export type ChatThread = {
+  id: string
+  kind: ChatKind
+  listingId: string
+  listingSlug: string
+  listingName: string
+  members: string[]
+  updatedAt: string
+  lastText: string
+  lastFromId: string
+}
+
+export type ChatMessage = {
+  id: string
+  threadId: string
+  fromId: string
+  fromName: string
+  text: string
+  createdAt: string
+  readBy: string[]
+}
+
+export type ChatNotice = {
+  id: string
+  accountId: string
+  title: string
+  body: string
+  threadId: string
 }
 
 export type BusinessOverride = Partial<

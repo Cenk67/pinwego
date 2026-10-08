@@ -3,6 +3,7 @@ import { BadgeCheck } from "lucide-react"
 import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, RatingBlock, SaveButton } from "@/components/directory/bits"
 import { ShareButton } from "@/components/directory/share-button"
+import { MessageButton } from "@/components/messages/message-button"
 import { categoryById } from "@/lib/catalog"
 import { formatDistance, priceLabel, priceMarks, priceRange } from "@/lib/format"
 import type { Business } from "@/lib/types"
@@ -99,6 +100,7 @@ export function BusinessCard({
         </div>
       ) : null}
       <div className="absolute top-3 right-3 flex gap-1.5">
+        <MessageButton business={business} compact />
         <ShareButton business={business} />
         <SaveButton business={business} />
       </div>

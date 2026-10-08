@@ -7,6 +7,7 @@ import { BusinessCard } from "@/components/directory/business-card"
 import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, SaveButton, Stars } from "@/components/directory/bits"
 import { ShareButton } from "@/components/directory/share-button"
+import { MessageButton } from "@/components/messages/message-button"
 import { MiniMap } from "@/components/directory/mini-map"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
 import { Button } from "@/components/ui/button"
@@ -85,6 +86,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
               className="absolute inset-0 size-full"
             />
             <div className="absolute top-3 right-3 flex gap-1.5">
+              <MessageButton business={business} compact />
               <ShareButton business={business} />
               <SaveButton business={business} />
             </div>
@@ -259,6 +261,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
               <Button type="button" className="h-11 rounded-xl" onClick={() => { setNote(""); setOpen(true) }}>
                 {bookingLabel(business.booking)}
               </Button>
+              <MessageButton business={business} />
               {business.phone ? (
                 <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={`tel:${business.phone.replace(/\s/g, "")}`} />}>
                   <Phone className="size-4" />
