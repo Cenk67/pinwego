@@ -2,14 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, Bell, MessageCircle } from "lucide-react"
+import { ArrowLeft, Bell, Building2, MessageCircle, Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { categoryById } from "@/lib/catalog"
 import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
+import { fold } from "@/lib/format"
 import { useMessages } from "@/lib/message-context"
+import { ownsListing } from "@/lib/message-store"
 import { canNotify, requestNotifyPermission } from "@/lib/notify"
-import type { ChatThread } from "@/lib/types"
+import type { Business, ChatThread } from "@/lib/types"
 import { cn } from "cn"
 
 function formatChatTime(iso: string) {
@@ -31,21 +35,110 @@ function peerLabel(thread: ChatThread, accountId: string) {
   return thread.listingName
 }
 
+function BusinessPicker({
+  query,
+  onQuery,
+  businesses,
+  onPick,
+  autoFocus = false,
+}: {
+  query: string
+  onQuery: (value: string) => void
+  businesses: Business[]
+  onPick: (business: Business) => void
+  autoFocus?: boolean
+}) {
+  return (
+    <div className="flex min-h-[28rem] flex-1 flex-col">
+      <div className="border-b border-foreground/10 px-4 py-3">
+        <p className="font-medium">İşletme seç ve yaz</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          Rehberdeki işletmeyi ara, seç, doğrudan mesajını yaz. Profil sayfasına gitmen gerekmez.
+        </p>
+        <label className="relative mt-3 block">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(event) => onQuery(event.target.value)}
+            placeholder="İşletme, sektör veya semt ara"
+            className="h-11 rounded-xl pl-9"
+            autoFocus={autoFocus}
+          />
+        </label>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {businesses.length ? (
+          <ul>
+            {businesses.map((business) => {
+              const category = categoryById(business.category)
+              const place = [business.neighborhood, business.district, business.city].filter(Boolean).join(", ")
+              return (
+                <li key={business.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(business)}
+                    className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-secondary/70"
+                  >
+                    <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-secondary">
+                      <Building2 className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{business.name}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        {category.label} · {place}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <p className="px-4 py-10 text-sm leading-6 text-muted-foreground">
+            {query.trim()
+              ? "Bu aramaya uyan işletme yok. Adı, semti veya sektörü değiştir."
+              : "Gösterilecek işletme kalmadı. Rehberde kayıt görünür olduğunda burada listelenir."}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function InboxScreen() {
   const params = useSearchParams()
   const router = useRouter()
   const { account } = useAuth()
   const { visibleBusinesses } = useDirectory()
-  const { threads, unread, messagesFor, unreadIn, send, markRead } = useMessages()
+  const { threads, unread, messagesFor, unreadIn, send, markRead, openWithBusiness } = useMessages()
   const [draft, setDraft] = useState("")
+  const [query, setQuery] = useState("")
+  const [picking, setPicking] = useState(false)
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
     canNotify() ? Notification.permission : "unsupported",
   )
   const endRef = useRef<HTMLDivElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+  const pendingFocus = useRef(false)
   const wanted = params.get("konusma")
 
-  const active = threads.find((item) => item.id === wanted) ?? null
+  const active = picking ? null : (threads.find((item) => item.id === wanted) ?? null)
   const messages = active ? messagesFor(active.id) : []
+
+  const candidates = useMemo(() => {
+    if (!account) return []
+    const needle = fold(query)
+    return visibleBusinesses
+      .filter((item) => !ownsListing(account, item))
+      .filter((item) => {
+        if (!needle) return true
+        const hay = fold(
+          [item.name, item.city, item.district, item.neighborhood, categoryById(item.category).label].join(" "),
+        )
+        return hay.includes(needle)
+      })
+      .slice(0, 40)
+  }, [account, query, visibleBusinesses])
 
   useEffect(() => {
     if (active) markRead(active.id)
@@ -55,11 +148,33 @@ export function InboxScreen() {
     endRef.current?.scrollIntoView({ block: "end" })
   }, [messages.length, active?.id])
 
+  useEffect(() => {
+    if (!active || !pendingFocus.current) return
+    pendingFocus.current = false
+    composerRef.current?.focus()
+  }, [active])
+
   const list = useMemo(() => threads, [threads])
 
   async function enableNotify() {
     const next = await requestNotifyPermission()
     setPermission(next)
+  }
+
+  function startNew() {
+    setDraft("")
+    setQuery("")
+    setPicking(true)
+    router.replace("/mesajlar")
+  }
+
+  function pickBusiness(business: Business) {
+    const thread = openWithBusiness(business)
+    if (!thread) return
+    pendingFocus.current = true
+    setPicking(false)
+    setQuery("")
+    router.replace(`/mesajlar?konusma=${encodeURIComponent(thread.id)}`)
   }
 
   function submit(event: React.FormEvent) {
@@ -79,8 +194,8 @@ export function InboxScreen() {
           <p className="text-sm font-medium text-primary">Mesajlar</p>
           <h1 className="mt-1 font-heading text-4xl">Sohbet</h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            Müşteri işletmeyle, işletme de başka işletmeyle yazar. Gelen mesajda tarayıcı bildirimi ve ekran
-            uyarısı çıkar. İki hesap için iki sekme açıp ayrı giriş yapabilirsin.
+            İşletmeyi buradan seç, doğrudan yaz. Müşteri işletmeyle, işletme de başka işletmeyle konuşur.
+            Gelen mesajda tarayıcı bildirimi ve ekran uyarısı çıkar.
           </p>
         </div>
         {permission === "default" ? (
@@ -93,10 +208,16 @@ export function InboxScreen() {
         ) : null}
       </div>
       <div className="mt-6 grid overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className={cn("border-b border-foreground/10 lg:border-r lg:border-b-0", active ? "hidden lg:block" : "block")}>
-          <div className="flex items-center justify-between px-4 py-3">
-            <p className="text-sm font-medium">Konuşmalar</p>
-            {unread ? <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">{unread}</span> : null}
+        <aside className={cn("border-b border-foreground/10 lg:border-r lg:border-b-0", active || picking ? "hidden lg:block" : "block")}>
+          <div className="flex items-center justify-between gap-2 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium">Konuşmalar</p>
+              {unread ? <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">{unread}</span> : null}
+            </div>
+            <Button type="button" size="sm" className="h-8 rounded-lg" onClick={startNew}>
+              <Plus className="size-3.5" />
+              Yeni
+            </Button>
           </div>
           {list.length ? (
             <ul>
@@ -107,7 +228,10 @@ export function InboxScreen() {
                   <li key={thread.id}>
                     <button
                       type="button"
-                      onClick={() => router.replace(`/mesajlar?konusma=${encodeURIComponent(thread.id)}`)}
+                      onClick={() => {
+                        setPicking(false)
+                        router.replace(`/mesajlar?konusma=${encodeURIComponent(thread.id)}`)
+                      }}
                       className={cn(
                         "w-full px-4 py-3 text-left",
                         selected ? "bg-primary/10" : "hover:bg-secondary/70",
@@ -134,12 +258,12 @@ export function InboxScreen() {
           ) : (
             <div className="px-4 py-10 text-sm leading-6 text-muted-foreground">
               <MessageCircle className="mb-2 size-5" />
-              Henüz konuşma yok. Bir işletme kaydından Mesaj gönder dersen sohbet burada açılır.
+              Henüz konuşma yok. Sağdan veya Yeni ile işletme seçip hemen yaz.
             </div>
           )}
         </aside>
 
-        <section className={cn("flex min-h-[28rem] flex-col", active ? "flex" : "hidden lg:flex")}>
+        <section className={cn("flex min-h-[28rem] flex-col", active || picking ? "flex" : "hidden lg:flex")}>
           {active ? (
             <>
               <div className="flex items-center gap-2 border-b border-foreground/10 px-4 py-3">
@@ -151,12 +275,16 @@ export function InboxScreen() {
                 >
                   <ArrowLeft className="size-4" />
                 </button>
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="font-medium">{active.listingName}</p>
                   <p className="text-xs text-muted-foreground">
                     {active.kind === "isletme-isletme" ? "İşletme–işletme sohbeti" : "Müşteri–işletme sohbeti"}
                   </p>
                 </div>
+                <Button type="button" variant="ghost" size="sm" className="hidden h-8 rounded-lg lg:inline-flex" onClick={startNew}>
+                  <Plus className="size-3.5" />
+                  Başka işletme
+                </Button>
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
                 {messages.length ? (
@@ -186,9 +314,10 @@ export function InboxScreen() {
               </div>
               <form onSubmit={submit} className="border-t border-foreground/10 p-3">
                 <Textarea
+                  ref={composerRef}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder="Mesajını yaz"
+                  placeholder={`${active.listingName} için mesajını yaz`}
                   className="min-h-20"
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
@@ -203,8 +332,25 @@ export function InboxScreen() {
               </form>
             </>
           ) : (
-            <div className="grid flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
-              Soldan bir konuşma seç ya da bir işletme profilinden mesaj başlat.
+            <div className="flex min-h-[28rem] flex-1 flex-col">
+              <div className="flex items-center gap-2 border-b border-foreground/10 px-4 py-3 lg:hidden">
+                <button
+                  type="button"
+                  className="grid size-9 place-items-center rounded-full hover:bg-secondary"
+                  onClick={() => setPicking(false)}
+                  aria-label="Konuşmalara dön"
+                >
+                  <ArrowLeft className="size-4" />
+                </button>
+                <p className="font-medium">Yeni mesaj</p>
+              </div>
+              <BusinessPicker
+                query={query}
+                onQuery={setQuery}
+                businesses={candidates}
+                onPick={pickBusiness}
+                autoFocus={picking}
+              />
             </div>
           )}
         </section>
