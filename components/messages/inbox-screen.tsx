@@ -60,7 +60,7 @@ function BusinessPicker({
           <Input
             value={query}
             onChange={(event) => onQuery(event.target.value)}
-            placeholder="İşletme, sektör veya semt ara"
+            placeholder="İşletme, sektör veya ilçe ara"
             className="h-11 rounded-xl pl-9"
             autoFocus={autoFocus}
           />
@@ -71,7 +71,7 @@ function BusinessPicker({
           <ul>
             {businesses.map((business) => {
               const category = categoryById(business.category)
-              const place = [business.neighborhood, business.district, business.city].filter(Boolean).join(", ")
+              const place = [business.district, business.city].filter(Boolean).join(", ")
               return (
                 <li key={business.id}>
                   <button
@@ -133,7 +133,7 @@ export function InboxScreen() {
       .filter((item) => {
         if (!needle) return true
         const hay = fold(
-          [item.name, item.city, item.district, item.neighborhood, categoryById(item.category).label].join(" "),
+          [item.name, item.city, item.district, item.address, item.subcategory, categoryById(item.category).label].join(" "),
         )
         return hay.includes(needle)
       })
