@@ -8,7 +8,7 @@ export function Footer() {
           <p className="font-heading text-2xl">pinwego</p>
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
             Yakındaki ticari kaydı arama, itibar, fiyat ve randevuyla aynı ekranda toplar.
-            Eşleştirme bu tarayıcıda, örnek katalog üzerinden çalışır.
+            Eşleştirme bu tarayıcıda, örnek katalog üzerinden çalışır. Açık harita kayıtları OpenStreetMap katkılarıdır (ODbL).
           </p>
         </div>
         <div className="text-sm">

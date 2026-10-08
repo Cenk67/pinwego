@@ -4,7 +4,9 @@ import { BusinessScreen } from "@/components/directory/business-screen"
 import { businesses } from "@/lib/catalog"
 
 export function generateStaticParams() {
-  return businesses.map((business) => ({ slug: business.slug }))
+  return businesses
+    .filter((business) => business.source !== "google")
+    .map((business) => ({ slug: business.slug }))
 }
 
 export async function generateMetadata({

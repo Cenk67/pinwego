@@ -209,7 +209,13 @@ export function SearchScreen() {
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-heading text-3xl md:text-4xl">
-            {query ? `“${query}”` : place.nearMe ? "Yakınımdakiler" : placeLabel(place)}
+            {query
+              ? `“${query}”`
+              : place.nearMe
+                ? "Yakınımdakiler"
+                : namedCity && namedCity !== "hepsi"
+                  ? namedCity
+                  : placeLabel(place)}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {results.length} işletme
