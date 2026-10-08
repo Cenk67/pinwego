@@ -3,38 +3,53 @@
 import { useMemo, useState } from "react"
 import { BusinessCard } from "@/components/directory/business-card"
 import { fieldClass } from "@/components/directory/bits"
+import { MiniMap } from "@/components/directory/mini-map"
+import { PlaceButton } from "@/components/directory/place-picker"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { allBusinesses, categories, cities } from "@/lib/catalog"
+import { allBusinesses, categories } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { defaultFilters, searchDirectory } from "@/lib/match"
+import { applyPlace, placeLabel } from "@/lib/place"
 import type { Business, CategoryId } from "@/lib/types"
 
 const steps = ["Anlat", "Yer", "Eşleşme"]
 
 export function RequestScreen() {
-  const { city, listings, requests } = useDirectory()
+  const { listings, requests, place } = useDirectory()
   const [step, setStep] = useState(0)
   const [description, setDescription] = useState("")
   const [category, setCategory] = useState<CategoryId | "hepsi">("hepsi")
-  const [place, setPlace] = useState(city)
-  const [district, setDistrict] = useState("")
   const [when, setWhen] = useState("Bu hafta")
   const [budget, setBudget] = useState("Fark etmez")
   const [error, setError] = useState("")
   const [target, setTarget] = useState<Business | null>(null)
 
-  const query = `${description} ${district} ${place} ${when === "Bugün" ? "bugün acil" : ""} ${budget === "Ekonomik" ? "uygun fiyat" : ""} ${budget === "Üst" ? "lüks" : ""}`
+  const query = [
+    description,
+    place.neighborhood,
+    place.district,
+    place.province,
+    when === "Bugün" ? "bugün acil" : "",
+    budget === "Ekonomik" ? "uygun fiyat" : "",
+    budget === "Üst" ? "lüks" : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+
   const matches = useMemo(() => {
-    if (step < 2) return []
-    return searchDirectory(allBusinesses(listings), query, {
+    if (step < 2) return { items: [], widened: false }
+    const origin = { name: place.province || place.country || "Konum", lat: place.lat, lng: place.lng }
+    const ranked = searchDirectory(allBusinesses(listings), query, {
       ...defaultFilters,
-      sehir: place,
+      sehir: "hepsi",
       kategori: category,
       maxPrice: budget === "Ekonomik" ? 2 : budget === "Orta" ? 3 : 4,
-    }).slice(0, 3)
+    }, origin)
+    const scoped = applyPlace(ranked, place)
+    return { items: scoped.items.slice(0, 3), widened: scoped.widened }
   }, [step, listings, query, place, category, budget])
 
   return (
@@ -114,23 +129,20 @@ export function RequestScreen() {
             setStep(2)
           }}
         >
-          <label className="grid gap-1.5 text-sm">
-            Şehir
-            <select className={fieldClass} value={place} onChange={(event) => setPlace(event.target.value)}>
-              {cities.map((item) => (
-                <option key={item.name}>{item.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1.5 text-sm">
-            Semt
-            <input
-              className={fieldClass}
-              value={district}
-              onChange={(event) => setDistrict(event.target.value)}
-              placeholder="Kadıköy, Çankaya, Alsancak…"
-            />
-          </label>
+          <div className="grid gap-1.5">
+            <p className="text-sm">Konum</p>
+            <PlaceButton wide />
+            <p className="text-xs leading-5 text-muted-foreground">
+              Ülke, bölge, il, ilçe ve semt birbirine bağlıdır. Yakınımdakiler tarayıcı konumunu kullanır. Seçtiğin
+              nokta Google Haritalar üzerinde durur.
+            </p>
+          </div>
+          <MiniMap
+            label={place.nearMe ? "Yakınımdakiler" : placeLabel(place)}
+            points={[]}
+            focus={{ lat: place.lat, lng: place.lng, zoom: place.neighborhood ? 15 : place.district ? 13 : place.province ? 11 : 6 }}
+            className="h-48"
+          />
           <label className="grid gap-1.5 text-sm">
             Ne zaman
             <select className={fieldClass} value={when} onChange={(event) => setWhen(event.target.value)}>
@@ -163,15 +175,23 @@ export function RequestScreen() {
         <div className="mt-6">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              {matches.length ? "Fiyatlar kayıtlı hizmet listesinden." : "Bu tarifte kayıt çıkmadı."}
+              {place.nearMe ? "Yakınımdakiler" : placeLabel(place)}
+              {matches.items.length ? " · fiyatlar kayıtlı hizmet listesinden" : " · bu tarifte kayıt çıkmadı"}
+              {matches.widened ? " · 40 km içinde örnek kayıt yok, en yakınlar duruyor" : ""}
             </p>
-            <button type="button" className="text-sm text-primary" onClick={() => setStep(0)}>
-              Baştan yaz
+            <button type="button" className="text-sm text-primary" onClick={() => setStep(1)}>
+              Konumu değiştir
             </button>
           </div>
-          {matches.length ? (
+          <MiniMap
+            label={place.nearMe ? "Yakınımdakiler" : placeLabel(place)}
+            points={matches.items.map((item) => item.business)}
+            focus={place}
+            className="mt-4 h-48"
+          />
+          {matches.items.length ? (
             <div className="mt-4 grid gap-4">
-              {matches.map((item) => (
+              {matches.items.map((item) => (
                 <div key={item.business.id}>
                   <BusinessCard business={item.business} distanceKm={item.distanceKm} reason={item.reason} />
                   <Button
@@ -186,7 +206,8 @@ export function RequestScreen() {
             </div>
           ) : (
             <div className="mt-4 rounded-3xl bg-card p-5 text-sm leading-6 text-muted-foreground ring-1 ring-foreground/10">
-              Şehri “tüm şehirler” gibi genişletmek için aramaya geçebilir ya da kategoriyi serbest bırakıp yeniden deneyebilirsin.
+              Örnek katalog İstanbul, Ankara, İzmir, Antalya, Bursa ve Zonguldak kayıtlarından oluşur. Seçtiğin yer bu
+              listede yoksa Google haritası yine o noktayı gösterir. Konumu değiştirip yeniden eşleştirebilirsin.
             </div>
           )}
         </div>

@@ -41,7 +41,15 @@ async function readJson<T>(response: Response): Promise<T> {
   return body
 }
 
-export function PlaceButton({ className, compact = false }: { className?: string; compact?: boolean }) {
+export function PlaceButton({
+  className,
+  compact = false,
+  wide = false,
+}: {
+  className?: string
+  compact?: boolean
+  wide?: boolean
+}) {
   const { place, setPlace } = useDirectory()
   const [open, setOpen] = useState(false)
 
@@ -51,7 +59,7 @@ export function PlaceButton({ className, compact = false }: { className?: string
         type="button"
         className={cn(
           "inline-flex min-w-0 items-center gap-1.5 rounded-2xl bg-secondary px-3 text-sm text-secondary-foreground",
-          compact ? "h-9 max-w-36" : "h-12 max-w-full sm:max-w-44",
+          compact ? "h-9 max-w-36" : wide ? "h-12 w-full max-w-none justify-start" : "h-12 max-w-full sm:max-w-44",
           className,
         )}
       >
