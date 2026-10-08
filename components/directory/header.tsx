@@ -2,10 +2,12 @@
 
 import Link from "next/link"
 import { PlaceButton } from "@/components/directory/place-picker"
+import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
 
 export function Header() {
   const { saved } = useDirectory()
+  const { account } = useAuth()
   return (
     <header className="sticky top-0 z-40 border-b border-foreground/10 bg-background/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
@@ -31,12 +33,17 @@ export function Header() {
           <Link href="/kaydedilenler" className="hover:text-primary">
             Kayıtlı{saved.length ? ` (${saved.length})` : ""}
           </Link>
+          {account?.role === "admin" ? (
+            <Link href="/yonetim" className="hover:text-primary">
+              Yönetim
+            </Link>
+          ) : null}
           <Link href="/hesap" className="hover:text-primary">
             Hesap
           </Link>
         </nav>
-        <Link href="/hesap" className="ml-auto text-sm hover:text-primary md:hidden">
-          Hesap
+        <Link href={account?.role === "admin" ? "/yonetim" : "/hesap"} className="ml-auto text-sm hover:text-primary md:hidden">
+          {account?.role === "admin" ? "Yönetim" : "Hesap"}
         </Link>
         <PlaceButton compact className="md:ml-auto" />
       </div>

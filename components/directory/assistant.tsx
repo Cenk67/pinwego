@@ -5,7 +5,7 @@ import { Sparkles, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { allBusinesses, suggestions } from "@/lib/catalog"
+import { suggestions } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { formatRating } from "@/lib/format"
 import { concierge, type RankedBusiness } from "@/lib/match"
@@ -18,7 +18,7 @@ type Message = {
 }
 
 export function Assistant() {
-  const { assistantOpen, setAssistantOpen, listings, city } = useDirectory()
+  const { assistantOpen, setAssistantOpen, visibleBusinesses, city } = useDirectory()
   const [draft, setDraft] = useState("")
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -36,7 +36,7 @@ export function Assistant() {
   function ask(text: string) {
     const query = text.trim()
     if (!query) return
-    const answer = concierge(query, allBusinesses(listings), city)
+    const answer = concierge(query, visibleBusinesses, city)
     setMessages((current) => [
       ...current,
       { id: crypto.randomUUID(), role: "user", text: query },

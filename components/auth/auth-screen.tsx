@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth-context"
+import { ADMIN_EMAIL } from "@/lib/auth-store"
 import { businesses, cities } from "@/lib/catalog"
 import { CLAIM_KEY, claimListing } from "@/lib/claim"
 import { useDirectory } from "@/lib/directory-context"
@@ -22,7 +23,7 @@ import {
   validVkn,
 } from "@/lib/identity"
 
-type Mode = "choose" | "login" | "musteri" | "isletme"
+type Mode = "choose" | "login" | "admin" | "musteri" | "isletme"
 
 function problemsOf(items: Array<string | null>) {
   return items.filter((item): item is string => Boolean(item))
@@ -113,7 +114,14 @@ export function AuthScreen() {
       </header>
       <main className="mx-auto w-full max-w-lg px-4 py-8">
         {mode === "choose" ? <Chooser onPick={setMode} claim={claim} /> : null}
-        {mode === "login" ? <LoginForm onBack={() => setMode("choose")} login={login} /> : null}
+        {mode === "login" || mode === "admin" ? (
+          <LoginForm
+            onBack={() => setMode("choose")}
+            login={login}
+            initialEmail={mode === "admin" ? ADMIN_EMAIL : ""}
+            admin={mode === "admin"}
+          />
+        ) : null}
         {mode === "musteri" ? (
           <CustomerForm onBack={() => setMode("choose")} registerAccount={registerAccount} />
         ) : null}
@@ -161,6 +169,16 @@ function Chooser({ onPick, claim }: { onPick: (mode: Mode) => void; claim: Busin
           </span>
         </button>
       </div>
+      <button
+        type="button"
+        onClick={() => onPick("admin")}
+        className="mt-3 w-full rounded-3xl bg-card px-4 py-4 text-left ring-1 ring-foreground/10"
+      >
+        <span className="font-heading text-2xl">Yönetici girişi</span>
+        <span className="mt-1 block text-sm leading-6 text-muted-foreground">
+          Sektör, işletme, talep ve hesapları yönetim panelinden yönet.
+        </span>
+      </button>
       <Button type="button" variant="outline" className="mt-4 h-11 w-full rounded-xl" onClick={() => onPick("login")}>
         Zaten hesabım var
       </Button>
@@ -175,11 +193,15 @@ function Chooser({ onPick, claim }: { onPick: (mode: Mode) => void; claim: Busin
 function LoginForm({
   onBack,
   login,
+  initialEmail = "",
+  admin = false,
 }: {
   onBack: () => void
   login: (email: string, password: string) => Promise<string | null>
+  initialEmail?: string
+  admin?: boolean
 }) {
-  const [email, setEmail] = useState("")
+  const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
@@ -195,8 +217,12 @@ function LoginForm({
   return (
     <form onSubmit={submit} className="grid gap-4">
       <div>
-        <h1 className="font-heading text-4xl">Giriş</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Kayıtlı e-posta ve şifreyle devam et.</p>
+        <h1 className="font-heading text-4xl">{admin ? "Yönetici girişi" : "Giriş"}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {admin
+            ? "Yönetim paneli bu tarayıcıdaki yönetici hesabıyla açılır."
+            : "Kayıtlı e-posta ve şifreyle devam et."}
+        </p>
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="login-email">E-posta</Label>

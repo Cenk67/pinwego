@@ -9,16 +9,16 @@ import { MiniMap } from "@/components/directory/mini-map"
 import { SearchForm } from "@/components/directory/search-form"
 import { SectorForm } from "@/components/directory/sector-form"
 import { Button } from "@/components/ui/button"
-import { allBusinesses, suggestions } from "@/lib/catalog"
+import { suggestions } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { fold } from "@/lib/format"
 import { distanceFromPlace, placeLabel, applyPlace } from "@/lib/place"
 
 export function HomeScreen() {
-  const { place, sectors, listings, removeSector } = useDirectory()
+  const { place, sectors, visibleBusinesses, removeSector } = useDirectory()
   const [sectorQuery, setSectorQuery] = useState("")
   const [sectorOpen, setSectorOpen] = useState(false)
-  const catalog = allBusinesses(listings)
+  const catalog = visibleBusinesses
   const catalogCount = catalog.length
   const visibleSectors = useMemo(() => {
     const needle = fold(sectorQuery)

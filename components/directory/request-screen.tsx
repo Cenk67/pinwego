@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { allBusinesses } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { fold } from "@/lib/format"
 import { defaultFilters, searchDirectory } from "@/lib/match"
@@ -34,7 +33,7 @@ function budgetMaxPrice(budget: string) {
 }
 
 export function RequestScreen() {
-  const { listings, requests, place, setPlace, sectors } = useDirectory()
+  const { requests, place, setPlace, sectors, visibleBusinesses } = useDirectory()
   const [step, setStep] = useState(0)
   const [description, setDescription] = useState("")
   const [category, setCategory] = useState<CategoryId | "hepsi">("hepsi")
@@ -59,7 +58,7 @@ export function RequestScreen() {
   const matches = useMemo(() => {
     if (step < 2) return { items: [], widened: false }
     const origin = { name: place.province || place.country || "Konum", lat: place.lat, lng: place.lng }
-    const ranked = searchDirectory(allBusinesses(listings), query, {
+    const ranked = searchDirectory(visibleBusinesses, query, {
       ...defaultFilters,
       sehir: "hepsi",
       kategori: category,
@@ -67,7 +66,7 @@ export function RequestScreen() {
     }, origin)
     const scoped = applyPlace(ranked, place)
     return { items: scoped.items.slice(0, 3), widened: scoped.widened }
-  }, [step, listings, query, place, category, budget])
+  }, [step, visibleBusinesses, query, place, category, budget])
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 md:py-12">

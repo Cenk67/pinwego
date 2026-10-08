@@ -18,6 +18,7 @@ export function Footer() {
             <Link href="/talep">Uzman talebi</Link>
             <Link href="/listele">İşletme kaydı</Link>
             <Link href="/kaydedilenler">Karşılaştırma</Link>
+            <Link href="/yonetim">Yönetim</Link>
           </div>
         </div>
         <div className="text-sm">

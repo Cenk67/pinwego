@@ -18,7 +18,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { allBusinesses, cityCenter } from "@/lib/catalog"
+import { cityCenter } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { defaultFilters, parseQuery, searchDirectory } from "@/lib/match"
 import { applyPlace, placeLabel } from "@/lib/place"
@@ -37,12 +37,12 @@ export function SearchScreen() {
   const params = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
-  const { listings, place, sectors } = useDirectory()
+  const { place, sectors, visibleBusinesses } = useDirectory()
   const [showMap, setShowMap] = useState(false)
   const [limit, setLimit] = useState(9)
 
   const query = params.get("q") ?? ""
-  const catalog = useMemo(() => allBusinesses(listings), [listings])
+  const catalog = visibleBusinesses
   const parsed = parseQuery(query, catalog)
   const namedCity = params.get("sehir") ?? parsed.city
   const sehir = place.nearMe ? "hepsi" : namedCity ?? "hepsi"

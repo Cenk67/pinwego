@@ -5,7 +5,7 @@ import { useState } from "react"
 import { BusinessCard } from "@/components/directory/business-card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { allBusinesses, cityCenter } from "@/lib/catalog"
+import { cityCenter } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import {
   bookingLabel,
@@ -17,10 +17,10 @@ import {
 } from "@/lib/format"
 
 export function SavedScreen() {
-  const { saved, requests, city, listings } = useDirectory()
+  const { saved, requests, city, visibleBusinesses } = useDirectory()
   const [picked, setPicked] = useState<string[]>([])
   const [notice, setNotice] = useState("")
-  const list = allBusinesses(listings).filter((business) => saved.includes(business.id))
+  const list = visibleBusinesses.filter((business) => saved.includes(business.id))
   const origin = cityCenter(city)
   const compared = list.filter((business) => picked.includes(business.id))
 

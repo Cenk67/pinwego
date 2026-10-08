@@ -80,7 +80,7 @@ export function ListScreen() {
     router.push(`/isletme/${slug}`)
   }
 
-  if (account?.role !== "isletme") {
+  if (account?.role !== "isletme" && account?.role !== "admin") {
     return (
       <div className="mx-auto max-w-xl px-4 py-16">
         <h1 className="font-heading text-4xl text-balance">İşletme eklemek için işletme hesabı gerekir.</h1>

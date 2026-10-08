@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
@@ -36,6 +37,12 @@ export function AccountScreen() {
           ["T.C. kimlik numarası", maskId(account.customer.nationalId)],
           ["Doğum tarihi", account.customer.birthDate],
         ]
+      : account.role === "admin"
+        ? [
+            ["Ad", account.name],
+            ["E-posta", account.email],
+            ["Rol", "Yönetici"],
+          ]
       : account.business
         ? [
             ["Unvan", account.name],
@@ -51,7 +58,8 @@ export function AccountScreen() {
   return (
     <div className="mx-auto max-w-xl px-4 py-8 md:py-12">
       <p className="text-sm font-medium text-primary">
-        {account.role === "musteri" ? "Müşteri hesabı" : "İşletme hesabı"} · Belge kontrolü tamam
+        {account.role === "admin" ? "Yönetici hesabı" : account.role === "musteri" ? "Müşteri hesabı" : "İşletme hesabı"}
+        {account.role === "admin" ? " · Panel açık" : " · Belge kontrolü tamam"}
       </p>
       <h1 className="mt-2 font-heading text-4xl text-balance">{account.name}</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -65,7 +73,7 @@ export function AccountScreen() {
           </div>
         ))}
       </dl>
-      <h2 className="mt-8 font-heading text-2xl">Yüklenen belgeler</h2>
+      {account.documents.length ? <h2 className="mt-8 font-heading text-2xl">Yüklenen belgeler</h2> : null}
       <ul className="mt-3 grid gap-2">
         {account.documents.map((document) => (
           <li key={document.id} className="flex items-center justify-between gap-3 rounded-2xl bg-card px-4 py-3 ring-1 ring-foreground/10">
@@ -82,6 +90,11 @@ export function AccountScreen() {
         ))}
       </ul>
       {message ? <p className="mt-3 text-sm text-destructive">{message}</p> : null}
+      {account.role === "admin" ? (
+        <Button className="mt-6 h-11 rounded-xl" nativeButton={false} render={<Link href="/yonetim" />}>
+          Yönetim paneli
+        </Button>
+      ) : null}
       <Button type="button" variant="outline" className="mt-6 h-11 rounded-xl" onClick={logout}>
         Çıkış yap
       </Button>

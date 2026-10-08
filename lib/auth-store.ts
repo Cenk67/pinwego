@@ -1,6 +1,10 @@
 import { fileProblem } from "@/lib/identity"
 
-export type Role = "musteri" | "isletme"
+export type Role = "musteri" | "isletme" | "admin"
+
+export const ADMIN_EMAIL = "admin@pinwego.local"
+export const ADMIN_PASSWORD = "pinwego-admin"
+const ADMIN_PASSWORD_HASH = "a502141c77771259d7a0471270828e7b4dc7ba13a24669bf18f3f2b34b80933f"
 
 export type AccountDocument = {
   id: string
@@ -40,12 +44,31 @@ export type Upload = {
 type Snapshot = {
   ready: boolean
   account: Account | null
+  accounts: Account[]
 }
 
 const ACCOUNTS_KEY = "pinwego.accounts.v1"
 const SESSION_KEY = "pinwego.session.v1"
 
-const loggedOut: Snapshot = { ready: false, account: null }
+const loggedOut: Snapshot = { ready: false, account: null, accounts: [] }
+
+const seededAdmin: Account = {
+  id: "admin-pinwego",
+  role: "admin",
+  email: ADMIN_EMAIL,
+  passwordHash: ADMIN_PASSWORD_HASH,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  name: "pinwego yönetici",
+  phone: "05000000000",
+  documents: [],
+}
+
+function ensureAdmin(accounts: Account[]) {
+  if (accounts.some((item) => item.role === "admin")) return accounts
+  const next = [seededAdmin, ...accounts.filter((item) => item.email !== ADMIN_EMAIL)]
+  writeAccounts(next)
+  return next
+}
 let memory: Snapshot = loggedOut
 let loaded = false
 const listeners = new Set<() => void>()
@@ -70,11 +93,11 @@ function writeAccounts(accounts: Account[]) {
 }
 
 function load(): Snapshot {
-  const accounts = readAccounts()
+  const accounts = ensureAdmin(readAccounts())
   const id = localStorage.getItem(SESSION_KEY)
   const account = accounts.find((item) => item.id === id) ?? null
   if (!account) localStorage.removeItem(SESSION_KEY)
-  return { ready: true, account }
+  return { ready: true, account, accounts }
 }
 
 export function subscribe(listener: () => void) {
@@ -164,13 +187,13 @@ export async function openDocument(account: Account, documentId: string) {
 
 function enter(account: Account) {
   localStorage.setItem(SESSION_KEY, account.id)
-  memory = { ready: true, account }
+  memory = { ready: true, account, accounts: readAccounts() }
   loaded = true
   notify()
 }
 
 export async function registerAccount(input: {
-  role: Role
+  role: Exclude<Role, "admin">
   email: string
   password: string
   name: string
@@ -198,7 +221,7 @@ export async function registerAccount(input: {
     customer: input.customer,
     business: input.business,
   }
-  writeAccounts([account, ...accounts])
+  writeAccounts(ensureAdmin([account, ...accounts]))
   enter(account)
   return null
 }
@@ -215,7 +238,39 @@ export async function login(email: string, password: string) {
 
 export function logout() {
   localStorage.removeItem(SESSION_KEY)
-  memory = { ready: true, account: null }
+  memory = { ready: true, account: null, accounts: ensureAdmin(readAccounts()) }
   loaded = true
   notify()
+}
+
+export function removeAccount(id: string) {
+  const current = getSnapshot()
+  if (current.account?.id === id) return "Oturumdaki hesabı silemezsin."
+  const accounts = ensureAdmin(readAccounts())
+  const target = accounts.find((item) => item.id === id)
+  if (!target) return "Hesap bulunamadı."
+  if (target.role === "admin" && accounts.filter((item) => item.role === "admin").length < 2) {
+    return "Son yönetici hesabı silinemez."
+  }
+  const next = accounts.filter((item) => item.id !== id)
+  writeAccounts(next)
+  memory = { ...current, accounts: next, ready: true }
+  loaded = true
+  notify()
+  return null
+}
+
+export async function openStoredDocument(documentId: string) {
+  const db = await openFiles()
+  const record = await new Promise<{ buffer: ArrayBuffer; type: string; name: string } | null>(
+    (resolve, reject) => {
+      const tx = db.transaction("files", "readonly")
+      const request = tx.objectStore("files").get(documentId)
+      request.onsuccess = () => resolve(request.result ?? null)
+      request.onerror = () => reject(request.error)
+    },
+  )
+  db.close()
+  if (!record) return null
+  return URL.createObjectURL(new Blob([record.buffer], { type: record.type }))
 }

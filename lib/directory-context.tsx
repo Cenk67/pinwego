@@ -8,9 +8,10 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react"
+import { allBusinesses } from "@/lib/catalog"
 import { defaultPlace, isPlace, placeFromCity, type Place } from "@/lib/place"
 import { allSectors, isSector, normalizeSector, seedSectors, setCustomSectors } from "@/lib/sectors"
-import type { Business, Lead, Sector } from "@/lib/types"
+import type { Business, BusinessOverride, Lead, Sector } from "@/lib/types"
 
 type Persisted = {
   city: string
@@ -19,6 +20,9 @@ type Persisted = {
   requests: Lead[]
   listings: Business[]
   sectors: Sector[]
+  hiddenBusinessIds: string[]
+  hiddenSectorIds: string[]
+  businessOverrides: Record<string, BusinessOverride>
 }
 
 const STORAGE_KEY = "pinwego.v1"
@@ -30,6 +34,9 @@ const emptyState: Persisted = {
   requests: [],
   listings: [],
   sectors: [],
+  hiddenBusinessIds: [],
+  hiddenSectorIds: [],
+  businessOverrides: {},
 }
 
 let memory: Persisted = emptyState
@@ -45,6 +52,10 @@ function readStorage(): Persisted {
     const place = isPlace(data.place) ? data.place : placeFromCity(city)
     const sectors = Array.isArray(data.sectors) ? data.sectors.filter(isSector).filter((item) => item.custom) : []
     setCustomSectors(sectors)
+    const businessOverrides =
+      data.businessOverrides && typeof data.businessOverrides === "object" && !Array.isArray(data.businessOverrides)
+        ? (data.businessOverrides as Record<string, BusinessOverride>)
+        : {}
     return {
       city: place.province || city,
       place,
@@ -52,6 +63,9 @@ function readStorage(): Persisted {
       requests: Array.isArray(data.requests) ? data.requests : [],
       listings: Array.isArray(data.listings) ? data.listings : [],
       sectors,
+      hiddenBusinessIds: Array.isArray(data.hiddenBusinessIds) ? data.hiddenBusinessIds.filter((id) => typeof id === "string") : [],
+      hiddenSectorIds: Array.isArray(data.hiddenSectorIds) ? data.hiddenSectorIds.filter((id) => typeof id === "string") : [],
+      businessOverrides,
     }
   } catch {
     localStorage.removeItem(STORAGE_KEY)
@@ -78,11 +92,27 @@ function getServerSnapshot() {
 
 function commit(next: Persisted) {
   const sectors = next.sectors.filter((item) => item.custom)
-  memory = { ...next, sectors }
+  memory = {
+    ...emptyState,
+    ...next,
+    sectors,
+    hiddenBusinessIds: next.hiddenBusinessIds ?? [],
+    hiddenSectorIds: next.hiddenSectorIds ?? [],
+    businessOverrides: next.businessOverrides ?? {},
+  }
   loaded = true
   setCustomSectors(sectors)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(memory))
   listeners.forEach((listener) => listener())
+}
+
+function decorateBusiness(business: Business, overrides: Record<string, BusinessOverride>) {
+  const patch = overrides[business.id] ?? overrides[business.slug]
+  return patch ? { ...business, ...patch } : business
+}
+
+function isHiddenBusiness(business: Business, hidden: string[], hiddenSectors: string[]) {
+  return hidden.includes(business.id) || hidden.includes(business.slug) || hiddenSectors.includes(business.category)
 }
 
 function useHydrated() {
@@ -105,9 +135,19 @@ type DirectoryState = {
   addRequest: (lead: Lead) => void
   listings: Business[]
   addListing: (business: Business) => void
+  removeListing: (id: string) => void
+  patchBusiness: (id: string, patch: BusinessOverride) => void
+  hideBusiness: (id: string, hidden: boolean) => void
+  isBusinessHidden: (business: Business) => boolean
+  visibleBusinesses: Business[]
+  managedBusinesses: Business[]
   sectors: Sector[]
+  managedSectors: Sector[]
   addSector: (draft: Partial<Sector>) => Sector | null
   removeSector: (id: string) => void
+  hideSector: (id: string, hidden: boolean) => void
+  hiddenSectorIds: string[]
+  removeRequest: (id: string) => void
   assistantOpen: boolean
   setAssistantOpen: (open: boolean) => void
   ready: boolean
@@ -151,20 +191,77 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
       listings: persisted.listings,
       addListing: (business) => {
         const current = getSnapshot()
-        commit({ ...current, listings: [business, ...current.listings] })
+        commit({ ...current, listings: [business, ...current.listings.filter((item) => item.slug !== business.slug)] })
       },
-      sectors: ready ? allSectors() : seedSectors,
+      removeListing: (id) => {
+        const current = getSnapshot()
+        const rest = { ...current.businessOverrides }
+        delete rest[id]
+        commit({
+          ...current,
+          listings: current.listings.filter((item) => item.id !== id && item.slug !== id),
+          hiddenBusinessIds: current.hiddenBusinessIds.filter((item) => item !== id),
+          businessOverrides: rest,
+        })
+      },
+      patchBusiness: (id, patch) => {
+        const current = getSnapshot()
+        const listings = current.listings.map((item) =>
+          item.id === id || item.slug === id ? { ...item, ...patch } : item,
+        )
+        commit({
+          ...current,
+          listings,
+          businessOverrides: {
+            ...current.businessOverrides,
+            [id]: { ...current.businessOverrides[id], ...patch },
+          },
+        })
+      },
+      hideBusiness: (id, hidden) => {
+        const current = getSnapshot()
+        const ids = current.hiddenBusinessIds.filter((item) => item !== id)
+        commit({ ...current, hiddenBusinessIds: hidden ? [id, ...ids] : ids })
+      },
+      isBusinessHidden: (business) =>
+        isHiddenBusiness(business, persisted.hiddenBusinessIds, persisted.hiddenSectorIds),
+      visibleBusinesses: allBusinesses(persisted.listings)
+        .map((item) => decorateBusiness(item, persisted.businessOverrides))
+        .filter((item) => !isHiddenBusiness(item, persisted.hiddenBusinessIds, persisted.hiddenSectorIds)),
+      managedBusinesses: allBusinesses(persisted.listings).map((item) =>
+        decorateBusiness(item, persisted.businessOverrides),
+      ),
+      sectors: (ready ? allSectors() : seedSectors).filter((item) => !persisted.hiddenSectorIds.includes(item.id)),
+      managedSectors: ready ? allSectors() : seedSectors,
       addSector: (draft) => {
         const current = getSnapshot()
         const taken = allSectors().map((item) => item.id)
         const sector = normalizeSector(draft, taken)
         if (!sector) return null
-        commit({ ...current, sectors: [sector, ...current.sectors.filter((item) => item.id !== sector.id)] })
+        commit({
+          ...current,
+          sectors: [sector, ...current.sectors.filter((item) => item.id !== sector.id)],
+          hiddenSectorIds: current.hiddenSectorIds.filter((item) => item !== sector.id),
+        })
         return sector
       },
       removeSector: (id) => {
         const current = getSnapshot()
-        commit({ ...current, sectors: current.sectors.filter((item) => item.id !== id) })
+        commit({
+          ...current,
+          sectors: current.sectors.filter((item) => item.id !== id),
+          hiddenSectorIds: current.hiddenSectorIds.filter((item) => item !== id),
+        })
+      },
+      hideSector: (id, hidden) => {
+        const current = getSnapshot()
+        const ids = current.hiddenSectorIds.filter((item) => item !== id)
+        commit({ ...current, hiddenSectorIds: hidden ? [id, ...ids] : ids })
+      },
+      hiddenSectorIds: persisted.hiddenSectorIds,
+      removeRequest: (id) => {
+        const current = getSnapshot()
+        commit({ ...current, requests: current.requests.filter((item) => item.id !== id) })
       },
       assistantOpen,
       setAssistantOpen,

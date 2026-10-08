@@ -75,6 +75,26 @@ export type Business = {
   googleUrl?: string
 }
 
+export type BusinessOverride = Partial<
+  Pick<
+    Business,
+    | "name"
+    | "phone"
+    | "summary"
+    | "about"
+    | "verified"
+    | "premium"
+    | "openNow"
+    | "category"
+    | "city"
+    | "district"
+    | "address"
+    | "priceLevel"
+    | "booking"
+    | "website"
+  >
+>
+
 export type Lead = {
   id: string
   businessId: string

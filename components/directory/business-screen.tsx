@@ -10,7 +10,7 @@ import { ShareButton } from "@/components/directory/share-button"
 import { MiniMap } from "@/components/directory/mini-map"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
 import { Button } from "@/components/ui/button"
-import { businesses, categoryById, cityCenter } from "@/lib/catalog"
+import { categoryById, cityCenter } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import {
   bookingLabel,
@@ -25,9 +25,8 @@ import {
 import { aiBrief } from "@/lib/match"
 
 export function BusinessScreen({ slug }: { slug: string }) {
-  const { listings, ready, place } = useDirectory()
-  const business =
-    listings.find((item) => item.slug === slug) ?? businesses.find((item) => item.slug === slug)
+  const { ready, place, visibleBusinesses } = useDirectory()
+  const business = visibleBusinesses.find((item) => item.slug === slug)
   const [note, setNote] = useState("")
   const [open, setOpen] = useState(false)
   const [helpful, setHelpful] = useState<Record<string, number>>({})
@@ -35,12 +34,12 @@ export function BusinessScreen({ slug }: { slug: string }) {
   const similar = useMemo(() => {
     if (!business) return []
     const origin = cityCenter(business.city)
-    return businesses
+    return visibleBusinesses
       .filter((item) => item.category === business.category && item.id !== business.id)
       .map((item) => ({ business: item, km: distanceKm(origin, item) }))
       .sort((a, b) => Number(b.business.city === business.city) - Number(a.business.city === business.city) || a.km - b.km)
       .slice(0, 3)
-  }, [business])
+  }, [business, visibleBusinesses])
 
   if (!business) {
     if (!ready) {
