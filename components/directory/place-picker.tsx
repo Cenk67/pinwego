@@ -82,7 +82,17 @@ function labeled(place: Place): Place {
   return { ...place, label: parts.slice(0, 2).join(", ") || place.country || "Konum" }
 }
 
-function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place) => void }) {
+export function PlaceEditor({
+  current,
+  onUse,
+  onChange,
+  embedded = false,
+}: {
+  current: Place
+  onUse?: (place: Place) => void
+  onChange?: (place: Place) => void
+  embedded?: boolean
+}) {
   const countries = useMemo(
     () => countryCodes.map((code) => ({ code, name: countryName(code) })).sort((a, b) => a.name.localeCompare(b.name, "tr")),
     [],
@@ -94,6 +104,13 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
   const generation = useRef(0)
+
+  function commitDraft(next: Place) {
+    const located = labeled(next)
+    setDraft(located)
+    onChange?.(located)
+    return located
+  }
 
   async function loadLevel(level: Slot, place: Place, token: number) {
     setStatus("Sınırlar yükleniyor")
@@ -119,7 +136,9 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
       return next
     })
     if (body.center && Number.isFinite(body.center.lat) && Number.isFinite(body.center.lng)) {
-      setDraft((currentDraft) => ({ ...currentDraft, lat: body.center!.lat, lng: body.center!.lng }))
+      const next = labeled({ ...place, lat: body.center.lat, lng: body.center.lng })
+      setDraft(next)
+      onChange?.(next)
     }
     setStatus(body.options.length ? "" : "Bu düzeyde alt sınır yok.")
   }
@@ -146,12 +165,14 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
       cancel = true
       generation.current += 1
     }
-  }, [current])
+    // The editor remounts when the dialog opens. Live edits go through the selects, not this boot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function chooseCountry(code: string) {
     const token = ++generation.current
     const name = countryName(code)
-    const next = labeled({
+    const next = commitDraft({
       ...draft,
       country: name,
       countryCode: code.toLowerCase(),
@@ -161,7 +182,6 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
       neighborhood: "",
       nearMe: false,
     })
-    setDraft(next)
     setOptions(emptyOptions)
     setHits([])
     setStatus("Ülke haritada açılıyor")
@@ -169,8 +189,7 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
     try {
       const places = await readJson<Place[]>(await fetch(`/api/yer?q=${encodeURIComponent(name)}&country=${code}`))
       const found = places.find((item) => item.countryCode.toLowerCase() === code.toLowerCase()) ?? places[0]
-      const located = found ? labeled({ ...next, lat: found.lat, lng: found.lng, country: name, countryCode: code.toLowerCase() }) : next
-      if (found) setDraft(located)
+      const located = found ? commitDraft({ ...next, lat: found.lat, lng: found.lng, country: name, countryCode: code.toLowerCase() }) : next
       await loadLevel("region", located, token)
     } catch (caught) {
       setStatus("")
@@ -185,7 +204,7 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
     if (!name) {
       const cleared = { ...draft, nearMe: false, [slot]: "" }
       for (const finer of order.slice(index + 1)) cleared[finer] = ""
-      setDraft(labeled(cleared))
+      commitDraft(cleared)
       setOptions((currentOptions) => {
         const next = { ...currentOptions }
         for (const finer of order.slice(index + 1)) next[finer] = []
@@ -201,8 +220,7 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
       next.lng = option.lng
     }
     for (const finer of order.slice(index + 1)) next[finer] = ""
-    const located = labeled(next)
-    setDraft(located)
+    const located = commitDraft(next)
     setOptions((currentOptions) => {
       const cleared = { ...currentOptions }
       for (const finer of order.slice(index + 1)) cleared[finer] = []
@@ -222,8 +240,7 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
     }
   }
 
-  async function searchPlaces(event: React.FormEvent) {
-    event.preventDefault()
+  async function searchPlaces() {
     const text = query.trim()
     if (text.length < 2) return
     setStatus("Google haritası için konum aranıyor")
@@ -251,8 +268,7 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
           const place = await readJson<Place>(
             await fetch(`/api/yer?lat=${position.coords.latitude}&lng=${position.coords.longitude}`),
           )
-          const located = { ...place, nearMe: true, label: "Yakınımdakiler" }
-          setDraft(located)
+          const located = commitDraft({ ...place, nearMe: true })
           setHits([])
           setStatus("")
           const token = ++generation.current
@@ -273,8 +289,7 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
   }
 
   async function applyHit(place: Place) {
-    const next = labeled({ ...place, nearMe: false })
-    setDraft(next)
+    const next = commitDraft({ ...place, nearMe: false })
     setHits([])
     const token = ++generation.current
     try {
@@ -289,24 +304,32 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
 
   return (
     <div className="grid gap-3">
-      <p className="text-sm leading-6 text-muted-foreground">
-        Ülke, bölge, il, ilçe ve semt birbirine bağlıdır. Seçtiğin nokta Google Haritalar üzerinde durur.
-      </p>
+      {embedded ? null : (
+        <p className="text-sm leading-6 text-muted-foreground">
+          Ülke, bölge, il, ilçe ve semt birbirine bağlıdır. Seçtiğin nokta Google Haritalar üzerinde durur.
+        </p>
+      )}
       <Button type="button" variant={draft.nearMe ? "default" : "outline"} className="h-11 rounded-xl" onClick={nearMe}>
         <Navigation className="size-4" />
         Yakınımdakiler
       </Button>
-      <form onSubmit={searchPlaces} className="flex gap-2">
+      <div className="flex gap-2">
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Paris, Kadıköy, Moda…"
           className="h-11"
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              void searchPlaces()
+            }
+          }}
         />
-        <Button type="submit" variant="outline" className="h-11 rounded-xl">
+        <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => void searchPlaces()}>
           Bul
         </Button>
-      </form>
+      </div>
       {hits.length ? (
         <ul className="grid gap-1">
           {hits.map((hit) => (
@@ -385,9 +408,11 @@ function PlaceEditor({ current, onUse }: { current: Place; onUse: (place: Place)
       </a>
       {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <Button type="button" className="h-11 rounded-xl" onClick={() => onUse(draft)}>
-        Bu konumu kullan
-      </Button>
+      {embedded || !onUse ? null : (
+        <Button type="button" className="h-11 rounded-xl" onClick={() => onUse(draft)}>
+          Bu konumu kullan
+        </Button>
+      )}
     </div>
   )
 }

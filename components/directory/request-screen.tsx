@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { BusinessCard } from "@/components/directory/business-card"
 import { fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
-import { PlaceButton } from "@/components/directory/place-picker"
+import { PlaceEditor } from "@/components/directory/place-picker"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -18,7 +18,7 @@ import type { Business, CategoryId } from "@/lib/types"
 const steps = ["Anlat", "Yer", "Eşleşme"]
 
 export function RequestScreen() {
-  const { listings, requests, place } = useDirectory()
+  const { listings, requests, place, setPlace } = useDirectory()
   const [step, setStep] = useState(0)
   const [description, setDescription] = useState("")
   const [category, setCategory] = useState<CategoryId | "hepsi">("hepsi")
@@ -129,20 +129,16 @@ export function RequestScreen() {
             setStep(2)
           }}
         >
-          <div className="grid gap-1.5">
-            <p className="text-sm">Konum</p>
-            <PlaceButton wide />
-            <p className="text-xs leading-5 text-muted-foreground">
-              Ülke, bölge, il, ilçe ve semt birbirine bağlıdır. Yakınımdakiler tarayıcı konumunu kullanır. Seçtiğin
-              nokta Google Haritalar üzerinde durur.
-            </p>
+          <div className="grid gap-3">
+            <div>
+              <p className="text-sm font-medium">Konum</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Şehir listesi yok. Ülke, bölge, il, ilçe ve semt birbirine bağlıdır; yakınımdakiler tarayıcı konumunu
+                kullanır. Seçtiğin nokta Google Haritalar üzerinde durur.
+              </p>
+            </div>
+            <PlaceEditor current={place} onChange={setPlace} embedded />
           </div>
-          <MiniMap
-            label={place.nearMe ? "Yakınımdakiler" : placeLabel(place)}
-            points={[]}
-            focus={{ lat: place.lat, lng: place.lng, zoom: place.neighborhood ? 15 : place.district ? 13 : place.province ? 11 : 6 }}
-            className="h-48"
-          />
           <label className="grid gap-1.5 text-sm">
             Ne zaman
             <select className={fieldClass} value={when} onChange={(event) => setWhen(event.target.value)}>
