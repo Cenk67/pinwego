@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { BadgeCheck, Clock, MapPin, Navigation, Phone } from "lucide-react"
 import { useMemo, useState } from "react"
+import { AdSlot } from "@/components/directory/ad-slot"
 import { BusinessCard } from "@/components/directory/business-card"
 import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, SaveButton, Stars } from "@/components/directory/bits"
@@ -141,6 +142,8 @@ export function BusinessScreen({ slug }: { slug: string }) {
             <p className="mt-2 text-sm leading-7">{aiBrief(business)}</p>
           </section>
 
+          <AdSlot slot="isletme-icerik" layout="inline" className="mt-6" />
+
           <section className="mt-8">
             <h2 className="font-heading text-2xl">Hakkında</h2>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{business.about}</p>
@@ -242,6 +245,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
         </div>
 
         <aside className="space-y-4">
+          <AdSlot slot="isletme-yan" layout="stack" />
           <div className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10 lg:sticky lg:top-24">
             {business.responseMinutes > 0 ? (
               <p className="flex items-center gap-2 text-sm">

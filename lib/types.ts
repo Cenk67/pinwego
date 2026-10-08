@@ -115,6 +115,19 @@ export type ChatBlock = {
   createdAt: string
 }
 
+export type AdSlotId = "anasayfa-ust" | "anasayfa-orta" | "isletme-icerik" | "isletme-yan"
+
+export type Ad = {
+  id: string
+  advertiser: string
+  title: string
+  body: string
+  href: string
+  image: string
+  placements: AdSlotId[]
+  active: boolean
+}
+
 export type BusinessOverride = Partial<
   Pick<
     Business,

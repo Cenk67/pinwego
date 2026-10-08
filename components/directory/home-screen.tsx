@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { ArrowUpRight, Plus, X } from "lucide-react"
 import { useMemo, useState } from "react"
+import { AdSlot } from "@/components/directory/ad-slot"
 import { BusinessCard } from "@/components/directory/business-card"
 import { CategoryGlyph, Cover, fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
@@ -74,6 +75,8 @@ export function HomeScreen() {
           />
         </div>
       </section>
+
+      <AdSlot slot="anasayfa-ust" layout="banner" className="mx-auto max-w-6xl px-4 pt-8" />
 
       <section className="mx-auto max-w-6xl px-4 py-10">
         <div className="flex items-end justify-between gap-4">
@@ -167,6 +170,8 @@ export function HomeScreen() {
         ) : null}
         <SectorForm open={sectorOpen} onOpenChange={setSectorOpen} />
       </section>
+
+      <AdSlot slot="anasayfa-orta" layout="card" className="mx-auto max-w-6xl px-4 pt-8" />
 
       <section className="mx-auto max-w-6xl px-4 py-10">
         <div className="flex items-end justify-between gap-4">

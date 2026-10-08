@@ -8,10 +8,11 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react"
+import { normalizeAd, parseAds, seedAds } from "@/lib/ads"
 import { allBusinesses } from "@/lib/catalog"
 import { defaultPlace, isPlace, placeFromCity, type Place } from "@/lib/place"
 import { allSectors, isSector, normalizeSector, seedSectors, setCustomSectors } from "@/lib/sectors"
-import type { Business, BusinessOverride, Lead, Sector } from "@/lib/types"
+import type { Ad, Business, BusinessOverride, Lead, Sector } from "@/lib/types"
 
 type Persisted = {
   city: string
@@ -23,6 +24,7 @@ type Persisted = {
   hiddenBusinessIds: string[]
   hiddenSectorIds: string[]
   businessOverrides: Record<string, BusinessOverride>
+  ads: Ad[]
 }
 
 const STORAGE_KEY = "pinwego.v1"
@@ -37,6 +39,7 @@ const emptyState: Persisted = {
   hiddenBusinessIds: [],
   hiddenSectorIds: [],
   businessOverrides: {},
+  ads: seedAds(),
 }
 
 let memory: Persisted = emptyState
@@ -66,6 +69,7 @@ function readStorage(): Persisted {
       hiddenBusinessIds: Array.isArray(data.hiddenBusinessIds) ? data.hiddenBusinessIds.filter((id) => typeof id === "string") : [],
       hiddenSectorIds: Array.isArray(data.hiddenSectorIds) ? data.hiddenSectorIds.filter((id) => typeof id === "string") : [],
       businessOverrides,
+      ads: parseAds(data.ads),
     }
   } catch {
     localStorage.removeItem(STORAGE_KEY)
@@ -99,6 +103,7 @@ function commit(next: Persisted) {
     hiddenBusinessIds: next.hiddenBusinessIds ?? [],
     hiddenSectorIds: next.hiddenSectorIds ?? [],
     businessOverrides: next.businessOverrides ?? {},
+    ads: Array.isArray(next.ads) ? next.ads : seedAds(),
   }
   loaded = true
   setCustomSectors(sectors)
@@ -147,6 +152,9 @@ type DirectoryState = {
   removeSector: (id: string) => void
   hideSector: (id: string, hidden: boolean) => void
   hiddenSectorIds: string[]
+  ads: Ad[]
+  saveAd: (ad: Ad) => void
+  removeAd: (id: string) => void
   removeRequest: (id: string) => void
   assistantOpen: boolean
   setAssistantOpen: (open: boolean) => void
@@ -259,6 +267,21 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
         commit({ ...current, hiddenSectorIds: hidden ? [id, ...ids] : ids })
       },
       hiddenSectorIds: persisted.hiddenSectorIds,
+      ads: persisted.ads,
+      saveAd: (ad) => {
+        const next = normalizeAd(ad)
+        if (!next) return
+        const current = getSnapshot()
+        const exists = current.ads.some((item) => item.id === next.id)
+        commit({
+          ...current,
+          ads: exists ? current.ads.map((item) => (item.id === next.id ? next : item)) : [next, ...current.ads],
+        })
+      },
+      removeAd: (id) => {
+        const current = getSnapshot()
+        commit({ ...current, ads: current.ads.filter((item) => item.id !== id) })
+      },
       removeRequest: (id) => {
         const current = getSnapshot()
         commit({ ...current, requests: current.requests.filter((item) => item.id !== id) })
