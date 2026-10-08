@@ -1,5 +1,6 @@
+import { isChatAttachment, MAX_ATTACHMENTS } from "@/lib/chat-files"
 import type { Account } from "@/lib/auth-store"
-import type { Business, ChatBlock, ChatKind, ChatMessage, ChatNotice, ChatThread } from "@/lib/types"
+import type { Business, ChatAttachment, ChatBlock, ChatKind, ChatMessage, ChatNotice, ChatThread } from "@/lib/types"
 
 const STORAGE_KEY = "pinwego.messages.v1"
 const CHANNEL = "pinwego-messages"
@@ -38,6 +39,24 @@ function isMessage(value: unknown): value is ChatMessage {
   return typeof item.id === "string" && typeof item.threadId === "string" && typeof item.text === "string"
 }
 
+function messageAttachments(value: unknown): ChatAttachment[] {
+  if (!Array.isArray(value)) return []
+  return value.filter(isChatAttachment).slice(0, MAX_ATTACHMENTS)
+}
+
+function withAttachments(message: ChatMessage): ChatMessage {
+  const attachments = messageAttachments(message.attachments)
+  return attachments.length ? { ...message, attachments } : { ...message, attachments: undefined }
+}
+
+export function attachmentPreview(text: string, attachments: ChatAttachment[]) {
+  const body = text.trim()
+  if (body) return body
+  if (attachments.length === 1) return attachments[0]?.kind === "image" ? "Görsel" : attachments[0]?.name || "PDF"
+  if (attachments.length > 1) return `${attachments.length} ek`
+  return ""
+}
+
 function isBlock(value: unknown): value is ChatBlock {
   if (!value || typeof value !== "object") return false
   const item = value as Partial<ChatBlock>
@@ -51,7 +70,7 @@ function readStorage(): Persisted {
     const data = JSON.parse(raw) as Partial<Persisted>
     return {
       threads: Array.isArray(data.threads) ? data.threads.filter(isRecord) : [],
-      messages: Array.isArray(data.messages) ? data.messages.filter(isMessage) : [],
+      messages: Array.isArray(data.messages) ? data.messages.filter(isMessage).map(withAttachments) : [],
       notices: Array.isArray(data.notices)
         ? data.notices.filter((item) => item && typeof item === "object" && typeof (item as ChatNotice).accountId === "string")
         : [],
@@ -182,20 +201,24 @@ export function sendMessage(input: {
   account: Account
   threadId: string
   text: string
+  attachments?: ChatAttachment[]
   recipientIds: string[]
 }) {
-  const text = input.text.trim()
-  if (!text) return null
+  const text = input.text.trim().slice(0, 2000)
+  const attachments = messageAttachments(input.attachments)
+  if (!text && !attachments.length) return null
   const current = getMessageSnapshot()
   const thread = current.threads.find((item) => item.id === input.threadId)
   if (!thread) return null
   if (isThreadBlocked(thread.id)) return null
+  const preview = attachmentPreview(text, attachments)
   const message: ChatMessage = {
     id: crypto.randomUUID(),
     threadId: thread.id,
     fromId: input.account.id,
     fromName: input.account.name,
-    text: text.slice(0, 2000),
+    text,
+    attachments: attachments.length ? attachments : undefined,
     createdAt: new Date().toISOString(),
     readBy: [input.account.id],
   }
@@ -206,7 +229,7 @@ export function sendMessage(input: {
     ...thread,
     members,
     updatedAt: message.createdAt,
-    lastText: message.text,
+    lastText: preview,
     lastFromId: message.fromId,
   }
   const notices: ChatNotice[] = input.recipientIds
@@ -215,7 +238,7 @@ export function sendMessage(input: {
       id: crypto.randomUUID(),
       accountId,
       title: input.account.name,
-      body: message.text,
+      body: preview,
       threadId: thread.id,
     }))
   commit({

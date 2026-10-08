@@ -90,6 +90,14 @@ export type ChatThread = {
   lastFromId: string
 }
 
+export type ChatAttachment = {
+  id: string
+  name: string
+  type: string
+  size: number
+  kind: "image" | "pdf"
+}
+
 export type ChatMessage = {
   id: string
   threadId: string
@@ -98,6 +106,7 @@ export type ChatMessage = {
   text: string
   createdAt: string
   readBy: string[]
+  attachments?: ChatAttachment[]
 }
 
 export type ChatNotice = {

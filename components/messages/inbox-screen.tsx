@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, Ban, Bell, Building2, MessageCircle, Plus, Search } from "lucide-react"
+import { ArrowLeft, Ban, Bell, Building2, FileText, MessageCircle, Paperclip, Plus, Search, X } from "lucide-react"
+import { ChatAttachmentView } from "@/components/messages/chat-attachment"
+import { classifyAttachment, MAX_ATTACHMENTS, storeChatAttachment } from "@/lib/chat-files"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -33,6 +35,19 @@ function peerLabel(thread: ChatThread, accountId: string) {
     return thread.listingName
   }
   return thread.listingName
+}
+
+type DraftFile = {
+  key: string
+  file: File
+  kind: "image" | "pdf"
+  preview: string | null
+}
+
+function releaseDrafts(items: DraftFile[]) {
+  for (const item of items) {
+    if (item.preview) URL.revokeObjectURL(item.preview)
+  }
 }
 
 function blockTarget(thread: ChatThread, role: "musteri" | "isletme" | "admin") {
@@ -134,6 +149,9 @@ export function InboxScreen() {
     blockedListings,
   } = useMessages()
   const [draft, setDraft] = useState("")
+  const [files, setFiles] = useState<DraftFile[]>([])
+  const [fileError, setFileError] = useState("")
+  const [sending, setSending] = useState(false)
   const [query, setQuery] = useState("")
   const [picking, setPicking] = useState(false)
   const [confirmBlock, setConfirmBlock] = useState(false)
@@ -142,6 +160,8 @@ export function InboxScreen() {
   )
   const endRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const filesRef = useRef<DraftFile[]>([])
   const pendingFocus = useRef(false)
   const wanted = params.get("konusma")
 
@@ -177,6 +197,12 @@ export function InboxScreen() {
     composerRef.current?.focus()
   }, [active])
 
+  useEffect(() => {
+    filesRef.current = files
+  }, [files])
+
+  useEffect(() => () => releaseDrafts(filesRef.current), [])
+
   const list = useMemo(() => threads, [threads])
 
   async function enableNotify() {
@@ -184,12 +210,52 @@ export function InboxScreen() {
     setPermission(next)
   }
 
+  function clearFiles() {
+    releaseDrafts(files)
+    setFiles([])
+    setFileError("")
+    if (fileRef.current) fileRef.current.value = ""
+  }
+
   function startNew() {
     setDraft("")
+    clearFiles()
     setQuery("")
     setConfirmBlock(false)
     setPicking(true)
     router.replace("/mesajlar")
+  }
+
+  function addFiles(list: FileList | null) {
+    if (!list?.length) return
+    const next = [...files]
+    const problems: string[] = []
+    for (const file of list) {
+      if (next.length >= MAX_ATTACHMENTS) {
+        problems.push("Bir mesajda en fazla 4 ek.")
+        break
+      }
+      const classified = classifyAttachment(file)
+      if (typeof classified === "string") {
+        problems.push(`${file.name}: ${classified}`)
+        continue
+      }
+      next.push({
+        key: crypto.randomUUID(),
+        file,
+        kind: classified.kind,
+        preview: classified.kind === "image" ? URL.createObjectURL(file) : null,
+      })
+    }
+    setFiles(next)
+    setFileError(problems.join(" "))
+    if (fileRef.current) fileRef.current.value = ""
+  }
+
+  function removeFile(key: string) {
+    const target = files.find((item) => item.key === key)
+    if (target?.preview) URL.revokeObjectURL(target.preview)
+    setFiles(files.filter((item) => item.key !== key))
   }
 
   function pickBusiness(business: Business) {
@@ -202,12 +268,30 @@ export function InboxScreen() {
     router.replace(`/mesajlar?konusma=${encodeURIComponent(thread.id)}`)
   }
 
-  function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent) {
     event.preventDefault()
-    if (!active || threadClosed(active.id)) return
-    const business = visibleBusinesses.find((item) => item.id === active.listingId)
-    const sent = send(active.id, draft, business)
-    if (sent) setDraft("")
+    if (!active || threadClosed(active.id) || sending) return
+    if (!draft.trim() && !files.length) return
+    const batch = files
+    setSending(true)
+    setFileError("")
+    try {
+      const attachments = []
+      for (const item of batch) attachments.push(await storeChatAttachment(item.file))
+      const business = visibleBusinesses.find((item) => item.id === active.listingId)
+      const sent = send(active.id, draft, business, attachments)
+      if (!sent) {
+        setFileError("Mesaj gönderilemedi.")
+        return
+      }
+      releaseDrafts(batch)
+      setFiles((current) => current.filter((item) => !batch.includes(item)))
+      setDraft("")
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : "Ek kaydedilemedi.")
+    } finally {
+      setSending(false)
+    }
   }
 
   if (!account) return null
@@ -332,6 +416,7 @@ export function InboxScreen() {
                         block(active.id)
                         setConfirmBlock(false)
                         setDraft("")
+                        clearFiles()
                       }}
                     >
                       <Ban className="size-3.5" />
@@ -371,7 +456,10 @@ export function InboxScreen() {
                           )}
                         >
                           {!mine ? <p className="text-[11px] opacity-80">{item.fromName}</p> : null}
-                          <p>{item.text}</p>
+                          {item.attachments?.map((attachment) => (
+                            <ChatAttachmentView key={attachment.id} attachment={attachment} mine={mine} />
+                          ))}
+                          {item.text ? <p className={item.attachments?.length ? "mt-1" : undefined}>{item.text}</p> : null}
                           <p className={cn("mt-1 text-[11px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
                             {formatChatTime(item.createdAt)}
                           </p>
@@ -399,22 +487,64 @@ export function InboxScreen() {
                 </div>
               ) : (
                 <form onSubmit={submit} className="border-t border-foreground/10 p-3">
-                  <Textarea
-                    ref={composerRef}
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    placeholder={`${active.listingName} için mesajını yaz`}
-                    className="min-h-20"
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && !event.shiftKey) {
-                        event.preventDefault()
-                        submit(event)
-                      }
-                    }}
-                  />
-                  <Button type="submit" className="mt-2 h-10 rounded-xl" disabled={!draft.trim()}>
-                    Gönder
-                  </Button>
+                  {files.length ? (
+                    <ul className="mb-2 flex flex-wrap gap-2">
+                      {files.map((item) => (
+                        <li key={item.key} className="flex max-w-full items-center gap-2 rounded-xl bg-secondary px-2 py-1 text-xs">
+                          {item.preview ? (
+                            // Local preview before the file is stored.
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={item.preview} alt="" className="size-8 rounded-lg object-cover" />
+                          ) : (
+                            <FileText className="size-4 shrink-0" />
+                          )}
+                          <span className="max-w-40 truncate">{item.file.name}</span>
+                          <button
+                            type="button"
+                            aria-label={`${item.file.name} ekini kaldır`}
+                            onClick={() => removeFile(item.key)}
+                            className="grid size-6 place-items-center rounded-full hover:bg-background"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {fileError ? <p className="mb-2 text-sm text-destructive">{fileError}</p> : null}
+                  <div className="flex items-end gap-2">
+                    <label className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-xl bg-secondary text-foreground">
+                      <Paperclip className="size-4" />
+                      <span className="sr-only">Görsel veya PDF ekle</span>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                        multiple
+                        className="sr-only"
+                        onChange={(event) => addFiles(event.target.files)}
+                      />
+                    </label>
+                    <Textarea
+                      ref={composerRef}
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      placeholder={`${active.listingName} için mesajını yaz`}
+                      className="min-h-20 flex-1"
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault()
+                          void submit(event)
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">JPG, PNG, WEBP, GIF veya PDF. Ek 4 MB’yi geçmez.</p>
+                    <Button type="submit" className="h-10 rounded-xl" disabled={sending || (!draft.trim() && !files.length)}>
+                      {sending ? "Gönderiliyor" : "Gönder"}
+                    </Button>
+                  </div>
                 </form>
               )}
             </>

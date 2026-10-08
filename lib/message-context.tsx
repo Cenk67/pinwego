@@ -33,7 +33,7 @@ import {
 } from "@/lib/message-store"
 import { showBrowserNotice } from "@/lib/notify"
 import type { Account } from "@/lib/auth-store"
-import type { Business, ChatMessage, ChatThread } from "@/lib/types"
+import type { Business, ChatAttachment, ChatMessage, ChatThread } from "@/lib/types"
 
 type Toast = {
   title: string
@@ -47,7 +47,7 @@ type MessageState = {
   messagesFor: (threadId: string) => ChatMessage[]
   unreadIn: (threadId: string) => number
   openWithBusiness: (business: Business) => ChatThread | null
-  send: (threadId: string, text: string, business?: Business) => ChatMessage | null
+  send: (threadId: string, text: string, business?: Business, attachments?: ChatAttachment[]) => ChatMessage | null
   markRead: (threadId: string) => void
   adoptListing: (listingId: string) => void
   block: (threadId: string) => void
@@ -100,7 +100,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
       unreadIn: (threadId) => (account ? unreadInThread(account.id, threadId, owned) : 0),
       openWithBusiness: (business) => (account ? openListingThread(account, business) : null),
-      send: (threadId, text, business) => {
+      send: (threadId, text, business, attachments) => {
         if (!account) return null
         const thread = getMessageSnapshot().threads.find((item) => item.id === threadId)
         if (!thread) return null
@@ -115,6 +115,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
           account,
           threadId,
           text,
+          attachments,
           recipientIds: [
             ...recipientIdsFor(thread, account.id, business?.ownerAccountId),
             ...extra,
