@@ -6,6 +6,7 @@ import { useMemo, useState } from "react"
 import { BusinessCard } from "@/components/directory/business-card"
 import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, SaveButton, Stars } from "@/components/directory/bits"
+import { ShareButton } from "@/components/directory/share-button"
 import { MiniMap } from "@/components/directory/mini-map"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
 import { Button } from "@/components/ui/button"
@@ -84,7 +85,10 @@ export function BusinessScreen({ slug }: { slug: string }) {
               position={business.photoPosition}
               className="absolute inset-0 size-full"
             />
-            <SaveButton business={business} className="absolute top-3 right-3" />
+            <div className="absolute top-3 right-3 flex gap-1.5">
+              <ShareButton business={business} />
+              <SaveButton business={business} />
+            </div>
           </div>
           <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -268,6 +272,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
                 <Navigation className="size-4" />
                 Yol tarifi
               </Button>
+              <ShareButton business={business} compact={false} />
               {business.googleUrl ? (
                 <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={business.googleUrl} target="_blank" rel="noreferrer" />}>
                   Google Haritalar’da aç

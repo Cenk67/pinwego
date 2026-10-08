@@ -2,6 +2,7 @@ import Link from "next/link"
 import { BadgeCheck } from "lucide-react"
 import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, RatingBlock, SaveButton } from "@/components/directory/bits"
+import { ShareButton } from "@/components/directory/share-button"
 import { categoryById } from "@/lib/catalog"
 import { formatDistance, priceLabel, priceMarks, priceRange } from "@/lib/format"
 import type { Business } from "@/lib/types"
@@ -97,7 +98,10 @@ export function BusinessCard({
           <ClaimPrompt business={business} />
         </div>
       ) : null}
-      <SaveButton business={business} className="absolute top-3 right-3" />
+      <div className="absolute top-3 right-3 flex gap-1.5">
+        <ShareButton business={business} />
+        <SaveButton business={business} />
+      </div>
     </article>
   )
 }
