@@ -177,7 +177,7 @@ function Chooser({ onPick, claim }: { onPick: (mode: Mode) => void; claim: Busin
       >
         <span className="font-heading text-2xl">Yönetici girişi</span>
         <span className="mt-1 block text-sm leading-6 text-muted-foreground">
-          Sektör, işletme, talep ve hesapları yönetim panelinden yönet.
+          Sektör, işletme, talep, hesap ve reklamları yönetim panelinden yönet.
         </span>
       </button>
       <Button type="button" variant="outline" className="mt-4 h-11 w-full rounded-xl" onClick={() => onPick("login")}>

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
+import { AdAdmin } from "@/components/admin/ad-admin"
 import { SectorForm } from "@/components/directory/sector-form"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
@@ -25,6 +26,7 @@ const tabs = [
   { id: "sektorler", label: "Sektörler" },
   { id: "talepler", label: "Talepler" },
   { id: "hesaplar", label: "Hesaplar" },
+  { id: "reklamlar", label: "Reklamlar" },
 ] as const
 
 type Tab = (typeof tabs)[number]["id"]
@@ -58,8 +60,8 @@ export function AdminScreen() {
       <p className="text-sm font-medium text-primary">Yönetim paneli</p>
       <h1 className="mt-2 font-heading text-4xl leading-tight">pinwego’yu buradan yönet.</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-        Sektör, işletme, talep ve hesap kayıtları bu tarayıcıda durur. Gizlenen sektör ve işletme keşif, arama ve
-        talepte görünmez.
+        Sektör, işletme, talep, hesap ve reklam kayıtları bu tarayıcıda durur. Gizlenen sektör ve işletme keşif, arama
+        ve talepte görünmez. Kapalı reklam müşteriye gitmez.
       </p>
       <div className="mt-6 flex flex-wrap gap-2">
         {tabs.map((item) => (
@@ -82,14 +84,16 @@ export function AdminScreen() {
       {tab === "sektorler" ? <SectorAdmin /> : null}
       {tab === "talepler" ? <RequestAdmin /> : null}
       {tab === "hesaplar" ? <AccountAdmin /> : null}
+      {tab === "reklamlar" ? <AdAdmin /> : null}
     </div>
   )
 }
 
 function Overview() {
-  const { managedBusinesses, managedSectors, hiddenSectorIds, isBusinessHidden, requests } = useDirectory()
+  const { managedBusinesses, managedSectors, hiddenSectorIds, isBusinessHidden, requests, ads } = useDirectory()
   const { accounts } = useAuth()
   const hiddenBusinesses = managedBusinesses.filter((item) => isBusinessHidden(item)).length
+  const publishedAds = ads.filter((item) => item.active).length
   return (
     <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {[
@@ -97,6 +101,7 @@ function Overview() {
         ["Sektör", `${managedSectors.length} sektör`, `${hiddenSectorIds.length} gizli`],
         ["Talep", `${requests.length} talep`, "Teklif ve randevu"],
         ["Hesap", `${accounts.length} hesap`, `${accounts.filter((item) => item.role === "admin").length} yönetici`],
+        ["Reklam", `${ads.length} kayıt`, `${publishedAds} yayında`],
       ].map(([title, value, hint]) => (
         <article key={title} className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
           <p className="text-xs text-muted-foreground">{title}</p>
