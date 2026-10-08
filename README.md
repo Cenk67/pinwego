@@ -2,6 +2,8 @@
 
 Yakındaki işletmeyi tek cümleyle bulan, mobil uyumlu bir ticari rehber. Arama, yorum, fiyat, harita, randevu ve teklif aynı akışta durur.
 
+Depo: [https://github.com/Cenk67/pinwego](https://github.com/Cenk67/pinwego)
+
 Katalog örnek kayıtlardan oluşur. Eşleştirme tarayıcıda çalışır; harici bir model anahtarı gerekmez.
 
 ## Çalıştırma
