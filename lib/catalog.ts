@@ -1,3 +1,4 @@
+import { allSectors, seedSectors } from "@/lib/sectors"
 import type {
   BookingKind,
   Business,
@@ -111,70 +112,34 @@ function make(draft: Draft): Business {
   }
 }
 
-export const categories: {
-  id: CategoryId
-  label: string
-  blurb: string
-  photo: string
-  tint: string
-}[] = [
-  {
-    id: "yeme",
-    label: "Yeme-İçme",
-    blurb: "Restoran, kafe, kahvaltı",
-    photo: "/photos/lokanta.jpg",
-    tint: "#b4532a",
-  },
-  {
-    id: "konaklama",
-    label: "Konaklama",
-    blurb: "Otel, konak, suit",
-    photo: "/photos/hotel.jpg",
-    tint: "#1f4b6e",
-  },
-  {
-    id: "guzellik",
-    label: "Güzellik",
-    blurb: "Kuaför, berber, spa",
-    photo: "/photos/salon.jpg",
-    tint: "#8d4d73",
-  },
-  {
-    id: "ev",
-    label: "Ev hizmetleri",
-    blurb: "Boya, temizlik, mutfak",
-    photo: "/photos/paint.jpg",
-    tint: "#3f6b4a",
-  },
-  {
-    id: "usta",
-    label: "Usta & tamir",
-    blurb: "Tesisat, elektrik, klima",
-    photo: "/photos/plumber.jpg",
-    tint: "#a15c12",
-  },
-  {
-    id: "saglik",
-    label: "Sağlık",
-    blurb: "Diş, fizik, klinik",
-    photo: "/photos/dental.jpg",
-    tint: "#0f6e6b",
-  },
-  {
-    id: "b2b",
-    label: "B2B & tedarik",
-    blurb: "Toptan, lojistik, ofis",
-    photo: "/photos/warehouse.jpg",
-    tint: "#243044",
-  },
-  {
-    id: "dekor",
-    label: "Dekor & mekân",
-    blurb: "Mobilya, iç mimari, bahçe",
-    photo: "/photos/interior.jpg",
-    tint: "#6b4a32",
-  },
-]
+function sectorMake(
+  draft: Pick<
+    Draft,
+    "slug" | "name" | "category" | "subcategory" | "city" | "district" | "lat" | "lng" | "summary" | "photo" | "booking"
+  > &
+    Partial<Draft>,
+): Business {
+  return make({
+    address: `${draft.district}, ${draft.city}`,
+    phone: "0212 555 40 00",
+    rating: 4.5,
+    reviewCount: 64,
+    priceLevel: 2,
+    openNow: true,
+    about: `${draft.summary} Örnek sektör kaydıdır; randevu ve teklif bu tarayıcıda durur.`,
+    services: [{ name: "Görüşme", price: 0, unit: "keşif" }],
+    amenities: ["Randevu"],
+    tags: [],
+    reviews: reviews([["Mert Kaya", 5, "Eylül 2026", "Net konuştular, saat tuttu."]]),
+    responseMinutes: 80,
+    founded: 2014,
+    open: "09:00",
+    close: "18:00",
+    ...draft,
+  })
+}
+
+export const categories = seedSectors
 
 export const cities = [
   { name: "İstanbul", lat: 41.015, lng: 28.979 },
@@ -196,6 +161,9 @@ export const suggestions = [
   "Kaleiçi'nde deniz manzaralı butik otel",
   "Çankaya'da ofis temizliği",
   "Zonguldak'ta kebap",
+  "Kadıköy'de oto servis",
+  "Levent'te avukat",
+  "Moda'da kreş",
 ]
 
 const sampleBusinesses: Business[] = [
@@ -871,7 +839,7 @@ const sampleBusinesses: Business[] = [
   make({
     slug: "beyaz-ev-temizlik",
     name: "Beyaz Ev Temizlik",
-    category: "ev",
+    category: "temizlik",
     subcategory: "Ev temizliği",
     city: "İstanbul",
     district: "Kadıköy",
@@ -907,7 +875,7 @@ const sampleBusinesses: Business[] = [
   make({
     slug: "baskent-ofis-temizlik",
     name: "Başkent Ofis Temizlik",
-    category: "ev",
+    category: "temizlik",
     subcategory: "Ofis temizliği",
     city: "Ankara",
     district: "Çankaya",
@@ -1552,16 +1520,299 @@ const sampleBusinesses: Business[] = [
   }),
 ]
 
-export const businesses: Business[] = [...sampleBusinesses, ...zonguldakBusinesses]
+const sectorBusinesses: Business[] = [
+  sectorMake({
+    slug: "kadikoy-oto-servis",
+    name: "Kadıköy Oto Servis",
+    category: "oto",
+    subcategory: "Oto servis",
+    city: "İstanbul",
+    district: "Kadıköy",
+    lat: 40.9902,
+    lng: 29.0274,
+    summary: "Periyodik bakım, lastik ve kaporta. Aynı gün randevu açılır.",
+    photo: "/photos/repair.jpg",
+    booking: "teklif",
+    tags: ["acil"],
+  }),
+  sectorMake({
+    slug: "moda-carsi",
+    name: "Moda Çarşı",
+    category: "alisveris",
+    subcategory: "Giyim",
+    city: "İstanbul",
+    district: "Kadıköy",
+    lat: 40.9861,
+    lng: 29.0251,
+    summary: "Günlük giyim ve ayakkabı. Değişim aynı hafta içinde.",
+    photo: "/photos/boutique.jpg",
+    booking: "teklif",
+  }),
+  sectorMake({
+    slug: "besiktas-dil",
+    name: "Beşiktaş Dil Atölyesi",
+    category: "egitim",
+    subcategory: "Dil kursu",
+    city: "İstanbul",
+    district: "Beşiktaş",
+    lat: 41.0428,
+    lng: 29.0075,
+    summary: "İngilizce ve Almanca grup dersi. Deneme dersi ücretsiz.",
+    photo: "/photos/office.jpg",
+    booking: "randevu",
+  }),
+  sectorMake({
+    slug: "cadde-spor",
+    name: "Cadde Spor",
+    category: "spor",
+    subcategory: "Fitness",
+    city: "İstanbul",
+    district: "Kadıköy",
+    lat: 40.9668,
+    lng: 29.0632,
+    summary: "Alet salonu, pilates ve PT. Günlük giriş var.",
+    photo: "/photos/physio.jpg",
+    booking: "randevu",
+  }),
+  sectorMake({
+    slug: "karakoy-sahne",
+    name: "Karaköy Sahne",
+    category: "eglence",
+    subcategory: "Canlı müzik",
+    city: "İstanbul",
+    district: "Karaköy",
+    lat: 41.0229,
+    lng: 28.9741,
+    summary: "Akşam sahne ve oturma düzeni. Rezervasyon cuma için erken kapanır.",
+    photo: "/photos/meyhane.jpg",
+    booking: "rezervasyon",
+    tags: ["aksam"],
+    open: "18:00",
+    close: "01:00",
+    hoursMode: "all",
+  }),
+  sectorMake({
+    slug: "cankaya-emlak",
+    name: "Çankaya Emlak",
+    category: "emlak",
+    subcategory: "Emlak ofisi",
+    city: "Ankara",
+    district: "Çankaya",
+    lat: 39.9078,
+    lng: 32.8544,
+    summary: "Konut ve ofis kiralama. Tapu işlemine kadar takip eder.",
+    photo: "/photos/konak.jpg",
+    booking: "teklif",
+  }),
+  sectorMake({
+    slug: "levent-hukuk",
+    name: "Levent Hukuk",
+    category: "hukuk",
+    subcategory: "Avukatlık",
+    city: "İstanbul",
+    district: "Levent",
+    lat: 41.0816,
+    lng: 29.0119,
+    summary: "Şirket, iş ve aile hukuku. İlk görüşme randevulu.",
+    photo: "/photos/office.jpg",
+    booking: "randevu",
+  }),
+  sectorMake({
+    slug: "levent-sigorta",
+    name: "Levent Sigorta",
+    category: "finans",
+    subcategory: "Sigorta",
+    city: "İstanbul",
+    district: "Levent",
+    lat: 41.0794,
+    lng: 29.0128,
+    summary: "Konut, kasko ve işyeri poliçesi. Hasar dosyası yerinde açılır.",
+    photo: "/photos/office.jpg",
+    booking: "randevu",
+  }),
+  sectorMake({
+    slug: "kadikoy-taksi",
+    name: "Kadıköy Taksi",
+    category: "ulasim",
+    subcategory: "Taksi",
+    city: "İstanbul",
+    district: "Kadıköy",
+    lat: 40.9908,
+    lng: 29.0221,
+    summary: "Havalimanı ve şehir içi transfer. Taksometre açık çalışır.",
+    photo: "/photos/logistics.jpg",
+    booking: "teklif",
+    tags: ["acil"],
+    hoursMode: "all",
+    open: "00:00",
+    close: "23:59",
+  }),
+  sectorMake({
+    slug: "moda-vet",
+    name: "Moda Vet",
+    category: "hayvan",
+    subcategory: "Veteriner",
+    city: "İstanbul",
+    district: "Kadıköy",
+    lat: 40.9839,
+    lng: 29.0261,
+    summary: "Aşı, sterilizasyon ve acil. Kedi köpek kabul eder.",
+    photo: "/photos/clinic.jpg",
+    booking: "randevu",
+    tags: ["acil"],
+  }),
+  sectorMake({
+    slug: "sisli-organizasyon",
+    name: "Şişli Organizasyon",
+    category: "dugun",
+    subcategory: "Düğün",
+    city: "İstanbul",
+    district: "Şişli",
+    lat: 41.0602,
+    lng: 28.9878,
+    summary: "Nikah, kokteyl ve sahne. Mekân keşfi ücretsiz.",
+    photo: "/photos/boutique.jpg",
+    booking: "rezervasyon",
+  }),
+  sectorMake({
+    slug: "maslak-yazilim",
+    name: "Maslak Yazılım",
+    category: "teknoloji",
+    subcategory: "Yazılım",
+    city: "İstanbul",
+    district: "Maslak",
+    lat: 41.1086,
+    lng: 29.0234,
+    summary: "Web, mobil ve entegrasyon. Keşif toplantısı uzaktan da olur.",
+    photo: "/photos/electric.jpg",
+    booking: "teklif",
+  }),
+  sectorMake({
+    slug: "moda-kres",
+    name: "Moda Kreş",
+    category: "cocuk",
+    subcategory: "Kreş",
+    city: "İstanbul",
+    district: "Kadıköy",
+    lat: 40.9848,
+    lng: 29.0281,
+    summary: "2–6 yaş grupları. Deneme günü randevuyla.",
+    photo: "/photos/breakfast.jpg",
+    booking: "randevu",
+    tags: ["aile"],
+  }),
+  sectorMake({
+    slug: "lara-sera",
+    name: "Lara Sera",
+    category: "tarim",
+    subcategory: "Sera",
+    city: "Antalya",
+    district: "Lara",
+    lat: 36.8551,
+    lng: 30.7682,
+    summary: "Fide, toprak ve damla sulama. Bahçe keşfi yazın sabah.",
+    photo: "/photos/garden.jpg",
+    booking: "teklif",
+  }),
+  sectorMake({
+    slug: "atasehir-yapi",
+    name: "Ataşehir Yapı",
+    category: "insaat",
+    subcategory: "Müteahhit",
+    city: "İstanbul",
+    district: "Ataşehir",
+    lat: 40.9923,
+    lng: 29.1227,
+    summary: "Kat karşılığı ve kaba inşaat. Proje dosyası keşifte alınır.",
+    photo: "/photos/paint.jpg",
+    booking: "teklif",
+  }),
+  sectorMake({
+    slug: "organize-guvenlik",
+    name: "Organize Güvenlik",
+    category: "guvenlik",
+    subcategory: "Güvenlik",
+    city: "İstanbul",
+    district: "İkitelli",
+    lat: 41.0792,
+    lng: 28.7954,
+    summary: "Kamera, alarm ve saha ekibi. Keşif ücretsiz.",
+    photo: "/photos/warehouse.jpg",
+    booking: "teklif",
+  }),
+  sectorMake({
+    slug: "sisli-ajans",
+    name: "Şişli Ajans",
+    category: "medya",
+    subcategory: "Reklam ajansı",
+    city: "İstanbul",
+    district: "Şişli",
+    lat: 41.0571,
+    lng: 28.9798,
+    summary: "Marka, sosyal medya ve baskı. Brief toplantısı randevulu.",
+    photo: "/photos/office.jpg",
+    booking: "teklif",
+  }),
+  sectorMake({
+    slug: "bornova-kombi",
+    name: "Bornova Kombi",
+    category: "enerji",
+    subcategory: "Kombi & doğalgaz",
+    city: "İzmir",
+    district: "Bornova",
+    lat: 38.4622,
+    lng: 27.2164,
+    summary: "Kombi bakım, doğalgaz tesisatı ve güneş paneli keşfi.",
+    photo: "/photos/ac.jpg",
+    booking: "teklif",
+    tags: ["acil"],
+  }),
+]
+
+const coveredCategories = new Set(
+  [...sampleBusinesses, ...sectorBusinesses, ...zonguldakBusinesses].map((item) => item.category),
+)
+
+const PLACE_CYCLE = [
+  { city: "İstanbul", district: "Şişli", lat: 41.0601, lng: 28.9874 },
+  { city: "Ankara", district: "Çankaya", lat: 39.9012, lng: 32.8594 },
+  { city: "İzmir", district: "Konak", lat: 38.4192, lng: 27.1287 },
+  { city: "Antalya", district: "Muratpaşa", lat: 36.8874, lng: 30.7051 },
+  { city: "Bursa", district: "Osmangazi", lat: 40.1911, lng: 29.0608 },
+] as const
+
+const generatedSectorBusinesses: Business[] = seedSectors
+  .filter((item) => !coveredCategories.has(item.id))
+  .map((item, index) => {
+    const place = PLACE_CYCLE[index % PLACE_CYCLE.length]
+    return sectorMake({
+      slug: `${item.id}-ornek`,
+      name: `${place.district} ${item.label}`,
+      category: item.id,
+      subcategory: item.label,
+      city: place.city,
+      district: place.district,
+      lat: place.lat + ((index % 7) - 3) * 0.006,
+      lng: place.lng + ((index % 5) - 2) * 0.006,
+      summary: `${item.blurb}. Örnek sektör kaydı; keşif ve randevu bu tarayıcıda durur.`,
+      photo: item.photo,
+      booking: item.booking,
+    })
+  })
+
+export const businesses: Business[] = [
+  ...sampleBusinesses,
+  ...sectorBusinesses,
+  ...generatedSectorBusinesses,
+  ...zonguldakBusinesses,
+]
 
 export function categoryById(id: CategoryId) {
-  return categories.find((category) => category.id === id) ?? categories[0]
+  return allSectors().find((category) => category.id === id) ?? seedSectors[0]
 }
 
 export function defaultBooking(category: CategoryId): BookingKind {
-  if (category === "guzellik" || category === "saglik") return "randevu"
-  if (category === "yeme" || category === "konaklama") return "rezervasyon"
-  return "teklif"
+  return categoryById(category).booking
 }
 
 export function allBusinesses(extra: Business[] = []) {

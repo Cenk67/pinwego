@@ -9,16 +9,17 @@ import { QuoteDialog } from "@/components/directory/quote-dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { allBusinesses, categories } from "@/lib/catalog"
+import { allBusinesses } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { defaultFilters, searchDirectory } from "@/lib/match"
 import { applyPlace, placeLabel } from "@/lib/place"
 import type { Business, CategoryId } from "@/lib/types"
 
 const steps = ["Anlat", "Yer", "Eşleşme"]
+const popular = ["yeme", "temizlik", "usta", "saglik", "oto", "hukuk", "konaklama", "guzellik"]
 
 export function RequestScreen() {
-  const { listings, requests, place, setPlace } = useDirectory()
+  const { listings, requests, place, setPlace, sectors } = useDirectory()
   const [step, setStep] = useState(0)
   const [description, setDescription] = useState("")
   const [category, setCategory] = useState<CategoryId | "hepsi">("hepsi")
@@ -103,17 +104,34 @@ export function RequestScreen() {
             >
               Kategori serbest
             </button>
-            {categories.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setCategory(item.id)}
-                className={category === item.id ? "rounded-full bg-primary px-3 py-1 text-xs text-primary-foreground" : "rounded-full bg-secondary px-3 py-1 text-xs"}
-              >
-                {item.label}
-              </button>
-            ))}
+            {sectors
+              .filter((item) => popular.includes(item.id))
+              .map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setCategory(item.id)}
+                  className={category === item.id ? "rounded-full bg-primary px-3 py-1 text-xs text-primary-foreground" : "rounded-full bg-secondary px-3 py-1 text-xs"}
+                >
+                  {item.label}
+                </button>
+              ))}
           </div>
+          <label className="grid gap-1.5 text-sm">
+            Tüm sektörler
+            <select
+              className={fieldClass}
+              value={category}
+              onChange={(event) => setCategory(event.target.value as CategoryId | "hepsi")}
+            >
+              <option value="hepsi">Hepsi</option>
+              {sectors.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button type="submit" className="h-11 rounded-xl">
             Devam

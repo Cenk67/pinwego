@@ -18,7 +18,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { allBusinesses, categories, cityCenter } from "@/lib/catalog"
+import { allBusinesses, cityCenter } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { defaultFilters, parseQuery, searchDirectory } from "@/lib/match"
 import { applyPlace, placeLabel } from "@/lib/place"
@@ -37,7 +37,7 @@ export function SearchScreen() {
   const params = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
-  const { listings, place } = useDirectory()
+  const { listings, place, sectors } = useDirectory()
   const [showMap, setShowMap] = useState(false)
   const [limit, setLimit] = useState(9)
 
@@ -114,7 +114,7 @@ export function SearchScreen() {
           onChange={(event) => update({ kategori: event.target.value })}
         >
           <option value="hepsi">Hepsi</option>
-          {categories.map((item) => (
+          {sectors.map((item) => (
             <option key={item.id} value={item.id}>
               {item.label}
             </option>

@@ -8,6 +8,9 @@ const cases: [string, string][] = [
   ["Nişantaşı diş temizliği, uygun fiyat", "nisanta-dent"],
   ["Kaleiçi'nde deniz manzaralı butik otel", "han-konagi"],
   ["Çankaya'da ofis temizliği", "baskent-ofis-temizlik"],
+  ["Kadıköy'de oto servis", "kadikoy-oto-servis"],
+  ["Levent'te avukat", "levent-hukuk"],
+  ["Moda'da kreş", "moda-kres"],
 ]
 
 let failed = 0

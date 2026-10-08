@@ -9,7 +9,8 @@ import {
   type ReactNode,
 } from "react"
 import { defaultPlace, isPlace, placeFromCity, type Place } from "@/lib/place"
-import type { Business, Lead } from "@/lib/types"
+import { allSectors, isSector, normalizeSector, seedSectors, setCustomSectors } from "@/lib/sectors"
+import type { Business, Lead, Sector } from "@/lib/types"
 
 type Persisted = {
   city: string
@@ -17,6 +18,7 @@ type Persisted = {
   saved: string[]
   requests: Lead[]
   listings: Business[]
+  sectors: Sector[]
 }
 
 const STORAGE_KEY = "pinwego.v1"
@@ -27,6 +29,7 @@ const emptyState: Persisted = {
   saved: [],
   requests: [],
   listings: [],
+  sectors: [],
 }
 
 let memory: Persisted = emptyState
@@ -40,12 +43,15 @@ function readStorage(): Persisted {
     const data = JSON.parse(raw) as Partial<Persisted>
     const city = typeof data.city === "string" ? data.city : emptyState.city
     const place = isPlace(data.place) ? data.place : placeFromCity(city)
+    const sectors = Array.isArray(data.sectors) ? data.sectors.filter(isSector).filter((item) => item.custom) : []
+    setCustomSectors(sectors)
     return {
       city: place.province || city,
       place,
       saved: Array.isArray(data.saved) ? data.saved : [],
       requests: Array.isArray(data.requests) ? data.requests : [],
       listings: Array.isArray(data.listings) ? data.listings : [],
+      sectors,
     }
   } catch {
     localStorage.removeItem(STORAGE_KEY)
@@ -71,9 +77,11 @@ function getServerSnapshot() {
 }
 
 function commit(next: Persisted) {
-  memory = next
+  const sectors = next.sectors.filter((item) => item.custom)
+  memory = { ...next, sectors }
   loaded = true
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  setCustomSectors(sectors)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(memory))
   listeners.forEach((listener) => listener())
 }
 
@@ -97,6 +105,9 @@ type DirectoryState = {
   addRequest: (lead: Lead) => void
   listings: Business[]
   addListing: (business: Business) => void
+  sectors: Sector[]
+  addSector: (draft: Partial<Sector>) => Sector | null
+  removeSector: (id: string) => void
   assistantOpen: boolean
   setAssistantOpen: (open: boolean) => void
   ready: boolean
@@ -141,6 +152,19 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
       addListing: (business) => {
         const current = getSnapshot()
         commit({ ...current, listings: [business, ...current.listings] })
+      },
+      sectors: ready ? allSectors() : seedSectors,
+      addSector: (draft) => {
+        const current = getSnapshot()
+        const taken = allSectors().map((item) => item.id)
+        const sector = normalizeSector(draft, taken)
+        if (!sector) return null
+        commit({ ...current, sectors: [sector, ...current.sectors.filter((item) => item.id !== sector.id)] })
+        return sector
+      },
+      removeSector: (id) => {
+        const current = getSnapshot()
+        commit({ ...current, sectors: current.sectors.filter((item) => item.id !== id) })
       },
       assistantOpen,
       setAssistantOpen,

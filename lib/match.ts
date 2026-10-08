@@ -7,6 +7,7 @@ import {
   formatRating,
   formatResponse,
 } from "@/lib/format"
+import { allSectors } from "@/lib/sectors"
 import type { Business, CategoryId, Filters } from "@/lib/types"
 
 export type RankedBusiness = {
@@ -27,61 +28,12 @@ export const defaultFilters: Filters = {
   sort: "ilgili",
 }
 
-const CATEGORY_PHRASES: { id: CategoryId; phrases: string[] }[] = [
-  {
-    id: "yeme",
-    phrases: [
-      "aksam yemegi",
-      "kahvalti",
-      "restoran",
-      "lokanta",
-      "meyhane",
-      "kafe",
-      "kahve",
-      "brunch",
-      "balik",
-      "izgara",
-      "firin",
-      "yemek",
-    ],
-  },
-  {
-    id: "konaklama",
-    phrases: ["butik otel", "otel", "konak", "suit", "pansiyon", "tatil"],
-  },
-  {
-    id: "guzellik",
-    phrases: ["kuafor", "berber", "sac", "spa", "masaj", "cilt", "guzellik", "manikur"],
-  },
-  {
-    id: "ev",
-    phrases: [
-      "boya usta",
-      "ofis temizlik",
-      "temizlik",
-      "tadilat",
-      "boya",
-      "mutfak",
-      "dolap",
-    ],
-  },
-  {
-    id: "usta",
-    phrases: ["tesisat", "elektrik", "klima", "tamir", "elektrikci", "tesisatci", "usta"],
-  },
-  {
-    id: "saglik",
-    phrases: ["dis temizligi", "fizyoterapi", "fizik tedavi", "dis", "doktor", "klinik", "goz", "saglik"],
-  },
-  {
-    id: "b2b",
-    phrases: ["tedarik", "ambalaj", "lojistik", "toptan", "kimya", "ihracat", "b2b", "koli"],
-  },
-  {
-    id: "dekor",
-    phrases: ["ic mimar", "peyzaj", "bahce", "mobilya", "dekor", "koltuk"],
-  },
-]
+function categoryPhrases() {
+  return allSectors().map((item) => ({
+    id: item.id,
+    phrases: [...new Set([...item.phrases, fold(item.label)])],
+  }))
+}
 
 const TAG_RULES: { tag: string; phrases: string[] }[] = [
   { tag: "aile", phrases: ["aile", "cocuk", "cocuklu", "bebekli"] },
@@ -192,9 +144,10 @@ export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
     }
   }
 
+  const phrases = categoryPhrases()
   let category: CategoryId | undefined
   let categoryScore = 0
-  for (const group of CATEGORY_PHRASES) {
+  for (const group of phrases) {
     let score = 0
     for (const phrase of group.phrases) {
       if (hasPhrase(text, phrase)) score += phrase.split(" ").length + 1
@@ -221,7 +174,7 @@ export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
   const consumed = new Set<string>(STOPWORDS)
   if (city) consumed.add(fold(city))
   if (district) consumed.add(fold(district))
-  for (const group of CATEGORY_PHRASES) {
+  for (const group of phrases) {
     for (const phrase of group.phrases) phrase.split(" ").forEach((part) => consumed.add(part))
   }
   for (const rule of TAG_RULES) {

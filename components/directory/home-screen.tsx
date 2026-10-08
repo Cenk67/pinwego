@@ -1,23 +1,31 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowUpRight } from "lucide-react"
+import { ArrowUpRight, Plus, X } from "lucide-react"
+import { useMemo, useState } from "react"
 import { BusinessCard } from "@/components/directory/business-card"
-import { CategoryGlyph, Cover } from "@/components/directory/bits"
+import { CategoryGlyph, Cover, fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
 import { SearchForm } from "@/components/directory/search-form"
+import { SectorForm } from "@/components/directory/sector-form"
 import { Button } from "@/components/ui/button"
-import {
-  businesses,
-  categories,
-  suggestions,
-} from "@/lib/catalog"
+import { allBusinesses, suggestions } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
+import { fold } from "@/lib/format"
 import { distanceFromPlace, placeLabel, applyPlace } from "@/lib/place"
 
 export function HomeScreen() {
-  const { place } = useDirectory()
-  const ranked = businesses.map((business) => ({ business, distanceKm: distanceFromPlace(place, business) }))
+  const { place, sectors, listings, removeSector } = useDirectory()
+  const [sectorQuery, setSectorQuery] = useState("")
+  const [sectorOpen, setSectorOpen] = useState(false)
+  const catalog = allBusinesses(listings)
+  const catalogCount = catalog.length
+  const visibleSectors = useMemo(() => {
+    const needle = fold(sectorQuery)
+    if (!needle) return sectors
+    return sectors.filter((item) => fold(`${item.label} ${item.blurb} ${item.phrases.join(" ")}`).includes(needle))
+  }, [sectors, sectorQuery])
+  const ranked = catalog.map((business) => ({ business, distanceKm: distanceFromPlace(place, business) }))
   const scoped = applyPlace(ranked, place)
   const local = scoped.items
     .map((item) => ({ business: item.business, km: item.distanceKm }))
@@ -34,7 +42,7 @@ export function HomeScreen() {
         <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 md:py-16 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <div className="min-w-0">
             <p className="text-sm font-medium text-primary">
-              Ticari rehber · {businesses.length} örnek kayıt · dünya haritası
+              Ticari rehber · {catalogCount} kayıt · {sectors.length} sektör
             </p>
             <h1 className="mt-3 max-w-full font-heading text-4xl leading-[1.05] text-balance md:max-w-xl md:text-6xl">
               Doğru işletme, tek cümle.
@@ -95,33 +103,69 @@ export function HomeScreen() {
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-4">
-        <h2 className="font-heading text-3xl">Kategoriler</h2>
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-          {categories.map((category) => {
-            const count = businesses.filter((item) => item.category === category.id).length
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-heading text-3xl">Sektörler</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {sectors.length} sektör. Listede yoksa ekle; arama ve talep aynı kaydı kullanır.
+            </p>
+          </div>
+          <input
+            value={sectorQuery}
+            onChange={(event) => setSectorQuery(event.target.value)}
+            placeholder="Sektör ara"
+            className={`${fieldClass} sm:max-w-56`}
+          />
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {visibleSectors.map((category) => {
+            const count = catalog.filter((item) => item.category === category.id).length
             return (
-              <Link
-                key={category.id}
-                href={`/ara?kategori=${category.id}`}
-                className="group relative h-36 overflow-hidden rounded-3xl ring-1 ring-foreground/10"
-              >
-                <Cover
-                  src={category.photo}
-                  alt=""
-                  className="absolute inset-0 size-full transition duration-300 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
-                <div className="absolute right-3 bottom-3 left-3 text-white">
-                  <CategoryGlyph id={category.id} className="size-4" />
-                  <p className="mt-1 font-medium">{category.label}</p>
-                  <p className="text-xs text-white/80">
-                    {count} kayıt · {category.blurb}
-                  </p>
-                </div>
-              </Link>
+              <div key={category.id} className="relative">
+                <Link
+                  href={`/ara?kategori=${category.id}`}
+                  className="group relative block h-36 overflow-hidden rounded-3xl ring-1 ring-foreground/10"
+                >
+                  <Cover
+                    src={category.photo}
+                    alt=""
+                    className="absolute inset-0 size-full transition duration-300 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+                  <div className="absolute right-3 bottom-3 left-3 text-white">
+                    <CategoryGlyph id={category.id} icon={category.icon} className="size-4" />
+                    <p className="mt-1 font-medium">{category.label}</p>
+                    <p className="text-xs text-white/80">
+                      {count} kayıt · {category.blurb}
+                    </p>
+                  </div>
+                </Link>
+                {category.custom ? (
+                  <button
+                    type="button"
+                    aria-label={`${category.label} sektörünü kaldır`}
+                    onClick={() => removeSector(category.id)}
+                    className="absolute top-2 right-2 grid size-8 place-items-center rounded-full bg-black/55 text-white"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                ) : null}
+              </div>
             )
           })}
+          <button
+            type="button"
+            onClick={() => setSectorOpen(true)}
+            className="flex h-36 flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-foreground/25 bg-card text-sm font-medium text-muted-foreground"
+          >
+            <Plus className="size-5" />
+            Sektör ekle
+          </button>
         </div>
+        {sectorQuery && !visibleSectors.length ? (
+          <p className="mt-4 text-sm text-muted-foreground">Bu aramada sektör yok. Yeni sektör ekleyebilirsin.</p>
+        ) : null}
+        <SectorForm open={sectorOpen} onOpenChange={setSectorOpen} />
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-10">

@@ -84,3 +84,7 @@ export function slugify(value: string) {
   const base = fold(value).replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")
   return `${base || "isletme"}-${Date.now().toString(36)}`
 }
+
+export function slugifyKey(value: string) {
+  return fold(value).replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || "sektor"
+}

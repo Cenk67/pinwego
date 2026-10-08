@@ -1,14 +1,18 @@
-export type CategoryId =
-  | "yeme"
-  | "konaklama"
-  | "guzellik"
-  | "ev"
-  | "usta"
-  | "saglik"
-  | "b2b"
-  | "dekor"
+export type CategoryId = string
 
 export type BookingKind = "randevu" | "rezervasyon" | "teklif"
+
+export type Sector = {
+  id: CategoryId
+  label: string
+  blurb: string
+  photo: string
+  tint: string
+  icon: string
+  booking: BookingKind
+  phrases: string[]
+  custom?: boolean
+}
 
 export type Service = {
   name: string

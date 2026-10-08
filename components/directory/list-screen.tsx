@@ -3,12 +3,13 @@
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { fieldClass } from "@/components/directory/bits"
+import { SectorForm } from "@/components/directory/sector-form"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { categories, categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
+import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { slugify } from "@/lib/format"
 import type { Business, CategoryId } from "@/lib/types"
@@ -18,7 +19,8 @@ const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartes
 export function ListScreen() {
   const router = useRouter()
   const { account } = useAuth()
-  const { addListing, listings } = useDirectory()
+  const { addListing, listings, sectors } = useDirectory()
+  const [sectorOpen, setSectorOpen] = useState(false)
   const [name, setName] = useState("")
   const [category, setCategory] = useState<CategoryId>("yeme")
   const [city, setCity] = useState("İstanbul")
@@ -110,12 +112,15 @@ export function ListScreen() {
             value={category}
             onChange={(event) => setCategory(event.target.value as CategoryId)}
           >
-            {categories.map((item) => (
+            {sectors.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.label}
               </option>
             ))}
           </select>
+          <button type="button" className="text-left text-sm text-primary" onClick={() => setSectorOpen(true)}>
+            Listede yoksa sektör ekle
+          </button>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
@@ -153,6 +158,7 @@ export function ListScreen() {
       {listings.length ? (
         <p className="mt-4 text-sm text-muted-foreground">{listings.length} kaydın bu tarayıcıda duruyor.</p>
       ) : null}
+      <SectorForm open={sectorOpen} onOpenChange={setSectorOpen} />
     </div>
   )
 }
