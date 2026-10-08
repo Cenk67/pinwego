@@ -1,17 +1,20 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { fieldClass } from "@/components/directory/bits"
+import { PlaceEditor } from "@/components/directory/place-picker"
 import { SectorForm } from "@/components/directory/sector-form"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
+import { categoryById, defaultBooking } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { slugify } from "@/lib/format"
+import { businessArea, openAddress, placeReady } from "@/lib/listing-location"
+import type { Place } from "@/lib/place"
 import type { Business, CategoryId } from "@/lib/types"
 
 const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
@@ -19,28 +22,79 @@ const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartes
 export function ListScreen() {
   const router = useRouter()
   const { account } = useAuth()
-  const { addListing, listings, sectors } = useDirectory()
+  const { addListing, listings, place: savedPlace, sectors } = useDirectory()
   const [sectorOpen, setSectorOpen] = useState(false)
   const [name, setName] = useState("")
   const [category, setCategory] = useState<CategoryId>("yeme")
-  const [city, setCity] = useState("İstanbul")
-  const [district, setDistrict] = useState("")
+  const [place, setPlace] = useState<Place>(savedPlace)
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null)
+  const [street, setStreet] = useState("")
+  const [pinNote, setPinNote] = useState("")
   const [phone, setPhone] = useState("")
   const [summary, setSummary] = useState("")
   const [error, setError] = useState("")
+  const pinRequest = useRef(0)
 
-  function submit(event: React.FormEvent) {
+  function choosePlace(next: Place) {
+    setPlace(next)
+    setPin(null)
+    setPinNote("")
+  }
+
+  async function pinAddress(current = place, text = street) {
+    const written = text.trim()
+    if (written.length < 8) return null
+    const query = [written, current.neighborhood, current.district, current.province, current.country].filter(Boolean).join(", ")
+    const token = ++pinRequest.current
+    setPinNote("Açık adres Google Haritalar’da aranıyor.")
+    try {
+      const response = await fetch(`/api/yer?q=${encodeURIComponent(query)}&country=${encodeURIComponent(current.countryCode)}`)
+      const body = (await response.json()) as Place[] | { error?: string }
+      if (token !== pinRequest.current) return null
+      const hit = Array.isArray(body) ? body[0] : null
+      if (!hit) {
+        setPin(null)
+        setPinNote("Bu açık adres ayrı bir nokta açmadı. Seçili konum haritada duruyor.")
+        return null
+      }
+      const next: Place = {
+        ...current,
+        ...hit,
+        nearMe: false,
+        country: hit.country || current.country,
+        countryCode: hit.countryCode || current.countryCode,
+        region: hit.region || current.region,
+        province: hit.province || current.province,
+        district: hit.district || current.district,
+        neighborhood: hit.neighborhood || current.neighborhood,
+      }
+      setPlace(next)
+      setPin({ lat: next.lat, lng: next.lng })
+      setPinNote("Açık adres haritada işaretlendi.")
+      return next
+    } catch {
+      if (token === pinRequest.current) setPinNote("Harita servisi yanıt vermedi. Seçili konum duruyor.")
+      return null
+    }
+  }
+
+  async function submit(event: React.FormEvent) {
     event.preventDefault()
     const digits = phone.replace(/\D/g, "")
-    if (name.trim().length < 2 || district.trim().length < 2 || summary.trim().length < 12) {
-      setError("Ad, semt ve en az bir cümlelik özet gerekli.")
+    if (name.trim().length < 2 || street.trim().length < 8 || summary.trim().length < 12) {
+      setError("Ad, açık adres ve en az bir cümlelik özet gerekli.")
       return
     }
     if (digits.length < 10) {
       setError("Telefon için en az 10 rakam gir.")
       return
     }
-    const center = cityCenter(city)
+    const located = (await pinAddress(place, street)) ?? place
+    if (!placeReady(located)) {
+      setError("İl, ilçe, semt ya da Yakınımdakiler ile bir nokta seç.")
+      return
+    }
+    const area = businessArea(located)
     const meta = categoryById(category)
     const slug = slugify(name)
     const business: Business = {
@@ -49,11 +103,11 @@ export function ListScreen() {
       name: name.trim(),
       category,
       subcategory: meta.label,
-      city,
-      district: district.trim(),
-      address: `${district.trim()}, ${city}`,
-      lat: center.lat + (Math.random() - 0.5) * 0.04,
-      lng: center.lng + (Math.random() - 0.5) * 0.04,
+      city: area.city,
+      district: area.district,
+      address: openAddress(street, located),
+      lat: located.lat,
+      lng: located.lng,
       phone: phone.trim(),
       rating: 0,
       reviewCount: 0,
@@ -94,11 +148,12 @@ export function ListScreen() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-8 md:py-12">
+    <div className="mx-auto max-w-2xl px-4 py-8 md:py-12">
       <p className="text-sm font-medium text-primary">Ücretsiz kayıt</p>
       <h1 className="mt-2 font-heading text-4xl leading-tight">İşletmeni ekle.</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        Kayıt bu tarayıcıda kalır, aramada ve profilde görünür. Doğrulama ve öne çıkarma bu demoda elle açılmaz.
+        Kayıt bu tarayıcıda kalır, aramada ve profilde görünür. Konum ülke, bölge, il, ilçe ve semtten seçilir.
+        Yakınımdakiler tarayıcı konumunu kullanır. Açık adres Google Haritalar’da aynı noktayı açar.
       </p>
       <form onSubmit={submit} className="mt-6 grid gap-4">
         <div className="grid gap-1.5">
@@ -123,18 +178,30 @@ export function ListScreen() {
             Listede yoksa sektör ekle
           </button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="grid gap-1.5">
-            <Label htmlFor="biz-city">Şehir</Label>
-            <select id="biz-city" className={fieldClass} value={city} onChange={(event) => setCity(event.target.value)}>
-              {cities.map((item) => (
-                <option key={item.name}>{item.name}</option>
-              ))}
-            </select>
+        <div className="grid gap-3 rounded-3xl bg-card p-4 ring-1 ring-foreground/10">
+          <div>
+            <p className="text-sm font-medium">Konum</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Ülke, bölge, il, ilçe ve semt birbirine bağlıdır. Yakınımdakiler tarayıcı konumunu kullanır. Seçtiğin nokta
+              Google Haritalar üzerinde durur.
+            </p>
           </div>
+          <PlaceEditor current={place} onChange={choosePlace} embedded point={pin} />
           <div className="grid gap-1.5">
-            <Label htmlFor="biz-district">Semt</Label>
-            <Input id="biz-district" value={district} onChange={(event) => setDistrict(event.target.value)} className="h-11" />
+            <Label htmlFor="biz-address">Açık adres</Label>
+            <Input
+              id="biz-address"
+              value={street}
+              onChange={(event) => {
+                setStreet(event.target.value)
+                setPin(null)
+                setPinNote("")
+              }}
+              onBlur={(event) => void pinAddress(place, event.currentTarget.value)}
+              placeholder="Sokak, kapı numarası, daire. Örn. İstiklal Cad. No: 12 D: 3"
+              className="h-11"
+            />
+            {pinNote ? <p className="text-xs text-muted-foreground">{pinNote}</p> : null}
           </div>
         </div>
         <div className="grid gap-1.5">

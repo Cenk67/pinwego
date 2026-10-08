@@ -87,11 +87,13 @@ export function PlaceEditor({
   onUse,
   onChange,
   embedded = false,
+  point,
 }: {
   current: Place
   onUse?: (place: Place) => void
   onChange?: (place: Place) => void
   embedded?: boolean
+  point?: { lat: number; lng: number } | null
 }) {
   const countries = useMemo(
     () => countryCodes.map((code) => ({ code, name: countryName(code) })).sort((a, b) => a.name.localeCompare(b.name, "tr")),
@@ -391,15 +393,15 @@ export function PlaceEditor({
         <iframe
           title="Seçilen konumun Google haritası"
           src={googleEmbedUrl(
-            draft.lat,
-            draft.lng,
-            draft.neighborhood ? 15 : draft.district ? 13 : draft.province ? 11 : draft.region ? 8 : 6,
+            point?.lat ?? draft.lat,
+            point?.lng ?? draft.lng,
+            point ? 16 : draft.neighborhood ? 15 : draft.district ? 13 : draft.province ? 11 : draft.region ? 8 : 6,
           )}
           className="h-48 w-full border-0"
         />
       </div>
       <a
-        href={googlePlaceLink(draft.lat, draft.lng, 14)}
+        href={googlePlaceLink(point?.lat ?? draft.lat, point?.lng ?? draft.lng, point ? 16 : 14)}
         target="_blank"
         rel="noreferrer"
         className="text-sm text-primary"
