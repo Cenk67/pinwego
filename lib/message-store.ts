@@ -1,5 +1,5 @@
 import type { Account } from "@/lib/auth-store"
-import type { Business, ChatKind, ChatMessage, ChatNotice, ChatThread } from "@/lib/types"
+import type { Business, ChatBlock, ChatKind, ChatMessage, ChatNotice, ChatThread } from "@/lib/types"
 
 const STORAGE_KEY = "pinwego.messages.v1"
 const CHANNEL = "pinwego-messages"
@@ -8,9 +8,10 @@ type Persisted = {
   threads: ChatThread[]
   messages: ChatMessage[]
   notices: ChatNotice[]
+  blocks: ChatBlock[]
 }
 
-const empty: Persisted = { threads: [], messages: [], notices: [] }
+const empty: Persisted = { threads: [], messages: [], notices: [], blocks: [] }
 
 let memory = empty
 let loaded = false
@@ -37,6 +38,12 @@ function isMessage(value: unknown): value is ChatMessage {
   return typeof item.id === "string" && typeof item.threadId === "string" && typeof item.text === "string"
 }
 
+function isBlock(value: unknown): value is ChatBlock {
+  if (!value || typeof value !== "object") return false
+  const item = value as Partial<ChatBlock>
+  return typeof item.id === "string" && typeof item.threadId === "string" && typeof item.blockerId === "string"
+}
+
 function readStorage(): Persisted {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -48,6 +55,7 @@ function readStorage(): Persisted {
       notices: Array.isArray(data.notices)
         ? data.notices.filter((item) => item && typeof item === "object" && typeof (item as ChatNotice).accountId === "string")
         : [],
+      blocks: Array.isArray(data.blocks) ? data.blocks.filter(isBlock) : [],
     }
   } catch {
     localStorage.removeItem(STORAGE_KEY)
@@ -132,11 +140,16 @@ export function unreadCount(account: Account, ownedListingIds: string[]) {
   const ids = new Set(visibleThreads(account, ownedListingIds).map((item) => item.id))
   const me = new Set([account.id, ...ownedListingIds.map((id) => `listing:${id}`)])
   return getMessageSnapshot().messages.filter(
-    (item) => ids.has(item.threadId) && !me.has(item.fromId) && !item.readBy.includes(account.id),
+    (item) =>
+      ids.has(item.threadId) &&
+      !blockedByMe(account.id, item.threadId) &&
+      !me.has(item.fromId) &&
+      !item.readBy.includes(account.id),
   ).length
 }
 
 export function unreadInThread(accountId: string, threadId: string, ownedListingIds: string[]) {
+  if (blockedByMe(accountId, threadId)) return 0
   const me = new Set([accountId, ...ownedListingIds.map((id) => `listing:${id}`)])
   return getMessageSnapshot().messages.filter(
     (item) => item.threadId === threadId && !me.has(item.fromId) && !item.readBy.includes(accountId),
@@ -176,6 +189,7 @@ export function sendMessage(input: {
   const current = getMessageSnapshot()
   const thread = current.threads.find((item) => item.id === input.threadId)
   if (!thread) return null
+  if (isThreadBlocked(thread.id)) return null
   const message: ChatMessage = {
     id: crypto.randomUUID(),
     threadId: thread.id,
@@ -208,6 +222,7 @@ export function sendMessage(input: {
     threads: [nextThread, ...current.threads.filter((item) => item.id !== thread.id)],
     messages: [...current.messages, message],
     notices: [...notices, ...current.notices],
+    blocks: current.blocks,
   })
   channel?.postMessage({ type: "message", threadId: thread.id, recipientIds: input.recipientIds })
   return message
@@ -243,7 +258,53 @@ export function takeNotices(accountId: string) {
   const mine = current.notices.filter((item) => item.accountId === accountId)
   if (!mine.length) return []
   commit({ ...current, notices: current.notices.filter((item) => item.accountId !== accountId) })
-  return mine
+  return mine.filter((item) => !blockedByMe(accountId, item.threadId))
+}
+
+export function blockedByMe(accountId: string, threadId: string) {
+  return getMessageSnapshot().blocks.some((item) => item.threadId === threadId && item.blockerId === accountId)
+}
+
+export function blockedByPeer(accountId: string, threadId: string) {
+  return getMessageSnapshot().blocks.some((item) => item.threadId === threadId && item.blockerId !== accountId)
+}
+
+export function isThreadBlocked(threadId: string) {
+  return getMessageSnapshot().blocks.some((item) => item.threadId === threadId)
+}
+
+export function blockedListingIds(accountId: string) {
+  const current = getMessageSnapshot()
+  const threadIds = new Set(
+    current.blocks.filter((item) => item.blockerId === accountId).map((item) => item.threadId),
+  )
+  return new Set(current.threads.filter((thread) => threadIds.has(thread.id)).map((thread) => thread.listingId))
+}
+
+export function blockThread(accountId: string, threadId: string) {
+  const current = getMessageSnapshot()
+  if (!current.threads.some((item) => item.id === threadId)) return
+  if (blockedByMe(accountId, threadId)) return
+  const block: ChatBlock = {
+    id: crypto.randomUUID(),
+    threadId,
+    blockerId: accountId,
+    createdAt: new Date().toISOString(),
+  }
+  commit({
+    ...current,
+    blocks: [block, ...current.blocks],
+    notices: current.notices.filter((item) => !(item.accountId === accountId && item.threadId === threadId)),
+  })
+  channel?.postMessage({ type: "block", threadId })
+}
+
+export function unblockThread(accountId: string, threadId: string) {
+  const current = getMessageSnapshot()
+  const blocks = current.blocks.filter((item) => !(item.threadId === threadId && item.blockerId === accountId))
+  if (blocks.length === current.blocks.length) return
+  commit({ ...current, blocks })
+  channel?.postMessage({ type: "unblock", threadId })
 }
 
 export function recipientIdsFor(thread: ChatThread, senderId: string, ownerAccountId?: string) {

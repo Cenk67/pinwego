@@ -108,6 +108,13 @@ export type ChatNotice = {
   threadId: string
 }
 
+export type ChatBlock = {
+  id: string
+  threadId: string
+  blockerId: string
+  createdAt: string
+}
+
 export type BusinessOverride = Partial<
   Pick<
     Business,

@@ -13,14 +13,20 @@ import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
 import {
   adoptListingThreads,
+  blockedByMe as accountBlockedThread,
+  blockedByPeer as peerBlockedThread,
+  blockedListingIds,
+  blockThread,
   getMessageServerSnapshot,
   getMessageSnapshot,
+  isThreadBlocked,
   markThreadRead,
   openListingThread,
   recipientIdsFor,
   sendMessage,
   subscribeMessages,
   takeNotices,
+  unblockThread,
   unreadCount,
   unreadInThread,
   visibleThreads,
@@ -44,6 +50,12 @@ type MessageState = {
   send: (threadId: string, text: string, business?: Business) => ChatMessage | null
   markRead: (threadId: string) => void
   adoptListing: (listingId: string) => void
+  block: (threadId: string) => void
+  unblock: (threadId: string) => void
+  blockedByMe: (threadId: string) => boolean
+  blockedByPeer: (threadId: string) => boolean
+  threadClosed: (threadId: string) => boolean
+  blockedListings: Set<string>
   toast: Toast | null
   dismissToast: () => void
 }
@@ -115,6 +127,16 @@ export function MessageProvider({ children }: { children: ReactNode }) {
       adoptListing: (listingId) => {
         if (account) adoptListingThreads(listingId, account.id)
       },
+      block: (threadId) => {
+        if (account) blockThread(account.id, threadId)
+      },
+      unblock: (threadId) => {
+        if (account) unblockThread(account.id, threadId)
+      },
+      blockedByMe: (threadId) => (account ? accountBlockedThread(account.id, threadId) : false),
+      blockedByPeer: (threadId) => (account ? peerBlockedThread(account.id, threadId) : false),
+      threadClosed: (threadId) => isThreadBlocked(threadId),
+      blockedListings: account ? blockedListingIds(account.id) : new Set<string>(),
       toast,
       dismissToast: () => setToast(null),
     }

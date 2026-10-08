@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, Bell, Building2, MessageCircle, Plus, Search } from "lucide-react"
+import { ArrowLeft, Ban, Bell, Building2, MessageCircle, Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -35,17 +35,24 @@ function peerLabel(thread: ChatThread, accountId: string) {
   return thread.listingName
 }
 
+function blockTarget(thread: ChatThread, role: "musteri" | "isletme" | "admin") {
+  if (thread.kind === "musteri-isletme" && role !== "musteri") return "müşteriyi"
+  return "işletmeyi"
+}
+
 function BusinessPicker({
   query,
   onQuery,
   businesses,
   onPick,
+  blockedIds,
   autoFocus = false,
 }: {
   query: string
   onQuery: (value: string) => void
   businesses: Business[]
   onPick: (business: Business) => void
+  blockedIds: Set<string>
   autoFocus?: boolean
 }) {
   return (
@@ -86,6 +93,7 @@ function BusinessPicker({
                       <span className="block font-medium">{business.name}</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
                         {category.label} · {place}
+                        {blockedIds.has(business.id) ? " · Engelli" : ""}
                       </span>
                     </span>
                   </button>
@@ -110,10 +118,25 @@ export function InboxScreen() {
   const router = useRouter()
   const { account } = useAuth()
   const { visibleBusinesses } = useDirectory()
-  const { threads, unread, messagesFor, unreadIn, send, markRead, openWithBusiness } = useMessages()
+  const {
+    threads,
+    unread,
+    messagesFor,
+    unreadIn,
+    send,
+    markRead,
+    openWithBusiness,
+    block,
+    unblock,
+    blockedByMe,
+    blockedByPeer,
+    threadClosed,
+    blockedListings,
+  } = useMessages()
   const [draft, setDraft] = useState("")
   const [query, setQuery] = useState("")
   const [picking, setPicking] = useState(false)
+  const [confirmBlock, setConfirmBlock] = useState(false)
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
     canNotify() ? Notification.permission : "unsupported",
   )
@@ -164,6 +187,7 @@ export function InboxScreen() {
   function startNew() {
     setDraft("")
     setQuery("")
+    setConfirmBlock(false)
     setPicking(true)
     router.replace("/mesajlar")
   }
@@ -173,13 +197,14 @@ export function InboxScreen() {
     if (!thread) return
     pendingFocus.current = true
     setPicking(false)
+    setConfirmBlock(false)
     setQuery("")
     router.replace(`/mesajlar?konusma=${encodeURIComponent(thread.id)}`)
   }
 
   function submit(event: React.FormEvent) {
     event.preventDefault()
-    if (!active) return
+    if (!active || threadClosed(active.id)) return
     const business = visibleBusinesses.find((item) => item.id === active.listingId)
     const sent = send(active.id, draft, business)
     if (sent) setDraft("")
@@ -194,8 +219,8 @@ export function InboxScreen() {
           <p className="text-sm font-medium text-primary">Mesajlar</p>
           <h1 className="mt-1 font-heading text-4xl">Sohbet</h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            İşletmeyi buradan seç, doğrudan yaz. Müşteri işletmeyle, işletme de başka işletmeyle konuşur.
-            Gelen mesajda tarayıcı bildirimi ve ekran uyarısı çıkar.
+            İşletmeyi buradan seç, doğrudan yaz. Rahatsız eden sohbette Engelle; pişman olursan Engeli kaldır.
+            Müşteri işletmeyi, işletme müşteriyi veya başka işletmeyi keser.
           </p>
         </div>
         {permission === "default" ? (
@@ -230,6 +255,7 @@ export function InboxScreen() {
                       type="button"
                       onClick={() => {
                         setPicking(false)
+                        setConfirmBlock(false)
                         router.replace(`/mesajlar?konusma=${encodeURIComponent(thread.id)}`)
                       }}
                       className={cn(
@@ -242,7 +268,11 @@ export function InboxScreen() {
                         <span className="text-[11px] text-muted-foreground">{formatChatTime(thread.updatedAt)}</span>
                       </div>
                       <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                        {thread.kind === "isletme-isletme" ? "İşletme · " : "Müşteri · "}
+                        {blockedByMe(thread.id) || blockedByPeer(thread.id)
+                          ? "Engelli · "
+                          : thread.kind === "isletme-isletme"
+                            ? "İşletme · "
+                            : "Müşteri · "}
                         {thread.lastText || "Henüz mesaj yok"}
                       </p>
                       {count ? (
@@ -266,7 +296,7 @@ export function InboxScreen() {
         <section className={cn("flex min-h-0 flex-col", active || picking ? "flex" : "hidden lg:flex")}>
           {active ? (
             <>
-              <div className="flex items-center gap-2 border-b border-foreground/10 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2 border-b border-foreground/10 px-4 py-3">
                 <button
                   type="button"
                   className="grid size-9 place-items-center rounded-full hover:bg-secondary lg:hidden"
@@ -281,6 +311,48 @@ export function InboxScreen() {
                     {active.kind === "isletme-isletme" ? "İşletme–işletme sohbeti" : "Müşteri–işletme sohbeti"}
                   </p>
                 </div>
+                {blockedByMe(active.id) ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-lg"
+                    onClick={() => unblock(active.id)}
+                  >
+                    Engeli kaldır
+                  </Button>
+                ) : confirmBlock ? (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="h-8 rounded-lg"
+                      onClick={() => {
+                        block(active.id)
+                        setConfirmBlock(false)
+                        setDraft("")
+                      }}
+                    >
+                      <Ban className="size-3.5" />
+                      Engelle
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-8 rounded-lg" onClick={() => setConfirmBlock(false)}>
+                      Vazgeç
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 rounded-lg"
+                    onClick={() => setConfirmBlock(true)}
+                  >
+                    <Ban className="size-3.5" />
+                    Engelle
+                  </Button>
+                )}
                 <Button type="button" variant="ghost" size="sm" className="hidden h-8 rounded-lg lg:inline-flex" onClick={startNew}>
                   <Plus className="size-3.5" />
                   Başka işletme
@@ -312,24 +384,39 @@ export function InboxScreen() {
                 )}
                 <div ref={endRef} />
               </div>
-              <form onSubmit={submit} className="border-t border-foreground/10 p-3">
-                <Textarea
-                  ref={composerRef}
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder={`${active.listingName} için mesajını yaz`}
-                  className="min-h-20"
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault()
-                      submit(event)
-                    }
-                  }}
-                />
-                <Button type="submit" className="mt-2 h-10 rounded-xl" disabled={!draft.trim()}>
-                  Gönder
-                </Button>
-              </form>
+              {threadClosed(active.id) ? (
+                <div className="border-t border-foreground/10 px-4 py-4 text-sm leading-6 text-muted-foreground">
+                  {blockedByMe(active.id) ? (
+                    <>
+                      <p>Bu {blockTarget(active, account.role)} engelledin. Yeni mesaj gitmez ve gelmez.</p>
+                      <Button type="button" variant="outline" className="mt-3 h-10 rounded-xl" onClick={() => unblock(active.id)}>
+                        Engeli kaldır
+                      </Button>
+                    </>
+                  ) : (
+                    <p>Karşı taraf bu sohbeti engelledi. Yeni mesaj gönderemezsin.</p>
+                  )}
+                </div>
+              ) : (
+                <form onSubmit={submit} className="border-t border-foreground/10 p-3">
+                  <Textarea
+                    ref={composerRef}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    placeholder={`${active.listingName} için mesajını yaz`}
+                    className="min-h-20"
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault()
+                        submit(event)
+                      }
+                    }}
+                  />
+                  <Button type="submit" className="mt-2 h-10 rounded-xl" disabled={!draft.trim()}>
+                    Gönder
+                  </Button>
+                </form>
+              )}
             </>
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
@@ -349,6 +436,7 @@ export function InboxScreen() {
                 onQuery={setQuery}
                 businesses={candidates}
                 onPick={pickBusiness}
+                blockedIds={blockedListings}
                 autoFocus={picking}
               />
             </div>
