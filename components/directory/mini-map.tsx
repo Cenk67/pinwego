@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useLayoutEffect, useRef, useState } from "react"
 import { categoryTint } from "@/components/directory/bits"
+import { googleEmbedUrl, googlePlaceLink } from "@/lib/google-map"
 import { cn } from "cn"
 
 type Pin = {
@@ -55,32 +56,23 @@ function viewOf(points: Pin[], width: number, height: number): View {
   return { lat, lng, zoom: 5 }
 }
 
-// Ground span Google uses for /maps/embed at zoom 0 on the equator.
-const EMBED_SPAN_ZOOM0 = 522953451.522212
-
-function googleEmbed(view: View) {
-  const lat = Number(view.lat.toFixed(6))
-  const lng = Number(view.lng.toFixed(6))
-  const span = (EMBED_SPAN_ZOOM0 * Math.cos((lat * Math.PI) / 180)) / 2 ** view.zoom
-  const pb = `!1m11!1m8!1m3!1d${span}!2d${lng}!3d${lat}!3m2!1i1024!2i768!4f13.1!5e0!6i${view.zoom}!3m1!1str!5m1!1str`
-  return `https://www.google.com/maps/embed?origin=mfe&pb=${pb}`
-}
-
 function googleLink(view: View, points: Pin[]) {
   if (points.length === 1) {
     return `https://www.google.com/maps/search/?api=1&query=${points[0].lat},${points[0].lng}`
   }
-  return `https://www.google.com/maps/@${view.lat.toFixed(6)},${view.lng.toFixed(6)},${view.zoom}z`
+  return googlePlaceLink(view.lat, view.lng, view.zoom)
 }
 
 export function MiniMap({
   points,
   className,
   label = "Harita",
+  focus,
 }: {
   points: Pin[]
   className?: string
   label?: string
+  focus?: { lat: number; lng: number; zoom?: number }
 }) {
   const frame = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 480, h: 320 })
@@ -102,7 +94,9 @@ export function MiniMap({
     return () => observer.disconnect()
   }, [])
 
-  const view = viewOf(points, size.w, size.h)
+  const view = points.length
+    ? viewOf(points, size.w, size.h)
+    : { lat: focus?.lat ?? 39.1, lng: focus?.lng ?? 35.2, zoom: focus?.zoom ?? 6 }
   const origin = project(view.lat, view.lng, view.zoom)
 
   return (
@@ -115,7 +109,7 @@ export function MiniMap({
         <iframe
           key={`${view.lat.toFixed(5)}-${view.lng.toFixed(5)}-${view.zoom}`}
           title={`${label} — Google haritası`}
-          src={googleEmbed(view)}
+          src={googleEmbedUrl(view.lat, view.lng, view.zoom)}
           className="pointer-events-none absolute inset-0 z-0 h-full w-full border-0"
           referrerPolicy="no-referrer-when-downgrade"
         />

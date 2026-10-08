@@ -30,6 +30,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const value = useContext(AuthContext)
-  if (!value) throw new Error("Pinora hesap sağlayıcısı bulunamadı")
+  if (!value) throw new Error("pinwego hesap sağlayıcısı bulunamadı")
   return value
 }

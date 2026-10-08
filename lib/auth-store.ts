@@ -42,8 +42,8 @@ type Snapshot = {
   account: Account | null
 }
 
-const ACCOUNTS_KEY = "pinora.accounts.v1"
-const SESSION_KEY = "pinora.session.v1"
+const ACCOUNTS_KEY = "pinwego.accounts.v1"
+const SESSION_KEY = "pinwego.session.v1"
 
 const loggedOut: Snapshot = { ready: false, account: null }
 let memory: Snapshot = loggedOut
@@ -102,7 +102,7 @@ async function hashPassword(email: string, password: string) {
 
 function openFiles() {
   return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open("pinora-files", 1)
+    const request = indexedDB.open("pinwego-files", 1)
     request.onupgradeneeded = () => {
       request.result.createObjectStore("files")
     }

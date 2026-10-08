@@ -67,7 +67,7 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <>
       {!ready ? (
-        <div className="grid min-h-svh place-items-center px-4 text-sm text-muted-foreground">Pinora açılıyor</div>
+        <div className="grid min-h-svh place-items-center px-4 text-sm text-muted-foreground">pinwego açılıyor</div>
       ) : null}
       {ready && !account ? <AuthScreen /> : null}
       <div hidden={!open} inert={!open} aria-hidden={!open}>

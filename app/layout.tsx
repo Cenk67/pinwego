@@ -17,11 +17,11 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: {
-    default: "Pinora",
-    template: "%s · Pinora",
+    default: "pinwego",
+    template: "%s · pinwego",
   },
   description:
-    "Yakındaki işletmeyi yorum, fiyat, mesafe ve randevuyla bulun. Pinora, yazdığınız cümleye göre eşleştirir.",
+    "Yakındaki işletmeyi yorum, fiyat, mesafe ve randevuyla bulun. pinwego, yazdığınız cümleye göre eşleştirir.",
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

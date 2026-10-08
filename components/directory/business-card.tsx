@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { BadgeCheck } from "lucide-react"
+import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, RatingBlock, SaveButton } from "@/components/directory/bits"
 import { categoryById } from "@/lib/catalog"
 import { formatDistance, priceLabel, priceMarks, priceRange } from "@/lib/format"
@@ -77,7 +78,9 @@ export function BusinessCard({
             </span>
             <span className="text-foreground">{priceRange(business)}</span>
           </div>
-          {business.verified ? (
+          {business.source === "google" ? (
+            <p className="text-xs text-primary">Google Haritalar kaydı</p>
+          ) : business.verified ? (
             <p className="flex items-center gap-1 text-xs text-primary">
               <BadgeCheck className="size-3.5" />
               Doğrulandı
@@ -89,6 +92,11 @@ export function BusinessCard({
           )}
         </div>
       </Link>
+      {business.source === "google" ? (
+        <div className="px-4 pb-4">
+          <ClaimPrompt business={business} />
+        </div>
+      ) : null}
       <SaveButton business={business} className="absolute top-3 right-3" />
     </article>
   )

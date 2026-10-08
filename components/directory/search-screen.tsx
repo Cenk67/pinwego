@@ -18,9 +18,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { allBusinesses, categories, cities, cityCenter } from "@/lib/catalog"
+import { allBusinesses, categories, cityCenter } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { defaultFilters, parseQuery, searchDirectory } from "@/lib/match"
+import { applyPlace, placeLabel } from "@/lib/place"
 import type { CategoryId, SortKey } from "@/lib/types"
 
 const sorts: { id: SortKey; label: string }[] = [
@@ -36,14 +37,15 @@ export function SearchScreen() {
   const params = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
-  const { city, listings } = useDirectory()
+  const { listings, place } = useDirectory()
   const [showMap, setShowMap] = useState(false)
   const [limit, setLimit] = useState(9)
 
   const query = params.get("q") ?? ""
   const catalog = useMemo(() => allBusinesses(listings), [listings])
   const parsed = parseQuery(query, catalog)
-  const sehir = params.get("sehir") ?? parsed.city ?? city
+  const namedCity = params.get("sehir") ?? parsed.city
+  const sehir = place.nearMe ? "hepsi" : namedCity ?? "hepsi"
   const kategori = (params.get("kategori") ?? parsed.category ?? "hepsi") as CategoryId | "hepsi"
   const minRating = Number(params.get("puan") ?? "0")
   const maxPrice = Number(params.get("fiyat") ?? "4")
@@ -63,48 +65,47 @@ export function SearchScreen() {
     setLimit(9)
   }
 
-  const origin = cityCenter(sehir === "hepsi" ? city : sehir)
-  const results = useMemo(
+  const origin = useMemo(
     () =>
-        searchDirectory(
-        catalog,
-        query,
-        {
-          ...defaultFilters,
-          sehir,
-          kategori,
-          minRating,
-          maxPrice,
-          openNow,
-          verified,
-          premium,
-          sort,
-        },
-        origin,
-      ),
-    [catalog, query, sehir, kategori, minRating, maxPrice, openNow, verified, premium, sort, origin],
+      namedCity && !place.nearMe
+        ? cityCenter(namedCity)
+        : { name: place.province || place.country || "Konum", lat: place.lat, lng: place.lng },
+    [namedCity, place],
   )
+  const scoped = useMemo(() => {
+    const ranked = searchDirectory(
+      catalog,
+      query,
+      {
+        ...defaultFilters,
+        sehir,
+        kategori,
+        minRating,
+        maxPrice,
+        openNow,
+        verified,
+        premium,
+        sort,
+      },
+      origin,
+    )
+    if (namedCity && !place.nearMe) return { items: ranked, widened: false }
+    return applyPlace(ranked, place)
+  }, [catalog, query, sehir, kategori, minRating, maxPrice, openNow, verified, premium, sort, origin, namedCity, place])
+  const results = scoped.items
 
   const activeCount = [kategori !== "hepsi", minRating > 0, maxPrice < 4, openNow, verified, premium].filter(Boolean).length
   const visible = results.slice(0, limit)
 
   const filters = (
     <div className="grid gap-4">
-      <label className="grid gap-1.5 text-sm">
-        Şehir
-        <select
-          className={fieldClass}
-          value={sehir}
-          onChange={(event) => update({ sehir: event.target.value })}
-        >
-          <option value="hepsi">Tüm şehirler</option>
-          {cities.map((item) => (
-            <option key={item.name} value={item.name}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="rounded-2xl bg-card px-3 py-3 ring-1 ring-foreground/10">
+        <p className="text-xs text-muted-foreground">Konum</p>
+        <p className="mt-1 text-sm font-medium">{place.nearMe ? "Yakınımdakiler" : placeLabel(place)}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          Eşleştirmenin yanındaki düğmeden ülke, bölge, il, ilçe veya semt değişir.
+        </p>
+      </div>
       <label className="grid gap-1.5 text-sm">
         Kategori
         <select
@@ -208,10 +209,11 @@ export function SearchScreen() {
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-heading text-3xl md:text-4xl">
-            {query ? `“${query}”` : sehir === "hepsi" ? "Tüm kayıtlar" : sehir}
+            {query ? `“${query}”` : place.nearMe ? "Yakınımdakiler" : placeLabel(place)}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {results.length} işletme
+            {scoped.widened ? " · 40 km içinde örnek kayıt yok, en yakınlar duruyor" : ""}
             {query ? " · gerekçe her kartın altında" : ""}
           </p>
         </div>
@@ -260,7 +262,7 @@ export function SearchScreen() {
         <div>
           {showMap ? (
             <div className="mb-4 lg:hidden">
-              <MiniMap label="Sonuçlar" points={results.slice(0, 30).map((item) => item.business)} />
+              <MiniMap label="Sonuçlar" points={results.slice(0, 30).map((item) => item.business)} focus={place} />
             </div>
           ) : null}
           {visible.length ? (
@@ -279,7 +281,8 @@ export function SearchScreen() {
             <div className="rounded-3xl bg-card px-5 py-10 ring-1 ring-foreground/10">
               <h2 className="font-heading text-2xl">Bu süzgeçte kayıt yok</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Şehri genişlet, puanı düşür ya da işi talep olarak yaz. Talep, kategoriye göre üç kayıt önerir.
+                Örnek katalog İstanbul, Ankara, İzmir, Antalya ve Bursa kayıtlarından oluşur. Seçtiğin yer bu
+                şehirlerin dışındaysa Google haritası o noktayı gösterir; eşleşen kart çıkmayabilir.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
@@ -309,7 +312,7 @@ export function SearchScreen() {
         </div>
         <aside className="hidden lg:block">
           <div className="sticky top-24">
-            <MiniMap label="Sonuçlar" points={results.slice(0, 40).map((item) => item.business)} />
+            <MiniMap label="Sonuçlar" points={results.slice(0, 40).map((item) => item.business)} focus={place} />
           </div>
         </aside>
       </div>

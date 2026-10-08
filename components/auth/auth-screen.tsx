@@ -1,13 +1,17 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth-context"
-import { cities } from "@/lib/catalog"
+import { businesses, cities } from "@/lib/catalog"
+import { CLAIM_KEY, claimListing } from "@/lib/claim"
+import { useDirectory } from "@/lib/directory-context"
+import type { Business } from "@/lib/types"
 import {
   adultBirthDate,
   fileProblem,
@@ -82,9 +86,17 @@ function ErrorList({ errors }: { errors: string[] }) {
   )
 }
 
+function pendingClaim() {
+  if (typeof window === "undefined") return null
+  const slug = sessionStorage.getItem(CLAIM_KEY)
+  if (!slug) return null
+  return businesses.find((item) => item.slug === slug && item.source === "google") ?? null
+}
+
 export function AuthScreen() {
   const { login, registerAccount } = useAuth()
-  const [mode, setMode] = useState<Mode>("choose")
+  const [claim] = useState<Business | null>(pendingClaim)
+  const [mode, setMode] = useState<Mode>(claim ? "isletme" : "choose")
 
   return (
     <div className="min-h-svh bg-background">
@@ -96,24 +108,24 @@ export function AuthScreen() {
               <path d="M12 12.5 V19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
             </svg>
           </span>
-          <span className="font-heading text-xl tracking-tight">Pinora</span>
+          <span className="font-heading text-xl tracking-tight">pinwego</span>
         </div>
       </header>
       <main className="mx-auto w-full max-w-lg px-4 py-8">
-        {mode === "choose" ? <Chooser onPick={setMode} /> : null}
+        {mode === "choose" ? <Chooser onPick={setMode} claim={claim} /> : null}
         {mode === "login" ? <LoginForm onBack={() => setMode("choose")} login={login} /> : null}
         {mode === "musteri" ? (
           <CustomerForm onBack={() => setMode("choose")} registerAccount={registerAccount} />
         ) : null}
         {mode === "isletme" ? (
-          <BusinessForm onBack={() => setMode("choose")} registerAccount={registerAccount} />
+          <BusinessForm onBack={() => setMode("choose")} registerAccount={registerAccount} claim={claim} />
         ) : null}
       </main>
     </div>
   )
 }
 
-function Chooser({ onPick }: { onPick: (mode: Mode) => void }) {
+function Chooser({ onPick, claim }: { onPick: (mode: Mode) => void; claim: Business | null }) {
   return (
     <div>
       <p className="text-sm font-medium text-primary">Kapalı rehber</p>
@@ -122,6 +134,11 @@ function Chooser({ onPick }: { onPick: (mode: Mode) => void }) {
         Arama, harita, randevu, talep ve kayıt ekleme yalnızca doğrulaması tamamlanmış hesaba açıktır. Müşteri
         kimlik bilgisi ve teyit belgesi girer. İşletme vergi ve yetki belgelerini yükler.
       </p>
+      {claim ? (
+        <p className="mt-4 rounded-2xl bg-primary/10 px-3 py-3 text-sm leading-6 text-primary">
+          {claim.name} için sahiplenme açık. İşletme kaydı tamamlanınca bu Google kaydı projeye yazılır.
+        </p>
+      ) : null}
       <div className="mt-6 grid gap-3">
         <button
           type="button"
@@ -291,18 +308,22 @@ function CustomerForm({
 function BusinessForm({
   onBack,
   registerAccount,
+  claim,
 }: {
   onBack: () => void
   registerAccount: ReturnType<typeof useAuth>["registerAccount"]
+  claim: Business | null
 }) {
-  const [title, setTitle] = useState("")
+  const router = useRouter()
+  const { addListing } = useDirectory()
+  const [title, setTitle] = useState(claim?.name ?? "")
   const [owner, setOwner] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [taxId, setTaxId] = useState("")
   const [taxOffice, setTaxOffice] = useState("")
-  const [city, setCity] = useState(cities[0]?.name ?? "İstanbul")
-  const [address, setAddress] = useState("")
+  const [city, setCity] = useState(claim?.city ?? cities[0]?.name ?? "İstanbul")
+  const [address, setAddress] = useState(claim?.address ?? "")
   const [password, setPassword] = useState("")
   const [again, setAgain] = useState("")
   const [vergi, setVergi] = useState<File | null>(null)
@@ -353,6 +374,11 @@ function BusinessForm({
         },
         uploads: uploads.map((item) => ({ label: item.label, file: item.file as File })),
       })
+      if (!message && claim) {
+        addListing(claimListing(claim))
+        sessionStorage.removeItem(CLAIM_KEY)
+        router.push(`/isletme/${claim.slug}`)
+      }
       setErrors(message ? [message] : [])
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Belgeler kaydedilemedi."])
@@ -364,9 +390,13 @@ function BusinessForm({
   return (
     <form onSubmit={submit} className="grid gap-4">
       <div>
-        <h1 className="font-heading text-4xl text-balance">İşletme doğrulaması</h1>
+        <h1 className="font-heading text-4xl text-balance">
+          {claim ? "İşletmeyi sahiplen" : "İşletme doğrulaması"}
+        </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Dört belge de yüklenmeden işletme hesabı açılmaz ve rehber kullanılamaz.
+          {claim
+            ? `${claim.name} kaydı, belgeler tamamlanınca pinwego’ya yazılır. Dört belge de gerekir.`
+            : "Dört belge de yüklenmeden işletme hesabı açılmaz ve rehber kullanılamaz."}
         </p>
       </div>
       <Field id="biz-title" label="İşletme unvanı" value={title} onChange={setTitle} />

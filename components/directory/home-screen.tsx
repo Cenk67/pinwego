@@ -10,18 +10,17 @@ import { Button } from "@/components/ui/button"
 import {
   businesses,
   categories,
-  cityCenter,
   suggestions,
 } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
-import { distanceKm } from "@/lib/format"
+import { distanceFromPlace, placeLabel, applyPlace } from "@/lib/place"
 
 export function HomeScreen() {
-  const { city } = useDirectory()
-  const origin = cityCenter(city)
-  const local = businesses
-    .filter((business) => business.city === city)
-    .map((business) => ({ business, km: distanceKm(origin, business) }))
+  const { place } = useDirectory()
+  const ranked = businesses.map((business) => ({ business, distanceKm: distanceFromPlace(place, business) }))
+  const scoped = applyPlace(ranked, place)
+  const local = scoped.items
+    .map((item) => ({ business: item.business, km: item.distanceKm }))
     .sort((a, b) => a.km - b.km)
   const nearby = local.filter((item) => item.business.openNow).slice(0, 6)
   const featured = (local.some((item) => item.business.premium)
@@ -35,13 +34,13 @@ export function HomeScreen() {
         <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 md:py-16 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <div className="min-w-0">
             <p className="text-sm font-medium text-primary">
-              Ticari rehber · {businesses.length} örnek kayıt · 5 şehir
+              Ticari rehber · {businesses.length} örnek kayıt · dünya haritası
             </p>
             <h1 className="mt-3 max-w-full font-heading text-4xl leading-[1.05] text-balance md:max-w-xl md:text-6xl">
               Doğru işletme, tek cümle.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
-              Yorum, fiyat, mesafe ve randevuyu aynı kartta topladık. Ne aradığını yaz; Pinora
+              Yorum, fiyat, mesafe ve randevuyu aynı kartta topladık. Ne aradığını yaz; pinwego
               yakındaki kaydı gerekçesiyle sıralasın.
             </p>
             <div className="mt-6">
@@ -60,8 +59,9 @@ export function HomeScreen() {
             </div>
           </div>
           <MiniMap
-            label={`${city} kayıtları`}
+            label={place.nearMe ? "Yakınımdakiler" : `${placeLabel(place)} kayıtları`}
             points={local.map((item) => item.business)}
+            focus={place}
             className="min-h-80"
           />
         </div>
@@ -71,19 +71,27 @@ export function HomeScreen() {
         <div className="flex items-end justify-between gap-4">
           <div>
             <h2 className="font-heading text-3xl">Şu an açık</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{city} merkezine göre yakın kayıtlar</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {scoped.widened
+                ? "40 km içinde açık kayıt yok. En yakın örnekler duruyor."
+                : `${placeLabel(place)} çevresindeki açık kayıtlar`}
+            </p>
           </div>
-          <Link href={`/ara?sehir=${encodeURIComponent(city)}&acik=1`} className="text-sm text-primary">
+          <Link href="/ara?acik=1" className="text-sm text-primary">
             Tümü
           </Link>
         </div>
-        <div className="-mx-4 mt-5 flex gap-3 overflow-x-auto px-4 pb-2">
-          {nearby.map((item) => (
-            <div key={item.business.id} className="w-72 shrink-0">
-              <BusinessCard business={item.business} distanceKm={item.km} />
-            </div>
-          ))}
-        </div>
+        {nearby.length ? (
+          <div className="-mx-4 mt-5 flex gap-3 overflow-x-auto px-4 pb-2">
+            {nearby.map((item) => (
+              <div key={item.business.id} className="w-72 shrink-0">
+                <BusinessCard business={item.business} distanceKm={item.km} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-5 text-sm text-muted-foreground">Bu konumda açık örnek kayıt yok.</p>
+        )}
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-4">
@@ -94,7 +102,7 @@ export function HomeScreen() {
             return (
               <Link
                 key={category.id}
-                href={`/ara?kategori=${category.id}&sehir=${encodeURIComponent(city)}`}
+                href={`/ara?kategori=${category.id}`}
                 className="group relative h-36 overflow-hidden rounded-3xl ring-1 ring-foreground/10"
               >
                 <Cover
@@ -124,7 +132,7 @@ export function HomeScreen() {
               Ücretsiz kaydın yanında, sponsoru belli premium görünürlük.
             </p>
           </div>
-          <Link href={`/ara?sehir=${encodeURIComponent(city)}&one=1`} className="text-sm text-primary">
+          <Link href="/ara?one=1" className="text-sm text-primary">
             Liste
           </Link>
         </div>

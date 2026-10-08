@@ -66,7 +66,7 @@ export function Assistant() {
   return (
     <section
       className="fixed inset-x-3 top-20 bottom-20 z-50 flex flex-col overflow-hidden rounded-3xl bg-popover ring-1 ring-foreground/10 shadow-2xl md:inset-auto md:right-6 md:bottom-6 md:h-[34rem] md:w-[24rem]"
-      aria-label="Pinora asistanı"
+      aria-label="pinwego asistanı"
     >
       <header className="flex items-center justify-between border-b border-foreground/10 px-4 py-3">
         <div>

@@ -3,6 +3,7 @@
 import { Search } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { PlaceButton } from "@/components/directory/place-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "cn"
@@ -52,9 +53,12 @@ export function SearchForm({
           )}
         />
       </label>
-      <Button type="submit" className="h-12 rounded-2xl px-5">
-        Eşleştir
-      </Button>
+      <div className="flex gap-2">
+        <PlaceButton className="min-w-0 flex-1 sm:flex-none" />
+        <Button type="submit" className="h-12 flex-1 rounded-2xl px-5 sm:flex-none">
+          Eşleştir
+        </Button>
+      </div>
     </form>
   )
 }

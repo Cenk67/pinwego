@@ -137,7 +137,7 @@ const STOPWORDS = new Set([
   "den",
 ])
 
-const CITIES = ["İstanbul", "Ankara", "İzmir", "Antalya", "Bursa"]
+const CITIES = ["İstanbul", "Ankara", "İzmir", "Antalya", "Bursa", "Zonguldak"]
 
 export type ParsedQuery = {
   raw: string
@@ -361,7 +361,12 @@ export function searchDirectory(
   return ranked.sort(sorters[filters.sort])
 }
 
-export function concierge(query: string, list: Business[], originName = "İstanbul") {
+export function concierge(
+  query: string,
+  list: Business[],
+  originName = "İstanbul",
+  origin = cityCenter(originName),
+) {
   const folded = fold(query)
   if (!folded || folded.length < 2) {
     return {
@@ -380,7 +385,7 @@ export function concierge(query: string, list: Business[], originName = "İstanb
     list,
     query,
     { ...defaultFilters, sehir: "hepsi" },
-    cityCenter(originName),
+    origin,
   ).slice(0, 3)
 
   if (!results.length || results[0].score < 3) {
@@ -400,6 +405,9 @@ export function concierge(query: string, list: Business[], originName = "İstanb
 export function aiBrief(business: Business) {
   const lead = business.reviews[0]
   const voice = lead ? ` Son yorumlardan biri: “${lead.text}”` : ""
+  if (business.source === "google") {
+    return `${business.summary} Google Haritalar bağlantılı kayıt. Puan ve yorum bu sayfaya kopyalanmadı.`
+  }
   const trust = business.verified ? "Doğrulanmış profil." : "Doğrulama henüz tamamlanmamış."
   return `${business.summary} ${trust} Ortalama dönüş ${formatResponse(business.responseMinutes)}.${voice}`
 }

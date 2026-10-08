@@ -5,6 +5,7 @@ import type {
   DayHours,
   Review,
 } from "@/lib/types"
+import { zonguldakBusinesses } from "@/lib/zonguldak"
 
 const DAYS = [
   "Pazartesi",
@@ -181,6 +182,7 @@ export const cities = [
   { name: "İzmir", lat: 38.423, lng: 27.143 },
   { name: "Antalya", lat: 36.896, lng: 30.713 },
   { name: "Bursa", lat: 40.195, lng: 29.061 },
+  { name: "Zonguldak", lat: 41.453, lng: 31.789 },
 ]
 
 export function cityCenter(name: string) {
@@ -193,9 +195,10 @@ export const suggestions = [
   "Nişantaşı diş temizliği, uygun fiyat",
   "Kaleiçi'nde deniz manzaralı butik otel",
   "Çankaya'da ofis temizliği",
+  "Zonguldak'ta kebap",
 ]
 
-export const businesses: Business[] = [
+const sampleBusinesses: Business[] = [
   make({
     slug: "balikci-mehmet",
     name: "Balıkçı Mehmet",
@@ -1548,6 +1551,8 @@ export const businesses: Business[] = [
     close: "18:00",
   }),
 ]
+
+export const businesses: Business[] = [...sampleBusinesses, ...zonguldakBusinesses]
 
 export function categoryById(id: CategoryId) {
   return categories.find((category) => category.id === id) ?? categories[0]

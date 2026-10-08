@@ -66,7 +66,9 @@ export type Business = {
   booking: BookingKind
   hours: DayHours[]
   facts: Fact[]
-  source: "katalog" | "senin"
+  source: "katalog" | "senin" | "google"
+  website?: string
+  googleUrl?: string
 }
 
 export type Lead = {

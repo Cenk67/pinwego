@@ -8,19 +8,22 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react"
+import { defaultPlace, isPlace, placeFromCity, type Place } from "@/lib/place"
 import type { Business, Lead } from "@/lib/types"
 
 type Persisted = {
   city: string
+  place: Place
   saved: string[]
   requests: Lead[]
   listings: Business[]
 }
 
-const STORAGE_KEY = "pinora.v1"
+const STORAGE_KEY = "pinwego.v1"
 
 const emptyState: Persisted = {
   city: "İstanbul",
+  place: defaultPlace,
   saved: [],
   requests: [],
   listings: [],
@@ -35,8 +38,11 @@ function readStorage(): Persisted {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return emptyState
     const data = JSON.parse(raw) as Partial<Persisted>
+    const city = typeof data.city === "string" ? data.city : emptyState.city
+    const place = isPlace(data.place) ? data.place : placeFromCity(city)
     return {
-      city: typeof data.city === "string" ? data.city : emptyState.city,
+      city: place.province || city,
+      place,
       saved: Array.isArray(data.saved) ? data.saved : [],
       requests: Array.isArray(data.requests) ? data.requests : [],
       listings: Array.isArray(data.listings) ? data.listings : [],
@@ -81,6 +87,8 @@ function useHydrated() {
 
 type DirectoryState = {
   city: string
+  place: Place
+  setPlace: (place: Place) => void
   setCity: (city: string) => void
   saved: string[]
   isSaved: (id: string) => boolean
@@ -103,8 +111,16 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<DirectoryState>(
     () => ({
-      city: persisted.city,
-      setCity: (city) => commit({ ...getSnapshot(), city }),
+      city: persisted.place.province || persisted.city,
+      place: persisted.place,
+      setPlace: (place) => {
+        const current = getSnapshot()
+        commit({ ...current, place, city: place.province || place.country || current.city })
+      },
+      setCity: (city) => {
+        const place = placeFromCity(city)
+        commit({ ...getSnapshot(), city: place.province, place })
+      },
       saved: persisted.saved,
       isSaved: (id) => persisted.saved.includes(id),
       toggleSaved: (id) => {
@@ -138,6 +154,6 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
 
 export function useDirectory() {
   const value = useContext(DirectoryContext)
-  if (!value) throw new Error("Pinora sağlayıcısı bulunamadı")
+  if (!value) throw new Error("pinwego sağlayıcısı bulunamadı")
   return value
 }

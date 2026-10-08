@@ -4,6 +4,7 @@ import Link from "next/link"
 import { BadgeCheck, Clock, MapPin, Navigation, Phone } from "lucide-react"
 import { useMemo, useState } from "react"
 import { BusinessCard } from "@/components/directory/business-card"
+import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, SaveButton, Stars } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
@@ -23,7 +24,7 @@ import {
 import { aiBrief } from "@/lib/match"
 
 export function BusinessScreen({ slug }: { slug: string }) {
-  const { listings, ready, city } = useDirectory()
+  const { listings, ready, place } = useDirectory()
   const business =
     listings.find((item) => item.slug === slug) ?? businesses.find((item) => item.slug === slug)
   const [note, setNote] = useState("")
@@ -62,7 +63,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
   }
 
   const category = categoryById(business.category)
-  const km = distanceKm(cityCenter(city), business)
+  const km = distanceKm(place, business)
   const maps = `https://www.google.com/maps/dir/?api=1&destination=${business.lat},${business.lng}`
 
   return (
@@ -120,7 +121,15 @@ export function BusinessScreen({ slug }: { slug: string }) {
             {business.source === "senin" ? (
               <span className="rounded-full bg-secondary px-3 py-1 text-xs">Senin kaydın</span>
             ) : null}
+            {business.source === "google" ? (
+              <span className="rounded-full bg-secondary px-3 py-1 text-xs">Google Haritalar kaydı</span>
+            ) : null}
           </div>
+          {business.source === "google" ? (
+            <div className="mt-4 max-w-sm">
+              <ClaimPrompt business={business} />
+            </div>
+          ) : null}
 
           <section className="mt-6 rounded-3xl bg-primary/10 p-5">
             <p className="text-xs font-medium tracking-wide text-primary uppercase">Kısa okuma</p>
@@ -130,7 +139,9 @@ export function BusinessScreen({ slug }: { slug: string }) {
           <section className="mt-8">
             <h2 className="font-heading text-2xl">Hakkında</h2>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{business.about}</p>
-            <p className="mt-3 text-sm text-muted-foreground">Kuruluş {business.founded}</p>
+            {business.founded > 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">Kuruluş {business.founded}</p>
+            ) : null}
           </section>
 
           <section className="mt-8">
@@ -227,10 +238,12 @@ export function BusinessScreen({ slug }: { slug: string }) {
 
         <aside className="space-y-4">
           <div className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10 lg:sticky lg:top-24">
-            <p className="flex items-center gap-2 text-sm">
-              <Clock className="size-4 text-primary" />
-              Ortalama dönüş {formatResponse(business.responseMinutes)}
-            </p>
+            {business.responseMinutes > 0 ? (
+              <p className="flex items-center gap-2 text-sm">
+                <Clock className="size-4 text-primary" />
+                Ortalama dönüş {formatResponse(business.responseMinutes)}
+              </p>
+            ) : null}
             <p className="mt-2 flex items-start gap-2 text-sm text-muted-foreground">
               <MapPin className="mt-0.5 size-4 shrink-0" />
               {business.address}
@@ -243,14 +256,23 @@ export function BusinessScreen({ slug }: { slug: string }) {
               <Button type="button" className="h-11 rounded-xl" onClick={() => { setNote(""); setOpen(true) }}>
                 {bookingLabel(business.booking)}
               </Button>
-              <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={`tel:${business.phone.replace(/\s/g, "")}`} />}>
-                <Phone className="size-4" />
-                {business.phone}
-              </Button>
+              {business.phone ? (
+                <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={`tel:${business.phone.replace(/\s/g, "")}`} />}>
+                  <Phone className="size-4" />
+                  {business.phone}
+                </Button>
+              ) : (
+                <p className="text-sm text-muted-foreground">Telefon kaydı yok.</p>
+              )}
               <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={maps} target="_blank" rel="noreferrer" />}>
                 <Navigation className="size-4" />
                 Yol tarifi
               </Button>
+              {business.googleUrl ? (
+                <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={business.googleUrl} target="_blank" rel="noreferrer" />}>
+                  Google Haritalar’da aç
+                </Button>
+              ) : null}
             </div>
             <h2 className="mt-5 font-heading text-lg">Saatler</h2>
             <ul className="mt-2 grid gap-1 text-sm">
