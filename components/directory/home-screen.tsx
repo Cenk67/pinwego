@@ -1,30 +1,35 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowUpRight, Plus, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { ArrowUpRight } from "lucide-react"
+import { useMemo, useState, useSyncExternalStore } from "react"
 import { BusinessCard } from "@/components/directory/business-card"
-import { CategoryGlyph, Cover, fieldClass } from "@/components/directory/bits"
+import { fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
 import { SearchForm } from "@/components/directory/search-form"
 import { SectorForm } from "@/components/directory/sector-form"
+import { SectorStrip } from "@/components/directory/sector-strip"
 import { Button } from "@/components/ui/button"
 import { suggestions } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { fold } from "@/lib/format"
 import { distanceFromPlace, placeLabel, applyPlace } from "@/lib/place"
+import { getSectorClicks, getServerSectorClicks, rankSectors, subscribeSectorClicks } from "@/lib/sector-clicks"
 
 export function HomeScreen() {
   const { place, sectors, visibleBusinesses, removeSector } = useDirectory()
   const [sectorQuery, setSectorQuery] = useState("")
   const [sectorOpen, setSectorOpen] = useState(false)
+  const sectorClicks = useSyncExternalStore(subscribeSectorClicks, getSectorClicks, getServerSectorClicks)
   const catalog = visibleBusinesses
   const catalogCount = catalog.length
   const visibleSectors = useMemo(() => {
     const needle = fold(sectorQuery)
-    if (!needle) return sectors
-    return sectors.filter((item) => fold(`${item.label} ${item.blurb} ${item.phrases.join(" ")}`).includes(needle))
-  }, [sectors, sectorQuery])
+    const matched = needle
+      ? sectors.filter((item) => fold(`${item.label} ${item.blurb} ${item.phrases.join(" ")}`).includes(needle))
+      : sectors
+    return rankSectors(matched, sectorClicks)
+  }, [sectors, sectorQuery, sectorClicks])
   const ranked = catalog.map((business) => ({ business, distanceKm: distanceFromPlace(place, business) }))
   const scoped = applyPlace(ranked, place)
   const local = scoped.items
@@ -105,64 +110,27 @@ export function HomeScreen() {
           <div>
             <h2 className="font-heading text-3xl">Sektörler</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {sectors.length} sektör. Listede yoksa ekle; arama ve talep aynı kaydı kullanır.
+              {sectors.length} sektör, en çok tıklanan önde. 20’şer sağdan sola kayar.
             </p>
           </div>
           <input
             value={sectorQuery}
             onChange={(event) => setSectorQuery(event.target.value)}
             placeholder="Sektör ara"
+            aria-label="Sektör ara"
             className={`${fieldClass} sm:max-w-56`}
           />
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {visibleSectors.map((category) => {
-            const count = catalog.filter((item) => item.category === category.id).length
-            return (
-              <div key={category.id} className="relative">
-                <Link
-                  href={`/ara?kategori=${category.id}`}
-                  className="group relative block h-36 overflow-hidden rounded-3xl ring-1 ring-foreground/10"
-                >
-                  <Cover
-                    src={category.photo}
-                    alt=""
-                    className="absolute inset-0 size-full transition duration-300 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
-                  <div className="absolute right-3 bottom-3 left-3 text-white">
-                    <CategoryGlyph id={category.id} icon={category.icon} className="size-4" />
-                    <p className="mt-1 font-medium">{category.label}</p>
-                    <p className="text-xs text-white/80">
-                      {count} kayıt · {category.blurb}
-                    </p>
-                  </div>
-                </Link>
-                {category.custom ? (
-                  <button
-                    type="button"
-                    aria-label={`${category.label} sektörünü kaldır`}
-                    onClick={() => removeSector(category.id)}
-                    className="absolute top-2 right-2 grid size-8 place-items-center rounded-full bg-black/55 text-white"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                ) : null}
-              </div>
-            )
-          })}
-          <button
-            type="button"
-            onClick={() => setSectorOpen(true)}
-            className="flex h-36 flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-foreground/25 bg-card text-sm font-medium text-muted-foreground"
-          >
-            <Plus className="size-5" />
-            Sektör ekle
-          </button>
-        </div>
-        {sectorQuery && !visibleSectors.length ? (
+        {visibleSectors.length ? (
+          <SectorStrip
+            sectors={visibleSectors}
+            businesses={catalog}
+            onRemove={removeSector}
+            onAdd={() => setSectorOpen(true)}
+          />
+        ) : (
           <p className="mt-4 text-sm text-muted-foreground">Bu aramada sektör yok. Yeni sektör ekleyebilirsin.</p>
-        ) : null}
+        )}
         <SectorForm open={sectorOpen} onOpenChange={setSectorOpen} />
       </section>
 
