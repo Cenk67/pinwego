@@ -22,15 +22,11 @@ Site [http://127.0.0.1:43123](http://127.0.0.1:43123) adresinde açılır. `loca
 Canlı site Cloudflare Workers üzerinde durur. `pinwego.com` ve `www.pinwego.com`, `cloudflare.config.ts` içinde bu Worker’a bağlıdır. Alan adının ad sunucuları zaten Cloudflare’dedir; yayın sırasında DNS kaydı ve sertifika Cloudflare tarafından yazılır.
 
 ```bash
+npx cf auth login
 npm run deploy:vinext
 ```
 
-Bu komut Workers paketini kurar ve `pinwego.com` alanına yayınlar. Yerel Next.js sunucusu aynı kalır (`npm run dev`). Workers önizlemesi `npm run dev:vinext` ile 43124 portunda açılır.
-
-Yayın için hesapta bir API anahtarı gerekir. [API Tokens](https://dash.cloudflare.com/profile/api-tokens) sayfasında **Edit Cloudflare Workers** şablonuyla anahtar oluşturup şu değişkenleri verin:
-
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID` (hesap kimliği, panel adresindeki `dash.cloudflare.com/<hesap-kimliği>` değeridir)
+`cf auth login` Cloudflare hesabını CLI’ye bağlar. `npm run deploy:vinext` Worker’ı kurar ve `pinwego.com` ile `www.pinwego.com` kayıtlarını ona yazar. Yerel Next.js sunucusu aynı kalır (`npm run dev`). Workers önizlemesi `npm run dev:vinext` ile 43124 portunda açılır.
 
 Açılmazsa:
 
