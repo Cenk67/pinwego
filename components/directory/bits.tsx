@@ -78,6 +78,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useState } from "react"
+import { useGuestGate } from "@/components/auth/guest-gate"
 import { categoryById } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { formatRating } from "@/lib/format"
@@ -224,13 +225,14 @@ export function CategoryGlyph({
 
 export function SaveButton({ business, className }: { business: Business; className?: string }) {
   const { isSaved, toggleSaved } = useDirectory()
+  const { allow } = useGuestGate()
   const saved = isSaved(business.id)
   return (
     <button
       type="button"
       aria-pressed={saved}
       aria-label={saved ? `${business.name} kaydı kaldır` : `${business.name} kaydet`}
-      onClick={() => toggleSaved(business.id)}
+      onClick={() => allow(() => toggleSaved(business.id))}
       className={cn(
         "grid size-9 place-items-center rounded-full bg-white/95 text-foreground shadow-sm ring-1 ring-foreground/10",
         className,

@@ -2,6 +2,7 @@
 
 import { Check, Copy, Share2 } from "lucide-react"
 import { useState, useSyncExternalStore } from "react"
+import { useGuestGate } from "@/components/auth/guest-gate"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { businessShare, shareTargets } from "@/lib/share"
@@ -43,11 +44,18 @@ export function ShareButton({
 }) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const { allow } = useGuestGate()
   const canShare = useSyncExternalStore(subscribe, canShareNow, () => false)
   const share = payload(business)
   const targets = shareTargets(share.url, share.text, share.title)
 
-  async function start() {
+  function start() {
+    allow(() => {
+      void shareNow()
+    })
+  }
+
+  async function shareNow() {
     setCopied(false)
     if (await nativeShare(business)) return
     setOpen(true)

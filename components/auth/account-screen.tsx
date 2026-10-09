@@ -1,17 +1,25 @@
 "use client"
 
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { useState } from "react"
+import { AuthScreen } from "@/components/auth/auth-screen"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
 import { openDocument } from "@/lib/auth-store"
 import { maskId } from "@/lib/identity"
 
 export function AccountScreen() {
-  const { account, logout } = useAuth()
+  const { account, ready, logout } = useAuth()
+  const params = useSearchParams()
   const [message, setMessage] = useState("")
 
-  if (!account) return null
+  if (!ready) return null
+  if (!account) {
+    const kayit = params.get("kayit")
+    const initialMode = kayit === "musteri" ? "musteri" : kayit === "isletme" ? "isletme" : kayit === "giris" ? "login" : "choose"
+    return <AuthScreen embedded initialMode={initialMode} />
+  }
 
   async function open(id: string) {
     if (!account) return

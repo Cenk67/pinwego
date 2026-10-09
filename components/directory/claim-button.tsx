@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useGuestGate } from "@/components/auth/guest-gate"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useAuth } from "@/lib/auth-context"
@@ -12,6 +13,7 @@ import type { Business } from "@/lib/types"
 
 export function ClaimPrompt({ business }: { business: Business }) {
   const { account, logout } = useAuth()
+  const { allow } = useGuestGate()
   const { listings, addListing } = useDirectory()
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -38,7 +40,7 @@ export function ClaimPrompt({ business }: { business: Business }) {
   return (
     <div className="grid gap-2 rounded-2xl bg-secondary/70 px-3 py-3">
       <p className="text-sm font-medium">İşletme senin mi?</p>
-      <Button type="button" variant="outline" className="h-10 rounded-xl bg-card" onClick={() => setOpen(true)}>
+      <Button type="button" variant="outline" className="h-10 rounded-xl bg-card" onClick={() => allow(() => setOpen(true))}>
         İşletmeyi sahiplen
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>

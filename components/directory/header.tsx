@@ -43,12 +43,21 @@ export function Header() {
               Yönetim
             </Link>
           ) : null}
-          <Link href="/hesap" className="hover:text-primary">
-            Hesap
-          </Link>
+          {account ? (
+            <Link href="/hesap" className="hover:text-primary">
+              Hesap
+            </Link>
+          ) : (
+            <Link href="/hesap?kayit=musteri" className="hover:text-primary">
+              Müşteri kaydı
+            </Link>
+          )}
         </nav>
-        <Link href={account?.role === "admin" ? "/yonetim" : "/hesap"} className="ml-auto text-sm hover:text-primary md:hidden">
-          {account?.role === "admin" ? "Yönetim" : "Hesap"}
+        <Link
+          href={account?.role === "admin" ? "/yonetim" : account ? "/hesap" : "/hesap?kayit=musteri"}
+          className="ml-auto text-sm hover:text-primary md:hidden"
+        >
+          {account?.role === "admin" ? "Yönetim" : account ? "Hesap" : "Misafir"}
         </Link>
         <PlaceButton compact className="md:ml-auto" />
       </div>

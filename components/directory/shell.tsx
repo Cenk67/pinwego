@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Bookmark, Compass, MessageCircle, Plus, Search } from "lucide-react"
 import { Suspense, type ReactNode } from "react"
-import { AuthScreen } from "@/components/auth/auth-screen"
+import { GuestGateProvider } from "@/components/auth/guest-gate"
 import { Assistant } from "@/components/directory/assistant"
 import { Footer } from "@/components/directory/footer"
 import { Header } from "@/components/directory/header"
@@ -52,25 +52,42 @@ function BottomNav() {
   )
 }
 
-export function Shell({ children }: { children: ReactNode }) {
-  const { ready, account } = useAuth()
-  const open = ready && Boolean(account)
+function GuestBar() {
+  const { account } = useAuth()
+  if (account) return null
   return (
-    <>
-      {!ready ? (
-        <div className="grid min-h-svh place-items-center px-4 text-sm text-muted-foreground">pinwego açılıyor</div>
-      ) : null}
-      {ready && !account ? <AuthScreen /> : null}
-      <div hidden={!open} inert={!open} aria-hidden={!open}>
-        <Header />
-        <main className="flex-1 pb-20 md:pb-0">{children}</main>
-        <Footer />
-        <Suspense fallback={<div className="h-16 md:hidden" />}>
-          <BottomNav />
-        </Suspense>
-        <Assistant />
-        <MessageToast />
+    <div className="border-b border-foreground/10 bg-primary/10">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm leading-6">
+          <span className="font-medium">Misafir.</span> Rehberi izleyebilirsin. İletişim bilgileri ve özellikler kapalı.
+        </p>
+        <Link
+          href="/hesap?kayit=musteri"
+          className="inline-flex h-10 shrink-0 items-center justify-center rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"
+        >
+          Müşteri kaydı oluşturun
+        </Link>
       </div>
-    </>
+    </div>
+  )
+}
+
+export function Shell({ children }: { children: ReactNode }) {
+  const { ready } = useAuth()
+  if (!ready) {
+    return <div className="grid min-h-svh place-items-center px-4 text-sm text-muted-foreground">pinwego açılıyor</div>
+  }
+  return (
+    <GuestGateProvider>
+      <Header />
+      <GuestBar />
+      <main className="flex-1 pb-20 md:pb-0">{children}</main>
+      <Footer />
+      <Suspense fallback={<div className="h-16 md:hidden" />}>
+        <BottomNav />
+      </Suspense>
+      <Assistant />
+      <MessageToast />
+    </GuestGateProvider>
   )
 }

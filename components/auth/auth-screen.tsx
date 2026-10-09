@@ -95,24 +95,32 @@ function pendingClaim() {
   return businesses.find((item) => item.slug === slug && item.source === "google") ?? null
 }
 
-export function AuthScreen() {
+export function AuthScreen({
+  initialMode = "choose",
+  embedded = false,
+}: {
+  initialMode?: Mode
+  embedded?: boolean
+}) {
   const { login, registerAccount } = useAuth()
   const [claim] = useState<Business | null>(pendingClaim)
-  const [mode, setMode] = useState<Mode>(claim ? "isletme" : "choose")
+  const [mode, setMode] = useState<Mode>(claim ? "isletme" : initialMode)
 
   return (
-    <div className="min-h-svh bg-background">
-      <header className="border-b border-foreground/10">
-        <div className="mx-auto flex h-16 max-w-lg items-center gap-2 px-4">
-          <span className="grid size-8 place-items-center rounded-full bg-primary text-primary-foreground">
-            <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
-              <circle cx="12" cy="9" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
-              <path d="M12 12.5 V19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          </span>
-          <span className="font-heading text-xl tracking-tight">pinwego</span>
-        </div>
-      </header>
+    <div className={embedded ? "" : "min-h-svh bg-background"}>
+      {embedded ? null : (
+        <header className="border-b border-foreground/10">
+          <div className="mx-auto flex h-16 max-w-lg items-center gap-2 px-4">
+            <span className="grid size-8 place-items-center rounded-full bg-primary text-primary-foreground">
+              <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
+                <circle cx="12" cy="9" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                <path d="M12 12.5 V19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </span>
+            <span className="font-heading text-xl tracking-tight">pinwego</span>
+          </div>
+        </header>
+      )}
       <main className="mx-auto w-full max-w-lg px-4 py-8">
         {mode === "choose" ? <Chooser onPick={setMode} claim={claim} /> : null}
         {mode === "login" || mode === "admin" ? (
@@ -137,11 +145,11 @@ export function AuthScreen() {
 function Chooser({ onPick, claim }: { onPick: (mode: Mode) => void; claim: Business | null }) {
   return (
     <div>
-      <p className="text-sm font-medium text-primary">Kapalı rehber</p>
-      <h1 className="mt-2 font-heading text-4xl leading-tight text-balance">Kayıt olmadan hiçbir özellik açılmaz.</h1>
+      <p className="text-sm font-medium text-primary">Açık rehber</p>
+      <h1 className="mt-2 font-heading text-4xl leading-tight text-balance">Misafir olarak izleyebilirsin.</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        Arama, harita, randevu, talep ve kayıt ekleme yalnızca doğrulaması tamamlanmış hesaba açıktır. Müşteri
-        kimlik bilgisi ve teyit belgesi girer. İşletme vergi ve yetki belgelerini yükler.
+        İşletmeleri, sektörleri ve haritayı kayıt olmadan görebilirsin. Telefon, site, randevu, mesaj, kayıt ve talep
+        için müşteri kaydı gerekir. İşletme vergi ve yetki belgelerini yükler.
       </p>
       {claim ? (
         <p className="mt-4 rounded-2xl bg-primary/10 px-3 py-3 text-sm leading-6 text-primary">
@@ -154,7 +162,7 @@ function Chooser({ onPick, claim }: { onPick: (mode: Mode) => void; claim: Busin
           onClick={() => onPick("musteri")}
           className="rounded-3xl bg-card px-4 py-4 text-left ring-1 ring-foreground/10"
         >
-          <span className="font-heading text-2xl">Müşteri kaydı</span>
+          <span className="font-heading text-2xl">Müşteri kaydı oluşturun</span>
           <span className="mt-1 block text-sm leading-6 text-muted-foreground">
             Ad, telefon, T.C. kimlik numarası ve bir teyit belgesi.
           </span>
@@ -300,9 +308,10 @@ function CustomerForm({
   return (
     <form onSubmit={submit} className="grid gap-4">
       <div>
-        <h1 className="font-heading text-4xl text-balance">Müşteri doğrulaması</h1>
+        <h1 className="font-heading text-4xl text-balance">Müşteri kaydı oluşturun</h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Kimlik bilgisi ve teyit belgesi tamamlanmadan arama, harita ve randevu açılmaz.
+          Kimlik bilgisi ve teyit belgesi tamamlanmadan iletişim bilgileri ve özellikler açılmaz. İzleme kayıtsız da
+          durur.
         </p>
       </div>
       <Field id="cust-name" label="Ad soyad" value={name} onChange={setName} autoComplete="name" />
