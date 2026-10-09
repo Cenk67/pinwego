@@ -89,8 +89,28 @@ export function SearchScreen() {
       },
       origin,
     )
-    if (namedCity && !place.nearMe) return { items: ranked, widened: false }
-    return applyPlace(ranked, place)
+    const placed = namedCity && !place.nearMe ? { items: ranked, widened: false } : applyPlace(ranked, place)
+    if (premium && !placed.items.length) {
+      const relaxed = searchDirectory(
+        catalog,
+        query,
+        {
+          ...defaultFilters,
+          sehir,
+          kategori,
+          minRating,
+          maxPrice,
+          openNow,
+          verified,
+          premium: false,
+          sort,
+        },
+        origin,
+      )
+      const local = namedCity && !place.nearMe ? { items: relaxed, widened: false } : applyPlace(relaxed, place)
+      if (local.items.length) return { ...local, adsFilled: true as const }
+    }
+    return { ...placed, adsFilled: false as const }
   }, [catalog, query, sehir, kategori, minRating, maxPrice, openNow, verified, premium, sort, origin, namedCity, place])
   const results = scoped.items
 
@@ -213,6 +233,7 @@ export function SearchScreen() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {results.length} işletme
+            {scoped.adsFilled ? " · sponsorlu reklam alanı boş, yerel kayıtlar yüklendi" : ""}
             {scoped.widened ? " · 40 km içinde örnek kayıt yok, en yakınlar duruyor" : ""}
             {query ? " · gerekçe her kartın altında" : ""}
           </p>
@@ -281,8 +302,8 @@ export function SearchScreen() {
             <div className="rounded-3xl bg-card px-5 py-10 ring-1 ring-foreground/10">
               <h2 className="font-heading text-2xl">Bu süzgeçte kayıt yok</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Örnek katalog İstanbul, Ankara, İzmir, Antalya ve Bursa kayıtlarından oluşur. Seçtiğin yer bu
-                şehirlerin dışındaysa Google haritası o noktayı gösterir; eşleşen kart çıkmayabilir.
+                Katalogda İstanbul, Ankara, İzmir, Antalya, Bursa ve Google’dan yüklenen Zonguldak kayıtları var.
+                İlçe adı kayıtla örtüşmezse ili seç. Google haritası seçtiğin noktayı yine gösterir.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button

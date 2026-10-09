@@ -109,6 +109,12 @@ function samePlace(left: string, right: string) {
   return loose(left) === loose(right)
 }
 
+function divisionName(name: string, province: string) {
+  const stripped = name.replace(/\s+İlçesi$/u, "").replace(/\s+Ilcesi$/u, "").trim()
+  if (province && samePlace(stripped, province)) return "Merkez"
+  return stripped
+}
+
 function option(name: string, lat: number, lng: number, adminLevel: number): AreaOption {
   return { name, lat, lng, osmId: 0, adminLevel }
 }
@@ -388,7 +394,11 @@ async function divisions(url: URL) {
       return {
         slot: "district" as const,
         options: uniqueOptions(
-          cities.filter((item) => !samePlace(item, province)).map((item) => option(item, 0, 0, 6)),
+          cities.map((item) => {
+            const name = divisionName(item, province)
+            if (name === "Merkez" && match) return option(name, match.lat, match.lng, 6)
+            return option(name, 0, 0, 6)
+          }),
         ).slice(0, 400),
       }
     }
@@ -427,7 +437,7 @@ export async function GET(request: Request) {
 
   try {
     if (level) {
-      const key = `div:v3:${level}:${country}:${url.searchParams.get("region") || ""}:${url.searchParams.get("province") || ""}:${url.searchParams.get("district") || ""}:${lat || ""}:${lng || ""}`
+      const key = `div:v4:${level}:${country}:${url.searchParams.get("region") || ""}:${url.searchParams.get("province") || ""}:${url.searchParams.get("district") || ""}:${lat || ""}:${lng || ""}`
       const body = await cached(key, 1000 * 60 * 60 * 12, () => divisions(url))
       return Response.json(body)
     }
