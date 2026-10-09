@@ -31,10 +31,8 @@ export function HomeScreen() {
     .map((item) => ({ business: item.business, km: item.distanceKm }))
     .sort((a, b) => a.km - b.km)
   const nearby = local.filter((item) => item.business.openNow).slice(0, 6)
-  const featured = (local.some((item) => item.business.premium)
-    ? local.filter((item) => item.business.premium)
-    : local
-  ).slice(0, 3)
+  const sponsored = local.filter((item) => item.business.premium)
+  const featured = (sponsored.length ? sponsored : local).slice(0, 3)
 
   return (
     <div>
@@ -173,18 +171,24 @@ export function HomeScreen() {
           <div>
             <h2 className="font-heading text-3xl">Öne çıkanlar</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Ücretsiz kaydın yanında, sponsoru belli premium görünürlük.
+              {sponsored.length
+                ? "Ücretsiz kaydın yanında, sponsoru belli premium görünürlük."
+                : "Bu konumda sponsorlu reklam alanı yok. Yerel kayıtlar bu alana yüklendi."}
             </p>
           </div>
-          <Link href="/ara?one=1" className="text-sm text-primary">
+          <Link href={sponsored.length ? "/ara?one=1" : "/ara"} className="text-sm text-primary">
             Liste
           </Link>
         </div>
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
-          {featured.map((item) => (
-            <BusinessCard key={item.business.id} business={item.business} distanceKm={item.km} />
-          ))}
-        </div>
+        {featured.length ? (
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {featured.map((item) => (
+              <BusinessCard key={item.business.id} business={item.business} distanceKm={item.km} />
+            ))}
+          </div>
+        ) : (
+          <p className="mt-5 text-sm text-muted-foreground">Bu konumda gösterilecek reklam alanı yok.</p>
+        )}
       </section>
 
       <section className="mx-auto grid max-w-6xl gap-4 px-4 py-6 md:grid-cols-3">

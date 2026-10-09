@@ -71,15 +71,72 @@ function isTurkey(place: Place) {
   return place.countryCode === "tr" || ["turkiye", "turkey"].includes(fold(place.country))
 }
 
+function core(value: string) {
+  return fold(value)
+    .replace(/\b(ilcesi|ili|mahallesi|mah|beldesi|belediyesi)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function words(value: string) {
+  return core(value).split(" ").filter(Boolean)
+}
+
+function areaNeedle(area: string, province: string) {
+  let needle = core(area)
+  const parent = core(province)
+  if (!needle) return ""
+  if (parent && needle.startsWith(`${parent} `)) needle = needle.slice(parent.length).trim()
+  if (parent && needle.endsWith(` ${parent}`)) needle = needle.slice(0, -(parent.length + 1)).trim()
+  if (needle.endsWith(" merkez")) return "merkez"
+  return needle
+}
+
+function sameArea(left: string, right: string) {
+  if (!left || !right) return false
+  if (left === right) return true
+  const leftWords = left.split(" ")
+  const rightWords = right.split(" ")
+  if (leftWords.includes(right) || rightWords.includes(left)) return true
+  return false
+}
+
+function inProvince(city: string, district: string, province: string) {
+  if (!province) return true
+  return city === province || district === province
+}
+
+function matchesDistrict(business: Business, raw: string, provinceName: string) {
+  const needle = areaNeedle(raw, provinceName)
+  const district = core(business.district)
+  const city = core(business.city)
+  const province = core(provinceName)
+  if (!needle || needle === "merkez") {
+    const parent = province || core(raw).replace(/ merkez$/, "")
+    if (!inProvince(city, district, parent)) return false
+    return !district || district === "merkez" || district === city || district === province
+  }
+  if (!inProvince(city, district, province)) return false
+  return sameArea(district, needle) || sameArea(city, needle)
+}
+
 export function businessInPlace(business: Business, place: Place) {
-  const district = fold(business.district)
-  const city = fold(business.city)
-  const address = fold(`${business.address} ${business.district} ${business.city}`)
-  const neighborhood = fold(place.neighborhood)
-  const area = fold(place.district)
-  const province = fold(place.province)
-  if (neighborhood) return district === neighborhood || address.includes(neighborhood) || city === neighborhood
-  if (area) return district === area || city === area || address.includes(area)
+  const province = core(place.province)
+  const city = core(business.city)
+  const district = core(business.district)
+  if (place.neighborhood) {
+    const needle = areaNeedle(place.neighborhood, place.province || place.district)
+    const named =
+      matchesDistrict(business, place.neighborhood, place.province || place.district) ||
+      (needle &&
+        needle !== "merkez" &&
+        inProvince(city, district, core(place.province || place.district)) &&
+        words(`${business.address} ${business.district} ${business.city}`).includes(needle))
+    if (!named) return false
+    if (place.district) return matchesDistrict(business, place.district, place.province)
+    return true
+  }
+  if (place.district) return matchesDistrict(business, place.district, place.province)
   if (province) return city === province || district === province
   if (place.country && !isTurkey(place)) return false
   return true
@@ -99,7 +156,15 @@ export function applyPlace<T extends { business: Business; distanceKm: number }>
       widened: true,
     }
   }
-  return { items: items.filter((item) => businessInPlace(item.business, place)), widened: false }
+  const matched = items.filter((item) => businessInPlace(item.business, place))
+  if (matched.length || !place.district || core(place.district) !== "merkez" || !place.province) {
+    return { items: matched, widened: false }
+  }
+  const provinceItems = items.filter((item) =>
+    businessInPlace(item.business, { ...place, district: "", neighborhood: "" }),
+  )
+  if (!provinceItems.length) return { items: matched, widened: false }
+  return { items: provinceItems, widened: false }
 }
 
 export function placeOrigin(place: Place) {
