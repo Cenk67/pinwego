@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { ArrowUpRight } from "lucide-react"
 import { useMemo, useState, useSyncExternalStore } from "react"
+import { useGuestGate } from "@/components/auth/guest-gate"
 import { BusinessCard } from "@/components/directory/business-card"
 import { fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
@@ -18,6 +19,7 @@ import { getSectorClicks, getServerSectorClicks, rankSectors, subscribeSectorCli
 
 export function HomeScreen() {
   const { place, sectors, visibleBusinesses, removeSector } = useDirectory()
+  const { allow } = useGuestGate()
   const [sectorQuery, setSectorQuery] = useState("")
   const [sectorOpen, setSectorOpen] = useState(false)
   const sectorClicks = useSyncExternalStore(subscribeSectorClicks, getSectorClicks, getServerSectorClicks)
@@ -125,8 +127,8 @@ export function HomeScreen() {
           <SectorStrip
             sectors={visibleSectors}
             businesses={catalog}
-            onRemove={removeSector}
-            onAdd={() => setSectorOpen(true)}
+            onRemove={(id) => allow(() => removeSector(id))}
+            onAdd={() => allow(() => setSectorOpen(true))}
           />
         ) : (
           <p className="mt-4 text-sm text-muted-foreground">Bu aramada sektör yok. Yeni sektör ekleyebilirsin.</p>

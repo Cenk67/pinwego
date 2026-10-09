@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
+import { GuestNotice } from "@/components/auth/guest-gate"
 import { SectorForm } from "@/components/directory/sector-form"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
@@ -39,7 +40,9 @@ export function AdminScreen() {
   const { account } = useAuth()
   const [tab, setTab] = useState<Tab>("ozet")
 
-  if (account?.role !== "admin") {
+  if (!account) return <GuestNotice />
+
+  if (account.role !== "admin") {
     return (
       <div className="mx-auto max-w-xl px-4 py-16">
         <h1 className="font-heading text-4xl text-balance">Yönetim yalnızca yönetici hesabına açık.</h1>

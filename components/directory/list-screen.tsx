@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { GuestNotice } from "@/components/auth/guest-gate"
 import { fieldClass } from "@/components/directory/bits"
 import { SectorForm } from "@/components/directory/sector-form"
 import { Button } from "@/components/ui/button"
@@ -81,7 +82,9 @@ export function ListScreen() {
     router.push(`/isletme/${slug}`)
   }
 
-  if (account?.role !== "isletme" && account?.role !== "admin") {
+  if (!account) return <GuestNotice />
+
+  if (account.role !== "isletme" && account.role !== "admin") {
     return (
       <div className="mx-auto max-w-xl px-4 py-16">
         <h1 className="font-heading text-4xl text-balance">İşletme eklemek için işletme hesabı gerekir.</h1>

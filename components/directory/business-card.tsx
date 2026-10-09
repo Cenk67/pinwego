@@ -1,10 +1,14 @@
+"use client"
+
 import Link from "next/link"
 import { BadgeCheck } from "lucide-react"
+import { useGuestGate } from "@/components/auth/guest-gate"
 import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, RatingBlock, SaveButton } from "@/components/directory/bits"
 import { ShareButton } from "@/components/directory/share-button"
 import { MessageButton } from "@/components/messages/message-button"
 import { categoryById } from "@/lib/catalog"
+import { watchCopy } from "@/lib/guest"
 import { formatDistance, priceLabel, priceMarks, priceRange } from "@/lib/format"
 import type { Business } from "@/lib/types"
 
@@ -19,7 +23,9 @@ export function BusinessCard({
   reason?: string
   layout?: "stack" | "row"
 }) {
+  const { member } = useGuestGate()
   const category = categoryById(business.category)
+  const summary = member ? business.summary : watchCopy(business.summary)
   return (
     <article className="relative flex h-full flex-col overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10">
       <Link
@@ -66,7 +72,7 @@ export function BusinessCard({
             </div>
             <RatingBlock business={business} />
           </div>
-          <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{business.summary}</p>
+          <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{summary}</p>
           {reason ? (
             <p className="rounded-2xl bg-primary/10 px-3 py-2 text-sm leading-5 text-primary">
               {reason}

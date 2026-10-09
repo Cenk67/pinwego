@@ -2,10 +2,12 @@
 
 import Link from "next/link"
 import { useState } from "react"
+import { GuestNotice } from "@/components/auth/guest-gate"
 import { BusinessCard } from "@/components/directory/business-card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cityCenter } from "@/lib/catalog"
+import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
 import {
   bookingLabel,
@@ -17,6 +19,7 @@ import {
 } from "@/lib/format"
 
 export function SavedScreen() {
+  const { account } = useAuth()
   const { saved, requests, city, visibleBusinesses } = useDirectory()
   const [picked, setPicked] = useState<string[]>([])
   const [notice, setNotice] = useState("")
@@ -35,6 +38,8 @@ export function SavedScreen() {
       return [...current, id]
     })
   }
+
+  if (!account) return <GuestNotice />
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">

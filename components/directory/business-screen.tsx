@@ -11,8 +11,10 @@ import { MessageButton } from "@/components/messages/message-button"
 import { MiniMap } from "@/components/directory/mini-map"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
 import { Button } from "@/components/ui/button"
+import { useGuestGate } from "@/components/auth/guest-gate"
 import { categoryById, cityCenter } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
+import { isContactFact, watchCopy } from "@/lib/guest"
 import {
   bookingLabel,
   distanceKm,
@@ -27,6 +29,7 @@ import { aiBrief } from "@/lib/match"
 
 export function BusinessScreen({ slug }: { slug: string }) {
   const { ready, place, visibleBusinesses } = useDirectory()
+  const { member, allow } = useGuestGate()
   const business = visibleBusinesses.find((item) => item.slug === slug)
   const [note, setNote] = useState("")
   const [open, setOpen] = useState(false)
@@ -66,6 +69,8 @@ export function BusinessScreen({ slug }: { slug: string }) {
   const category = categoryById(business.category)
   const km = distanceKm(place, business)
   const maps = `https://www.google.com/maps/dir/?api=1&destination=${business.lat},${business.lng}`
+  const about = member ? business.about : watchCopy(business.about)
+  const facts = member ? business.facts : business.facts.filter((fact) => !isContactFact(fact.label, fact.value))
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 pb-28 md:py-10 md:pb-10">
@@ -143,7 +148,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
 
           <section className="mt-8">
             <h2 className="font-heading text-2xl">Hakkında</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{business.about}</p>
+            <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{about}</p>
             {business.founded > 0 ? (
               <p className="mt-3 text-sm text-muted-foreground">Kuruluş {business.founded}</p>
             ) : null}
@@ -165,10 +170,12 @@ export function BusinessScreen({ slug }: { slug: string }) {
                         type="button"
                         variant="outline"
                         className="h-8 rounded-full"
-                        onClick={() => {
-                          setNote(service.name)
-                          setOpen(true)
-                        }}
+                        onClick={() =>
+                          allow(() => {
+                            setNote(service.name)
+                            setOpen(true)
+                          })
+                        }
                       >
                         Seç
                       </Button>
@@ -183,11 +190,11 @@ export function BusinessScreen({ slug }: { slug: string }) {
             </ul>
           </section>
 
-          {business.facts.length ? (
+          {facts.length ? (
             <section className="mt-8">
               <h2 className="font-heading text-2xl">Firma özeti</h2>
               <dl className="mt-3 grid gap-3 sm:grid-cols-3">
-                {business.facts.map((fact) => (
+                {facts.map((fact) => (
                   <div key={fact.label} className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
                     <dt className="text-xs text-muted-foreground">{fact.label}</dt>
                     <dd className="mt-1 text-sm font-medium">{fact.value}</dd>
@@ -224,10 +231,12 @@ export function BusinessScreen({ slug }: { slug: string }) {
                       type="button"
                       className="mt-3 text-xs text-muted-foreground"
                       onClick={() =>
-                        setHelpful((current) => ({
-                          ...current,
-                          [review.id]: (current[review.id] ?? review.helpful) + 1,
-                        }))
+                        allow(() =>
+                          setHelpful((current) => ({
+                            ...current,
+                            [review.id]: (current[review.id] ?? review.helpful) + 1,
+                          })),
+                        )
                       }
                     >
                       Faydalı ({helpful[review.id] ?? review.helpful})
@@ -258,27 +267,51 @@ export function BusinessScreen({ slug }: { slug: string }) {
               Seçili şehir merkezine {formatDistance(km)}
             </p>
             <div className="mt-4 grid gap-2">
-              <Button type="button" className="h-11 rounded-xl" onClick={() => { setNote(""); setOpen(true) }}>
+              <Button
+                type="button"
+                className="h-11 rounded-xl"
+                onClick={() => allow(() => { setNote(""); setOpen(true) })}
+              >
                 {bookingLabel(business.booking)}
               </Button>
               <MessageButton business={business} />
               {business.phone ? (
-                <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={`tel:${business.phone.replace(/\s/g, "")}`} />}>
-                  <Phone className="size-4" />
-                  {business.phone}
-                </Button>
+                member ? (
+                  <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={`tel:${business.phone.replace(/\s/g, "")}`} />}>
+                    <Phone className="size-4" />
+                    {business.phone}
+                  </Button>
+                ) : (
+                  <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => allow(() => undefined)}>
+                    <Phone className="size-4" />
+                    Telefonu gör
+                  </Button>
+                )
               ) : (
                 <p className="text-sm text-muted-foreground">Telefon kaydı yok.</p>
               )}
-              <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={maps} target="_blank" rel="noreferrer" />}>
-                <Navigation className="size-4" />
-                Yol tarifi
-              </Button>
+              {member ? (
+                <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={maps} target="_blank" rel="noreferrer" />}>
+                  <Navigation className="size-4" />
+                  Yol tarifi
+                </Button>
+              ) : (
+                <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => allow(() => undefined)}>
+                  <Navigation className="size-4" />
+                  Yol tarifi
+                </Button>
+              )}
               <ShareButton business={business} compact={false} />
               {business.googleUrl ? (
-                <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={business.googleUrl} target="_blank" rel="noreferrer" />}>
-                  Google Haritalar’da aç
-                </Button>
+                member ? (
+                  <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={business.googleUrl} target="_blank" rel="noreferrer" />}>
+                    Google Haritalar’da aç
+                  </Button>
+                ) : (
+                  <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => allow(() => undefined)}>
+                    Google Haritalar’da aç
+                  </Button>
+                )
               ) : null}
             </div>
             <h2 className="mt-5 font-heading text-lg">Saatler</h2>
@@ -307,7 +340,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
       ) : null}
 
       <div className="fixed inset-x-0 bottom-16 z-30 border-t border-foreground/10 bg-background/95 p-3 backdrop-blur md:hidden">
-        <Button type="button" className="h-11 w-full rounded-xl" onClick={() => { setNote(""); setOpen(true) }}>
+        <Button type="button" className="h-11 w-full rounded-xl" onClick={() => allow(() => { setNote(""); setOpen(true) })}>
           {bookingLabel(business.booking)}
         </Button>
       </div>

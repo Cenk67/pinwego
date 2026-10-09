@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, Ban, Bell, Building2, MessageCircle, Plus, Search } from "lucide-react"
+import { GuestNotice } from "@/components/auth/guest-gate"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -210,7 +211,7 @@ export function InboxScreen() {
     if (sent) setDraft("")
   }
 
-  if (!account) return null
+  if (!account) return <GuestNotice />
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:py-10">
