@@ -8,7 +8,7 @@ Katalog örnek kayıtlardan oluşur. Eşleştirme tarayıcıda çalışır; hari
 
 ## Çalıştırma
 
-Node.js 20.9 veya daha yenisi gerekir.
+Node.js 20.9 veya daha yenisi gerekir. Cloudflare Workers yayını Node.js 22.18 veya daha yenisini ister.
 
 ```bash
 npm install
@@ -16,6 +16,21 @@ npm run dev
 ```
 
 Site [http://127.0.0.1:43123](http://127.0.0.1:43123) adresinde açılır. `localhost:3000` bu projede kullanılmıyor.
+
+## Cloudflare Workers
+
+Canlı site Cloudflare Workers üzerinde durur. `pinwego.com` ve `www.pinwego.com`, `cloudflare.config.ts` içinde bu Worker’a bağlıdır. Alan adının ad sunucuları zaten Cloudflare’dedir; yayın sırasında DNS kaydı ve sertifika Cloudflare tarafından yazılır.
+
+```bash
+npm run deploy:vinext
+```
+
+Bu komut Workers paketini kurar ve `pinwego.com` alanına yayınlar. Yerel Next.js sunucusu aynı kalır (`npm run dev`). Workers önizlemesi `npm run dev:vinext` ile 43124 portunda açılır.
+
+Yayın için hesapta bir API anahtarı gerekir. [API Tokens](https://dash.cloudflare.com/profile/api-tokens) sayfasında **Edit Cloudflare Workers** şablonuyla anahtar oluşturup şu değişkenleri verin:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID` (hesap kimliği, panel adresindeki `dash.cloudflare.com/<hesap-kimliği>` değeridir)
 
 Açılmazsa:
 
