@@ -39,6 +39,24 @@ export type Fact = {
   value: string
 }
 
+export type BusinessLinks = Partial<
+  Record<
+    | "website"
+    | "facebook"
+    | "instagram"
+    | "x"
+    | "linkedin"
+    | "youtube"
+    | "tiktok"
+    | "n11"
+    | "sahibinden"
+    | "arabam"
+    | "hepsiemlak"
+    | "emlakjet",
+    string
+  >
+>
+
 export type Business = {
   id: string
   slug: string
@@ -73,6 +91,7 @@ export type Business = {
   source: "katalog" | "senin" | "google"
   website?: string
   googleUrl?: string
+  links?: BusinessLinks
   ownerAccountId?: string
 }
 
@@ -132,6 +151,7 @@ export type BusinessOverride = Partial<
     | "priceLevel"
     | "booking"
     | "website"
+    | "links"
   >
 >
 

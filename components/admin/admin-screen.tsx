@@ -14,8 +14,10 @@ import { useAuth } from "@/lib/auth-context"
 import { ADMIN_EMAIL, ADMIN_PASSWORD, openStoredDocument } from "@/lib/auth-store"
 import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
+import { SocialLinkEditor } from "@/components/directory/social-links"
 import { fold, slugify } from "@/lib/format"
 import { maskId } from "@/lib/identity"
+import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
 import type { BookingKind, Business, CategoryId } from "@/lib/types"
 
 const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
@@ -283,6 +285,8 @@ function BusinessEditor({
   const [summary, setSummary] = useState(business.summary)
   const [category, setCategory] = useState<CategoryId>(business.category)
   const [booking, setBooking] = useState<BookingKind>(business.booking)
+  const [links, setLinks] = useState<BusinessLinks>(() => draftLinks(business))
+  const [linkError, setLinkError] = useState("")
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
@@ -294,6 +298,11 @@ function BusinessEditor({
           className="grid gap-3"
           onSubmit={(event) => {
             event.preventDefault()
+            const social = savedLinks(links)
+            if (social.error) {
+              setLinkError(social.error)
+              return
+            }
             onSave({
               name: name.trim(),
               phone: phone.trim(),
@@ -304,6 +313,8 @@ function BusinessEditor({
               about: summary.trim(),
               category,
               booking,
+              links: social.links,
+              website: social.website,
             })
           }}
         >
@@ -342,6 +353,8 @@ function BusinessEditor({
             <Label htmlFor="edit-summary">Özet</Label>
             <Textarea id="edit-summary" value={summary} onChange={(event) => setSummary(event.target.value)} className="min-h-24" />
           </div>
+          <SocialLinkEditor value={links} onChange={setLinks} />
+          {linkError ? <p className="text-sm text-destructive">{linkError}</p> : null}
           <div className="flex gap-2">
             <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={onClose}>
               Vazgeç
