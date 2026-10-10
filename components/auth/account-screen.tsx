@@ -6,6 +6,7 @@ import { useState } from "react"
 import { AuthScreen } from "@/components/auth/auth-screen"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
+import { authDoor, authMode } from "@/lib/auth-path"
 import { openDocument } from "@/lib/auth-store"
 import { maskId } from "@/lib/identity"
 
@@ -15,10 +16,18 @@ export function AccountScreen() {
   const [message, setMessage] = useState("")
 
   if (!ready) return null
-  if (!account) {
-    const kayit = params.get("kayit")
-    const initialMode = kayit === "musteri" ? "musteri" : kayit === "isletme" ? "isletme" : kayit === "giris" ? "login" : "choose"
-    return <AuthScreen embedded initialMode={initialMode} />
+  const kayit = params.get("kayit")
+  const mode = authMode(kayit)
+  const switching = account?.role === "musteri" && (mode === "isletme" || mode === "admin" || mode === "login")
+  if (!account || switching) {
+    return (
+      <AuthScreen
+        key={`${kayit ?? "choose"}:${params.get("kapi") ?? ""}`}
+        embedded
+        initialMode={mode}
+        door={authDoor(params.get("kapi"), mode)}
+      />
+    )
   }
 
   async function open(id: string) {

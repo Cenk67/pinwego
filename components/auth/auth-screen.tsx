@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { fieldClass } from "@/components/directory/bits"
@@ -8,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth-context"
-import { ADMIN_EMAIL, getSnapshot } from "@/lib/auth-store"
+import { loginDoorProblem, type AuthDoor, type AuthMode } from "@/lib/auth-path"
+import { ADMIN_EMAIL, getSnapshot, previewLogin } from "@/lib/auth-store"
 import { businesses, cities } from "@/lib/catalog"
 import { CLAIM_KEY, claimListing } from "@/lib/claim"
 import { adoptListingThreads } from "@/lib/message-store"
@@ -24,7 +26,7 @@ import {
   validVkn,
 } from "@/lib/identity"
 
-type Mode = "choose" | "login" | "admin" | "musteri" | "isletme"
+type Mode = AuthMode
 
 function problemsOf(items: Array<string | null>) {
   return items.filter((item): item is string => Boolean(item))
@@ -97,14 +99,16 @@ function pendingClaim() {
 
 export function AuthScreen({
   initialMode = "choose",
+  door = "musteri",
   embedded = false,
 }: {
   initialMode?: Mode
+  door?: AuthDoor
   embedded?: boolean
 }) {
   const { login, registerAccount } = useAuth()
   const [claim] = useState<Business | null>(pendingClaim)
-  const [mode, setMode] = useState<Mode>(claim ? "isletme" : initialMode)
+  const mode = initialMode
 
   return (
     <div className={embedded ? "" : "min-h-svh bg-background"}>
@@ -121,117 +125,168 @@ export function AuthScreen({
           </div>
         </header>
       )}
-      <main className="mx-auto w-full max-w-lg px-4 py-8">
-        {mode === "choose" ? <Chooser onPick={setMode} claim={claim} /> : null}
+      <main className={mode === "choose" ? "mx-auto w-full max-w-3xl px-4 py-8" : "mx-auto w-full max-w-lg px-4 py-8"}>
+        {mode === "choose" ? <Chooser claim={claim} /> : null}
         {mode === "login" || mode === "admin" ? (
           <LoginForm
-            onBack={() => setMode("choose")}
             login={login}
             initialEmail={mode === "admin" ? ADMIN_EMAIL : ""}
-            admin={mode === "admin"}
+            door={mode === "admin" ? "yonetici" : door}
+            claim={claim}
           />
         ) : null}
         {mode === "musteri" ? (
-          <CustomerForm onBack={() => setMode("choose")} registerAccount={registerAccount} />
+          <CustomerForm registerAccount={registerAccount} />
         ) : null}
         {mode === "isletme" ? (
-          <BusinessForm onBack={() => setMode("choose")} registerAccount={registerAccount} claim={claim} />
+          <BusinessForm registerAccount={registerAccount} claim={claim} />
         ) : null}
       </main>
     </div>
   )
 }
 
-function Chooser({ onPick, claim }: { onPick: (mode: Mode) => void; claim: Business | null }) {
+function DoorLink({
+  href,
+  kicker,
+  title,
+  copy,
+}: {
+  href: string
+  kicker: string
+  title: string
+  copy: string
+}) {
+  return (
+    <Link href={href} className="rounded-3xl bg-card px-4 py-4 ring-1 ring-foreground/10 hover:ring-primary">
+      <span className="text-xs font-medium tracking-wide text-primary uppercase">{kicker}</span>
+      <span className="mt-1 block font-heading text-2xl">{title}</span>
+      <span className="mt-1 block text-sm leading-6 text-muted-foreground">{copy}</span>
+    </Link>
+  )
+}
+
+function Chooser({ claim }: { claim: Business | null }) {
   return (
     <div>
-      <p className="text-sm font-medium text-primary">Açık rehber</p>
-      <h1 className="mt-2 font-heading text-4xl leading-tight text-balance">Misafir olarak izleyebilirsin.</h1>
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        İşletmeleri, sektörleri ve haritayı kayıt olmadan görebilirsin. Telefon, site, randevu, mesaj, kayıt ve talep
-        için müşteri kaydı gerekir. İşletme vergi ve yetki belgelerini yükler.
+      <p className="text-sm font-medium text-primary">Giriş</p>
+      <h1 className="mt-2 font-heading text-4xl leading-tight text-balance">Hesabın varsa gir, yoksa kayıt aç.</h1>
+      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+        Kayıtlı müşteri, kayıtlı işletme ve site yöneticisi ayrı kapıdan girer. İşletmeyi sahiplenmek isteyen yeni
+        sahip işletme kaydını buradan açar. Misafir izleme kayıt istemez.
       </p>
       {claim ? (
         <p className="mt-4 rounded-2xl bg-primary/10 px-3 py-3 text-sm leading-6 text-primary">
-          {claim.name} için sahiplenme açık. İşletme kaydı tamamlanınca bu Google kaydı projeye yazılır.
+          {claim.name} için sahiplenme bekliyor. Kayıtlı işletme hesabın varsa işletme girişini, ilk kayıtsa işletme
+          kaydını kullan.
         </p>
       ) : null}
-      <div className="mt-6 grid gap-3">
-        <button
-          type="button"
-          onClick={() => onPick("musteri")}
-          className="rounded-3xl bg-card px-4 py-4 text-left ring-1 ring-foreground/10"
-        >
-          <span className="font-heading text-2xl">Müşteri kaydı oluşturun</span>
-          <span className="mt-1 block text-sm leading-6 text-muted-foreground">
-            Ad, telefon, T.C. kimlik numarası ve bir teyit belgesi.
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onPick("isletme")}
-          className="rounded-3xl bg-card px-4 py-4 text-left ring-1 ring-foreground/10"
-        >
-          <span className="font-heading text-2xl">İşletme kaydı</span>
-          <span className="mt-1 block text-sm leading-6 text-muted-foreground">
-            Vergi levhası, imza sirküleri, sicil belgesi ve yetkili kimliği.
-          </span>
-        </button>
+      <h2 className="mt-8 font-heading text-2xl">Giriş</h2>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <DoorLink
+          href="/hesap?kayit=giris&kapi=musteri"
+          kicker="Müşteri"
+          title="Müşteri girişi"
+          copy="Daha önce müşteri kaydı oluşturduysan e-posta ve şifrenle gir."
+        />
+        <DoorLink
+          href="/hesap?kayit=giris&kapi=isletme"
+          kicker="İşletme"
+          title="İşletme girişi"
+          copy="Kaydı tamamlanmış işletme hesabın varsa gir. Sahiplenilen kayıt açılır."
+        />
+        <DoorLink
+          href="/hesap?kayit=yonetici"
+          kicker="Yönetici"
+          title="Yönetici girişi"
+          copy="Site yönetimi, sektör ve hesaplar bu hesapla açılır."
+        />
       </div>
-      <button
-        type="button"
-        onClick={() => onPick("admin")}
-        className="mt-3 w-full rounded-3xl bg-card px-4 py-4 text-left ring-1 ring-foreground/10"
-      >
-        <span className="font-heading text-2xl">Yönetici girişi</span>
-        <span className="mt-1 block text-sm leading-6 text-muted-foreground">
-          Sektör, işletme, talep ve hesapları yönetim panelinden yönet.
-        </span>
-      </button>
-      <Button type="button" variant="outline" className="mt-4 h-11 w-full rounded-xl" onClick={() => onPick("login")}>
-        Zaten hesabım var
-      </Button>
+      <h2 className="mt-8 font-heading text-2xl">Kayıt</h2>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <DoorLink
+          href="/hesap?kayit=musteri"
+          kicker="Yeni müşteri"
+          title="Müşteri kaydı oluşturun"
+          copy="Ad, telefon, T.C. kimlik numarası ve bir teyit belgesi. İletişim ve özellikler bu kayıtla açılır."
+        />
+        <DoorLink
+          href="/hesap?kayit=isletme"
+          kicker="Yeni işletme"
+          title="İşletme kaydı"
+          copy="İşletmeyi sahiplen dediğinde veya yeni işletme eklerken vergi ve yetki belgeleri istenir."
+        />
+      </div>
       <p className="mt-4 text-xs leading-5 text-muted-foreground">
-        Bilgiler ve belgeler bu tarayıcıda durur. Ayrı bir kimlik servisine gönderilmez; numara ve dosya türü burada
-        kontrol edilir.
+        Bilgiler ve belgeler bu tarayıcıda durur. Ayrı bir kimlik servisine gönderilmez.
       </p>
     </div>
   )
 }
 
 function LoginForm({
-  onBack,
   login,
   initialEmail = "",
-  admin = false,
+  door,
+  claim,
 }: {
-  onBack: () => void
   login: (email: string, password: string) => Promise<string | null>
   initialEmail?: string
-  admin?: boolean
+  door: AuthDoor
+  claim: Business | null
 }) {
+  const router = useRouter()
+  const { addListing } = useDirectory()
   const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
+  const title = door === "yonetici" ? "Yönetici girişi" : door === "isletme" ? "İşletme girişi" : "Müşteri girişi"
+  const copy =
+    door === "yonetici"
+      ? "Site yönetimi bu tarayıcıdaki yönetici hesabıyla açılır."
+      : door === "isletme"
+        ? "Kayıtlı işletme e-postası ve şifresi. Sahiplenme bekliyorsa girişten sonra kayda yazılır."
+        : "Daha önce açtığın müşteri hesabının e-postası ve şifresi."
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     setPending(true)
-    const message = await login(email, password)
-    setPending(false)
-    setErrors(message ? [message] : [])
+    try {
+      const preview = await previewLogin(email, password)
+      if (typeof preview === "string") {
+        setErrors([preview])
+        return
+      }
+      const problem = loginDoorProblem(door, preview.role)
+      if (problem) {
+        setErrors([problem])
+        return
+      }
+      const message = await login(email, password)
+      if (message) {
+        setErrors([message])
+        return
+      }
+      const account = getSnapshot().account
+      if (account && claim && (account.role === "isletme" || account.role === "admin")) {
+        addListing(claimListing(claim, account.id))
+        adoptListingThreads(claim.id, account.id)
+        sessionStorage.removeItem(CLAIM_KEY)
+        router.push(`/isletme/${claim.slug}`)
+        return
+      }
+      if (account?.role === "admin") router.push("/yonetim")
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
     <form onSubmit={submit} className="grid gap-4">
       <div>
-        <h1 className="font-heading text-4xl">{admin ? "Yönetici girişi" : "Giriş"}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {admin
-            ? "Yönetim paneli bu tarayıcıdaki yönetici hesabıyla açılır."
-            : "Kayıtlı e-posta ve şifreyle devam et."}
-        </p>
+        <h1 className="font-heading text-4xl">{title}</h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{copy}</p>
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="login-email">E-posta</Label>
@@ -245,18 +300,26 @@ function LoginForm({
       <Button type="submit" className="h-11 rounded-xl" disabled={pending}>
         {pending ? "Kontrol ediliyor" : "Giriş yap"}
       </Button>
-      <Button type="button" variant="ghost" className="h-11 rounded-xl" onClick={onBack}>
-        Kayıt seçeneklerine dön
+      {door === "musteri" ? (
+        <Link href="/hesap?kayit=musteri" className="text-center text-sm text-primary">
+          Hesabın yok mu? Müşteri kaydı oluşturun
+        </Link>
+      ) : null}
+      {door === "isletme" ? (
+        <Link href="/hesap?kayit=isletme" className="text-center text-sm text-primary">
+          İşletme kaydın yok mu? İşletme kaydı
+        </Link>
+      ) : null}
+      <Button variant="ghost" className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap" />}>
+        Tüm girişlere dön
       </Button>
     </form>
   )
 }
 
 function CustomerForm({
-  onBack,
   registerAccount,
 }: {
-  onBack: () => void
   registerAccount: ReturnType<typeof useAuth>["registerAccount"]
 }) {
   const [name, setName] = useState("")
@@ -334,19 +397,20 @@ function CustomerForm({
       <Button type="submit" className="h-11 rounded-xl" disabled={pending}>
         {pending ? "Belgeler kaydediliyor" : "Doğrula ve kaydı aç"}
       </Button>
-      <Button type="button" variant="ghost" className="h-11 rounded-xl" onClick={onBack}>
-        Geri
+      <Link href="/hesap?kayit=giris&kapi=musteri" className="text-center text-sm text-primary">
+        Zaten müşteri hesabım var
+      </Link>
+      <Button variant="ghost" className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap" />}>
+        Tüm girişlere dön
       </Button>
     </form>
   )
 }
 
 function BusinessForm({
-  onBack,
   registerAccount,
   claim,
 }: {
-  onBack: () => void
   registerAccount: ReturnType<typeof useAuth>["registerAccount"]
   claim: Business | null
 }) {
@@ -434,7 +498,7 @@ function BusinessForm({
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           {claim
             ? `${claim.name} kaydı, belgeler tamamlanınca pinwego’ya yazılır. Dört belge de gerekir.`
-            : "Dört belge de yüklenmeden işletme hesabı açılmaz ve rehber kullanılamaz."}
+            : "Dört belge de yüklenmeden işletme hesabı açılmaz."}
         </p>
       </div>
       <Field id="biz-title" label="İşletme unvanı" value={title} onChange={setTitle} />
@@ -465,8 +529,11 @@ function BusinessForm({
       <Button type="submit" className="h-11 rounded-xl" disabled={pending}>
         {pending ? "Belgeler kaydediliyor" : "Belgeleri yükle ve kaydı aç"}
       </Button>
-      <Button type="button" variant="ghost" className="h-11 rounded-xl" onClick={onBack}>
-        Geri
+      <Link href="/hesap?kayit=giris&kapi=isletme" className="text-center text-sm text-primary">
+        Zaten işletme hesabım var
+      </Link>
+      <Button variant="ghost" className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap" />}>
+        Tüm girişlere dön
       </Button>
     </form>
   )

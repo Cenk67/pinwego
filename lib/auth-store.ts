@@ -253,13 +253,19 @@ export async function registerAccount(input: {
   return null
 }
 
-export async function login(email: string, password: string) {
+export async function previewLogin(email: string, password: string): Promise<Account | string> {
   const normalized = email.trim().toLowerCase()
   const account = readAccounts().find((item) => item.email === normalized)
   if (!account) return "E-posta veya şifre eşleşmedi."
   const hash = await hashPassword(normalized, password)
   if (hash !== account.passwordHash) return "E-posta veya şifre eşleşmedi."
-  enter(account)
+  return account
+}
+
+export async function login(email: string, password: string) {
+  const result = await previewLogin(email, password)
+  if (typeof result === "string") return result
+  enter(result)
   return null
 }
 
