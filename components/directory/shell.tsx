@@ -61,12 +61,20 @@ function GuestBar() {
         <p className="text-sm leading-6">
           <span className="font-medium">Misafir.</span> Rehberi izleyebilirsin. İletişim bilgileri ve özellikler kapalı.
         </p>
-        <Link
-          href="/hesap?kayit=musteri"
-          className="inline-flex h-10 shrink-0 items-center justify-center rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"
-        >
-          Müşteri kaydı oluşturun
-        </Link>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Link
+            href="/hesap"
+            className="inline-flex h-10 items-center justify-center rounded-full bg-card px-4 text-sm font-medium ring-1 ring-foreground/15"
+          >
+            Giriş
+          </Link>
+          <Link
+            href="/hesap?kayit=musteri"
+            className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"
+          >
+            Müşteri kaydı oluşturun
+          </Link>
+        </div>
       </div>
     </div>
   )

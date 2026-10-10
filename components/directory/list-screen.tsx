@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { GuestNotice } from "@/components/auth/guest-gate"
@@ -89,9 +90,12 @@ export function ListScreen() {
       <div className="mx-auto max-w-xl px-4 py-16">
         <h1 className="font-heading text-4xl text-balance">İşletme eklemek için işletme hesabı gerekir.</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          Müşteri hesabı arama, harita ve talep için yeter. Kendi işletmeni rehbere koymak için çıkış yapıp vergi
-          levhası, imza sirküleri, sicil belgesi ve yetkili kimliğiyle işletme kaydı aç.
+          Müşteri hesabı arama, harita ve talep için yeter. İşletme kaydı ayrı açılır; vergi levhası, imza sirküleri,
+          sicil belgesi ve yetkili kimliği istenir. Müşteri kaydın bu tarayıcıda durur.
         </p>
+        <Button className="mt-6 h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap?kayit=isletme" />}>
+          İşletme kaydı
+        </Button>
       </div>
     )
   }

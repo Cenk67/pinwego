@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { GuestNotice } from "@/components/auth/guest-gate"
 import { SectorForm } from "@/components/directory/sector-form"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
@@ -40,17 +39,35 @@ export function AdminScreen() {
   const { account } = useAuth()
   const [tab, setTab] = useState<Tab>("ozet")
 
-  if (!account) return <GuestNotice />
+  if (!account) {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-16">
+        <p className="text-sm font-medium text-primary">Yönetici</p>
+        <h1 className="mt-2 font-heading text-4xl text-balance">Yönetim yönetici girişi ister.</h1>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          Müşteri ve işletme hesapları bu paneli açmaz. Yönetici kapısı giriş bölümündedir.
+        </p>
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          <Button className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap?kayit=yonetici" />}>
+            Yönetici girişi
+          </Button>
+          <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap" />}>
+            Tüm girişler
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   if (account.role !== "admin") {
     return (
       <div className="mx-auto max-w-xl px-4 py-16">
         <h1 className="font-heading text-4xl text-balance">Yönetim yalnızca yönetici hesabına açık.</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          Giriş ekranından Yönetici girişi ile {ADMIN_EMAIL} hesabını kullan. Şifre bu tarayıcıdaki örnek panel içindir.
+          Bu oturum {account.role === "musteri" ? "müşteri" : "işletme"} hesabı. Yönetici girişi ayrı kapıdadır.
         </p>
-        <Button className="mt-6 h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap" />}>
-          Hesaba dön
+        <Button className="mt-6 h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap?kayit=yonetici" />}>
+          Yönetici girişi
         </Button>
       </div>
     )

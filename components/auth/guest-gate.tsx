@@ -30,10 +30,13 @@ export function GuestNotice() {
       <h1 className="mt-2 font-heading text-4xl text-balance">Bu özellik müşteri kaydı ister.</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{COPY}</p>
       <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-        <Button className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap?kayit=musteri" />}>
+        <Button className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap" />}>
+          Giriş
+        </Button>
+        <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap?kayit=musteri" />}>
           Müşteri kaydı oluşturun
         </Button>
-        <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<Link href="/" />}>
+        <Button variant="ghost" className="h-11 rounded-xl" nativeButton={false} render={<Link href="/" />}>
           İzlemeye dön
         </Button>
       </div>
@@ -66,12 +69,20 @@ export function GuestGateProvider({ children }: { children: ReactNode }) {
             <DialogTitle className="font-heading text-2xl">Misafir izleme</DialogTitle>
             <DialogDescription className="leading-6">{COPY}</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => setOpen(false)}>
-              İzlemeye devam
+          <div className="grid gap-2">
+            <Button
+              type="button"
+              className="h-11 rounded-xl"
+              onClick={() => {
+                setOpen(false)
+                router.push("/hesap")
+              }}
+            >
+              Giriş
             </Button>
             <Button
               type="button"
+              variant="outline"
               className="h-11 rounded-xl"
               onClick={() => {
                 setOpen(false)
@@ -79,6 +90,9 @@ export function GuestGateProvider({ children }: { children: ReactNode }) {
               }}
             >
               Müşteri kaydı oluşturun
+            </Button>
+            <Button type="button" variant="ghost" className="h-11 rounded-xl" onClick={() => setOpen(false)}>
+              İzlemeye devam
             </Button>
           </div>
         </DialogContent>
