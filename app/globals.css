@@ -50,24 +50,24 @@
 }
 
 :root {
-  --background: oklch(0.962 0.014 88);
-  --foreground: oklch(0.27 0.022 55);
-  --card: oklch(0.993 0.006 92);
-  --card-foreground: oklch(0.27 0.022 55);
-  --popover: oklch(0.993 0.006 92);
-  --popover-foreground: oklch(0.27 0.022 55);
-  --primary: oklch(0.4 0.055 175);
-  --primary-foreground: oklch(0.98 0.01 95);
-  --secondary: oklch(0.94 0.016 85);
-  --secondary-foreground: oklch(0.3 0.022 55);
-  --muted: oklch(0.94 0.014 85);
-  --muted-foreground: oklch(0.48 0.02 60);
-  --accent: oklch(0.93 0.028 80);
-  --accent-foreground: oklch(0.3 0.03 55);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.88 0.016 80);
-  --input: oklch(0.88 0.016 80);
-  --ring: oklch(0.4 0.055 175);
+  --background: #f3f7ff;
+  --foreground: #12284f;
+  --card: #ffffff;
+  --card-foreground: #12284f;
+  --popover: #ffffff;
+  --popover-foreground: #12284f;
+  --primary: #0063f7;
+  --primary-foreground: #f5f9ff;
+  --secondary: #e7f1ff;
+  --secondary-foreground: #16315f;
+  --muted: #e8f1fb;
+  --muted-foreground: #4a6284;
+  --accent: #dff7fb;
+  --accent-foreground: #0e3f55;
+  --destructive: #d92d20;
+  --border: #d5e4f7;
+  --input: #d5e4f7;
+  --ring: #2aa7ff;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -129,13 +129,24 @@
     @apply font-sans;
   }
   ::selection {
-    background: oklch(0.82 0.05 175);
+    background: #c9ecff;
+    color: #082047;
   }
 }
 
-@utility atlas {
+body {
+  background-image: url("/brand/wash.svg");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+.atlas {
   background-image:
-    linear-gradient(to right, oklch(0.9 0.016 80 / 0.7) 1px, transparent 1px),
-    linear-gradient(to bottom, oklch(0.9 0.016 80 / 0.7) 1px, transparent 1px);
-  background-size: 48px 48px;
+    radial-gradient(ellipse 70% 80% at 0% 0%, rgb(0 99 247 / 0.16), transparent 58%),
+    radial-gradient(ellipse 64% 70% at 100% 0%, rgb(46 224 255 / 0.22), transparent 52%),
+    linear-gradient(to right, rgb(0 99 247 / 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(0 99 247 / 0.08) 1px, transparent 1px);
+  background-size: auto, auto, 56px 56px, 56px 56px;
 }

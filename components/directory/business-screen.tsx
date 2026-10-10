@@ -328,7 +328,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
         </section>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-16 z-30 border-t border-foreground/10 bg-background/95 p-3 backdrop-blur md:hidden">
+      <div className="fixed inset-x-0 bottom-16 z-30 border-t border-foreground/10 bg-card/95 p-3 backdrop-blur md:hidden">
         <Button type="button" className="h-11 w-full rounded-xl" onClick={() => allow(() => { setNote(""); setOpen(true) })}>
           {bookingLabel(business.booking)}
         </Button>

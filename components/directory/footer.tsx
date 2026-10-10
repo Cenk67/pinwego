@@ -1,11 +1,12 @@
 import Link from "next/link"
+import { Logo } from "@/components/brand/logo"
 
 export function Footer() {
   return (
     <footer className="mt-16 border-t border-foreground/10">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 md:grid-cols-[1.4fr_1fr_1fr]">
         <div>
-          <p className="font-heading text-2xl">pinwego</p>
+          <Logo variant="stacked" />
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
             Yakındaki ticari kaydı arama, itibar, fiyat ve randevuyla aynı ekranda toplar.
             Eşleştirme bu tarayıcıda, örnek katalog üzerinden çalışır.

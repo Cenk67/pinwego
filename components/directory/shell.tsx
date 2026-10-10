@@ -26,7 +26,7 @@ function BottomNav() {
     { href: "/kaydedilenler", label: "Kayıtlı", icon: Bookmark, count: saved.length },
   ]
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-foreground/10 bg-background/95 backdrop-blur md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-foreground/10 bg-card/95 backdrop-blur md:hidden">
       <ul className="grid grid-cols-5">
         {items.map((item) => {
           const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
@@ -83,7 +83,14 @@ function GuestBar() {
 export function Shell({ children }: { children: ReactNode }) {
   const { ready } = useAuth()
   if (!ready) {
-    return <div className="grid min-h-svh place-items-center px-4 text-sm text-muted-foreground">pinwego açılıyor</div>
+    return (
+      <div className="grid min-h-svh place-items-center px-4 text-sm text-muted-foreground">
+        <div className="flex flex-col items-center gap-3">
+          <img src="/brand/mark.png" alt="" className="h-10 w-auto" />
+          pinwego açılıyor
+        </div>
+      </div>
+    )
   }
   return (
     <GuestGateProvider>

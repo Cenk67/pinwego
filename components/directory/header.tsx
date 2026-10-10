@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { Logo } from "@/components/brand/logo"
 import { PlaceButton } from "@/components/directory/place-picker"
 import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
@@ -11,16 +12,10 @@ export function Header() {
   const { account } = useAuth()
   const { unread } = useMessages()
   return (
-    <header className="sticky top-0 z-40 border-b border-foreground/10 bg-background/90 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-foreground/10 bg-card/95 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-full bg-primary text-primary-foreground">
-            <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
-              <circle cx="12" cy="9" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
-              <path d="M12 12.5 V19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          </span>
-          <span className="font-heading text-xl tracking-tight">pinwego</span>
+        <Link href="/" aria-label="pinwego" className="flex shrink-0 items-center">
+          <Logo />
         </Link>
         <nav className="ml-4 hidden items-center gap-5 text-sm md:flex">
           <Link href="/ara" className="hover:text-primary">
