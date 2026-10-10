@@ -12,10 +12,10 @@ export function scaledSize(width: number, height: number, max = BLOG_IMAGE_MAX) 
   }
 }
 
-export async function scaleImageFile(file: File) {
+export async function scaleImageFile(file: File, preferredMax = BLOG_IMAGE_MAX) {
   if (!file.type.startsWith("image/")) throw new Error("Yalnızca görsel yüklenir.")
   const source = await readImage(file)
-  let max = BLOG_IMAGE_MAX
+  let max = preferredMax
   let quality = 0.82
   let result = draw(source, max, quality)
   if (result.dataUrl.length > 900_000) {
@@ -56,5 +56,7 @@ function draw(image: HTMLImageElement, max: number, quality: number) {
   context.fillStyle = "#ffffff"
   context.fillRect(0, 0, size.width, size.height)
   context.drawImage(image, 0, 0, size.width, size.height)
-  return { dataUrl: canvas.toDataURL("image/jpeg", quality), width: size.width, height: size.height }
+  const webp = canvas.toDataURL("image/webp", quality)
+  const dataUrl = webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/jpeg", quality)
+  return { dataUrl, width: size.width, height: size.height }
 }

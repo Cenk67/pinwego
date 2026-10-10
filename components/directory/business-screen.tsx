@@ -2,10 +2,19 @@
 
 import Link from "next/link"
 import { BadgeCheck, Clock, MapPin, Navigation } from "lucide-react"
-import { useMemo, useState } from "react"
-import { BusinessCard } from "@/components/directory/business-card"
+import { useState } from "react"
 import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, SaveButton, Stars } from "@/components/directory/bits"
+import {
+  AboutBlock,
+  AiPicks,
+  GalleryStrip,
+  ProfileCrumbs,
+  ProfileJsonLd,
+  ServiceList,
+  ShortRead,
+  SummaryGrid,
+} from "@/components/directory/profile-view"
 import { ShareButton } from "@/components/directory/share-button"
 import { MessageButton } from "@/components/messages/message-button"
 import { MiniMap } from "@/components/directory/mini-map"
@@ -14,8 +23,8 @@ import { ContactLines } from "@/components/directory/contact-lines"
 import { SocialLinks } from "@/components/directory/social-links"
 import { Button } from "@/components/ui/button"
 import { useGuestGate } from "@/components/auth/guest-gate"
-import { categoryById, cityCenter } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
+import { resolveProfile } from "@/lib/profile"
 import { isContactFact, watchCopy } from "@/lib/guest"
 import {
   bookingLabel,
@@ -23,11 +32,9 @@ import {
   formatDistance,
   formatRating,
   formatResponse,
-  formatTry,
   priceLabel,
   priceMarks,
 } from "@/lib/format"
-import { aiBrief } from "@/lib/match"
 
 export function BusinessScreen({ slug }: { slug: string }) {
   const { ready, place, visibleBusinesses } = useDirectory()
@@ -36,16 +43,6 @@ export function BusinessScreen({ slug }: { slug: string }) {
   const [note, setNote] = useState("")
   const [open, setOpen] = useState(false)
   const [helpful, setHelpful] = useState<Record<string, number>>({})
-
-  const similar = useMemo(() => {
-    if (!business) return []
-    const origin = cityCenter(business.city)
-    return visibleBusinesses
-      .filter((item) => item.category === business.category && item.id !== business.id)
-      .map((item) => ({ business: item, km: distanceKm(origin, item) }))
-      .sort((a, b) => Number(b.business.city === business.city) - Number(a.business.city === business.city) || a.km - b.km)
-      .slice(0, 3)
-  }, [business, visibleBusinesses])
 
   if (!business) {
     if (!ready) {
@@ -68,21 +65,17 @@ export function BusinessScreen({ slug }: { slug: string }) {
     )
   }
 
-  const category = categoryById(business.category)
+  const profile = resolveProfile(business)
   const km = distanceKm(place, business)
   const maps = `https://www.google.com/maps/dir/?api=1&destination=${business.lat},${business.lng}`
-  const about = member ? business.about : watchCopy(business.about)
+  const about = member ? profile.aboutBody : watchCopy(profile.aboutBody)
+  const shortBody = member ? profile.shortBody : watchCopy(profile.shortBody)
   const facts = member ? business.facts : business.facts.filter((fact) => !isContactFact(fact.label, fact.value))
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 pb-28 md:py-10 md:pb-10">
-      <p className="text-sm text-muted-foreground">
-        <Link href={`/ara?kategori=${business.category}&sehir=${encodeURIComponent(business.city)}`} className="hover:text-primary">
-          {category.label}
-        </Link>
-        {" · "}
-        {business.city}
-      </p>
+      <ProfileJsonLd business={business} profile={profile} />
+      <ProfileCrumbs business={business} />
       <div className="mt-3 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div>
           <div className="relative aspect-[16/9] overflow-hidden rounded-3xl">
@@ -143,79 +136,19 @@ export function BusinessScreen({ slug }: { slug: string }) {
             </div>
           ) : null}
 
-          <section className="mt-6 rounded-3xl bg-primary/10 p-5">
-            <p className="text-xs font-medium tracking-wide text-primary uppercase">Kısa okuma</p>
-            <p className="mt-2 text-sm leading-7">{aiBrief(business)}</p>
-          </section>
-
-          <section className="mt-8">
-            <h2 className="font-heading text-2xl">Hakkında</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{about}</p>
-            {business.founded > 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">Kuruluş {business.founded}</p>
-            ) : null}
-          </section>
-
-          <section className="mt-8">
-            <h2 className="font-heading text-2xl">Hizmet ve fiyat</h2>
-            <ul className="mt-3 divide-y divide-foreground/10 rounded-3xl bg-card ring-1 ring-foreground/10">
-              {business.services.length ? (
-                business.services.map((service) => (
-                  <li key={service.name} className="flex items-center justify-between gap-3 px-4 py-3">
-                    <div>
-                      <p className="font-medium">{service.name}</p>
-                      <p className="text-xs text-muted-foreground">{service.unit}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm">{service.price > 0 ? formatTry(service.price) : "Sorunuz"}</span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-8 rounded-full"
-                        onClick={() =>
-                          allow(() => {
-                            setNote(service.name)
-                            setOpen(true)
-                          })
-                        }
-                      >
-                        Seç
-                      </Button>
-                    </div>
-                  </li>
-                ))
-              ) : (
-                <li className="px-4 py-4 text-sm text-muted-foreground">
-                  Hizmet listesi henüz yok. Talebi notla iletebilirsin.
-                </li>
-              )}
-            </ul>
-          </section>
-
-          {facts.length ? (
-            <section className="mt-8">
-              <h2 className="font-heading text-2xl">Firma özeti</h2>
-              <dl className="mt-3 grid gap-3 sm:grid-cols-3">
-                {facts.map((fact) => (
-                  <div key={fact.label} className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
-                    <dt className="text-xs text-muted-foreground">{fact.label}</dt>
-                    <dd className="mt-1 text-sm font-medium">{fact.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          ) : null}
-
-          <section className="mt-8">
-            <h2 className="font-heading text-2xl">İmkanlar</h2>
-            <ul className="mt-3 flex flex-wrap gap-2">
-              {business.amenities.map((item) => (
-                <li key={item} className="rounded-full bg-secondary px-3 py-1 text-sm">
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </section>
+          <ShortRead
+            business={business}
+            profile={profile}
+            body={shortBody}
+            onBook={() => allow(() => { setNote(""); setOpen(true) })}
+          />
+          <AboutBlock profile={profile} body={about} />
+          <SummaryGrid business={business} profile={profile} extra={facts} />
+          <ServiceList
+            profile={profile}
+            onPick={(name) => allow(() => { setNote(name); setOpen(true) })}
+          />
+          <GalleryStrip profile={profile} />
 
           <section className="mt-8">
             <h2 className="font-heading text-2xl">Yorumlar</h2>
@@ -317,16 +250,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
         </aside>
       </div>
 
-      {similar.length ? (
-        <section className="mt-12">
-          <h2 className="font-heading text-3xl">Benzer kayıtlar</h2>
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
-            {similar.map((item) => (
-              <BusinessCard key={item.business.id} business={item.business} distanceKm={item.km} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <AiPicks business={business} list={visibleBusinesses} />
 
       <div className="fixed inset-x-0 bottom-16 z-30 border-t border-foreground/10 bg-card/95 p-3 backdrop-blur md:hidden">
         <Button type="button" className="h-11 w-full rounded-xl" onClick={() => allow(() => { setNote(""); setOpen(true) })}>

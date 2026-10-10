@@ -16,12 +16,14 @@ import { ADMIN_EMAIL, ADMIN_PASSWORD, openStoredDocument } from "@/lib/auth-stor
 import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { ContactEditor } from "@/components/directory/contact-lines"
+import { ProfileEditor } from "@/components/directory/profile-editor"
 import { SocialLinkEditor } from "@/components/directory/social-links"
+import { listingFields, normalizeProfile, resolveProfile } from "@/lib/profile"
 import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
 import { fold, slugify } from "@/lib/format"
 import { maskId } from "@/lib/identity"
 import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
-import type { BookingKind, Business, CategoryId } from "@/lib/types"
+import type { BookingKind, Business, BusinessProfile, CategoryId, DayHours } from "@/lib/types"
 
 const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
 const tabs = [
@@ -154,6 +156,7 @@ function BusinessAdmin() {
   const [query, setQuery] = useState("")
   const [limit, setLimit] = useState(12)
   const [editor, setEditor] = useState<Business | null>(null)
+  const [profileTarget, setProfileTarget] = useState<Business | null>(null)
   const [creating, setCreating] = useState(false)
 
   const filtered = useMemo(() => {
@@ -198,6 +201,9 @@ function BusinessAdmin() {
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => setEditor(business)}>
                     Düzenle
+                  </Button>
+                  <Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => setProfileTarget(business)}>
+                    Profil
                   </Button>
                   <Button
                     type="button"
@@ -258,6 +264,17 @@ function BusinessAdmin() {
           }}
         />
       ) : null}
+      {profileTarget ? (
+        <ProfileDialog
+          key={profileTarget.id}
+          business={profileTarget}
+          onClose={() => setProfileTarget(null)}
+          onSave={(patch) => {
+            patchBusiness(profileTarget.id, patch)
+            setProfileTarget(null)
+          }}
+        />
+      ) : null}
       {creating ? (
         <CreateBusiness
           sectors={managedSectors}
@@ -269,6 +286,53 @@ function BusinessAdmin() {
         />
       ) : null}
     </div>
+  )
+}
+
+function ProfileDialog({
+  business,
+  onClose,
+  onSave,
+}: {
+  business: Business
+  onClose: () => void
+  onSave: (patch: ReturnType<typeof listingFields> & { hours: DayHours[] }) => void
+}) {
+  const [profile, setProfile] = useState<BusinessProfile>(() => resolveProfile(business))
+  const [hours, setHours] = useState<DayHours[]>(business.hours)
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-2xl">{business.name}</DialogTitle>
+        </DialogHeader>
+        <form
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const clean = normalizeProfile(profile, resolveProfile(business))
+            onSave({ ...listingFields(clean), hours })
+          }}
+        >
+          <ProfileEditor
+            business={business}
+            value={profile}
+            onChange={setProfile}
+            hours={hours}
+            onHours={setHours}
+            allowPublish
+          />
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={onClose}>
+              Vazgeç
+            </Button>
+            <Button type="submit" className="h-11 flex-1 rounded-xl">
+              Profili kaydet
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 

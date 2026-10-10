@@ -3,7 +3,7 @@ import { OwnerScreen } from "@/components/directory/owner-screen"
 
 export const metadata: Metadata = {
   title: "İşletme paneli",
-  description: "İşletmenin sosyal medya ve site linklerini düzenle.",
+  description: "İşletme profilini, hizmetleri, galeriyi ve iletişim bilgilerini düzenle.",
 }
 
 export default function Page() {
