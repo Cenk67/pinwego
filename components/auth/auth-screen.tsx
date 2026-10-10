@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { Logo } from "@/components/brand/logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -114,15 +115,11 @@ export function AuthScreen({
   return (
     <div className={embedded ? "" : "min-h-svh bg-background"}>
       {embedded ? null : (
-        <header className="border-b border-foreground/10">
-          <div className="mx-auto flex h-16 max-w-lg items-center gap-2 px-4">
-            <span className="grid size-8 place-items-center rounded-full bg-primary text-primary-foreground">
-              <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
-                <circle cx="12" cy="9" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                <path d="M12 12.5 V19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span className="font-heading text-xl tracking-tight">pinwego</span>
+        <header className="border-b border-foreground/10 bg-card/95">
+          <div className="mx-auto flex h-16 max-w-lg items-center px-4">
+            <Link href="/" aria-label="pinwego" className="inline-flex items-center">
+              <Logo />
+            </Link>
           </div>
         </header>
       )}
