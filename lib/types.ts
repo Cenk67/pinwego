@@ -96,6 +96,7 @@ export type Business = {
   googleUrl?: string
   links?: BusinessLinks
   ownerAccountId?: string
+  profile?: BusinessProfile
 }
 
 export type ChatKind = "musteri-isletme" | "isletme-isletme"
@@ -137,6 +138,62 @@ export type ChatBlock = {
   createdAt: string
 }
 
+export type ProfileChoice = "" | "var" | "yok"
+
+export type ProfileService = {
+  id: string
+  name: string
+  summary: string
+  detail: string
+  price: number
+  unit: string
+  duration: string
+  area: string
+  image: string
+  alt: string
+  seoTags: string[]
+  aiTags: string[]
+  active: boolean
+  order: number
+}
+
+export type GalleryItem = {
+  id: string
+  image: string
+  title: string
+  description: string
+  alt: string
+  seoTags: string[]
+  aiTags: string[]
+  active: boolean
+  order: number
+}
+
+export type BusinessProfile = {
+  shortTitle: string
+  shortBody: string
+  highlights: string[]
+  aboutTitle: string
+  aboutBody: string
+  seoTitle: string
+  seoDescription: string
+  seoTags: string[]
+  aiTags: string[]
+  pendingAiTags: string[]
+  founded: string
+  serviceArea: string
+  staffCount: string
+  payments: string[]
+  parking: ProfileChoice
+  access: ProfileChoice
+  appointment: ProfileChoice
+  online: ProfileChoice
+  onSite: ProfileChoice
+  services: ProfileService[]
+  gallery: GalleryItem[]
+  published: boolean
+}
+
 export type BusinessOverride = Partial<
   Pick<
     Business,
@@ -156,6 +213,10 @@ export type BusinessOverride = Partial<
     | "booking"
     | "website"
     | "links"
+    | "hours"
+    | "services"
+    | "founded"
+    | "profile"
   >
 >
 

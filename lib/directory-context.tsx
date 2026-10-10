@@ -227,6 +227,7 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
         isHiddenBusiness(business, persisted.hiddenBusinessIds, persisted.hiddenSectorIds),
       visibleBusinesses: allBusinesses(persisted.listings)
         .map((item) => decorateBusiness(item, persisted.businessOverrides))
+        .filter((item) => item.profile?.published !== false)
         .filter((item) => !isHiddenBusiness(item, persisted.hiddenBusinessIds, persisted.hiddenSectorIds)),
       managedBusinesses: allBusinesses(persisted.listings).map((item) =>
         decorateBusiness(item, persisted.businessOverrides),

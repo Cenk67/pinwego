@@ -83,7 +83,7 @@ function GuestBar() {
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { ready } = useAuth()
-  const indexable = pathname === "/blog" || pathname.startsWith("/blog/")
+  const indexable = pathname === "/blog" || pathname.startsWith("/blog/") || pathname.startsWith("/isletme/")
   if (!ready && !indexable) {
     return (
       <div className="grid min-h-svh place-items-center px-4 text-sm text-muted-foreground">

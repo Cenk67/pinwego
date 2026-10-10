@@ -3,12 +3,14 @@
 import Link from "next/link"
 import { useState } from "react"
 import { ContactEditor } from "@/components/directory/contact-lines"
+import { ProfileEditor } from "@/components/directory/profile-editor"
 import { SocialLinkEditor } from "@/components/directory/social-links"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
 import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
-import type { BusinessContacts } from "@/lib/types"
+import { listingFields, normalizeProfile, resolveProfile } from "@/lib/profile"
+import type { BusinessContacts, BusinessProfile, DayHours } from "@/lib/types"
 import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
 import type { Business } from "@/lib/types"
 
@@ -45,10 +47,10 @@ export function OwnerScreen() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 md:py-12">
       <p className="text-sm font-medium text-primary">İşletme paneli</p>
-      <h1 className="mt-2 font-heading text-4xl leading-tight">İletişim ve linkler</h1>
+      <h1 className="mt-2 font-heading text-4xl leading-tight">İşletme profili</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-        Sabit telefon, GSM, WhatsApp ve site linklerini buradan ekle, değiştir veya sil. Boş bırakılan numara ve link
-        işletme sayfasında görünmez.
+        Kısa okuma, hakkımızda, özet, hizmet, galeri, saat ve iletişim buradan değişir. AI etiketleri onaylanmadan
+        yayına çıkmaz. Doğrulama ve yayından kaldırma yöneticiye aittir.
       </p>
       {account.role === "admin" ? (
         <p className="mt-3 text-sm text-muted-foreground">
@@ -98,10 +100,23 @@ function OwnerCard({
   onSave,
 }: {
   business: Business
-  onSave: (patch: { links: BusinessLinks; website: string; contacts: BusinessContacts; phone: string }) => void
+  onSave: (patch: {
+    links: BusinessLinks
+    website: string
+    contacts: BusinessContacts
+    phone: string
+    hours: DayHours[]
+    summary: string
+    about: string
+    services: Business["services"]
+    founded: number
+    profile: BusinessProfile
+  }) => void
 }) {
   const [links, setLinks] = useState<BusinessLinks>(() => draftLinks(business))
   const [contacts, setContacts] = useState<ContactDraft>(() => draftContacts(business))
+  const [profile, setProfile] = useState<BusinessProfile>(() => resolveProfile(business))
+  const [hours, setHours] = useState<DayHours[]>(business.hours)
   const [error, setError] = useState("")
   const [saved, setSaved] = useState(false)
 
@@ -122,11 +137,14 @@ function OwnerCard({
           setError(social.error)
           return
         }
+        const clean = normalizeProfile(profile, resolveProfile(business))
         onSave({
           links: social.links,
           website: social.website,
           contacts: contact.contacts,
           phone: contact.phone,
+          hours,
+          ...listingFields(clean),
         })
         setLinks(social.links)
         setContacts({
@@ -163,8 +181,22 @@ function OwnerCard({
           setLinks(next)
         }}
       />
+      <ProfileEditor
+        business={business}
+        value={profile}
+        onChange={(next) => {
+          setSaved(false)
+          setProfile(next)
+        }}
+        hours={hours}
+        onHours={(next) => {
+          setSaved(false)
+          setHours(next)
+        }}
+        allowPublish={false}
+      />
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {saved ? <p className="text-sm text-primary">İletişim ve linkler kaydedildi.</p> : null}
+      {saved ? <p className="text-sm text-primary">Profil kaydedildi. Bu tarayıcıda görünür.</p> : null}
       <Button type="submit" className="h-11 rounded-xl">
         Kaydet
       </Button>
