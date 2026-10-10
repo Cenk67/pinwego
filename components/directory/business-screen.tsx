@@ -10,6 +10,7 @@ import { ShareButton } from "@/components/directory/share-button"
 import { MessageButton } from "@/components/messages/message-button"
 import { MiniMap } from "@/components/directory/mini-map"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
+import { SocialLinks } from "@/components/directory/social-links"
 import { Button } from "@/components/ui/button"
 import { useGuestGate } from "@/components/auth/guest-gate"
 import { categoryById, cityCenter } from "@/lib/catalog"
@@ -323,6 +324,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
                 </li>
               ))}
             </ul>
+            <SocialLinks business={business} />
           </div>
           <MiniMap label={business.district} points={[business]} className="hidden lg:block" />
         </aside>

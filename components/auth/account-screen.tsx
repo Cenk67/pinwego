@@ -112,6 +112,16 @@ export function AccountScreen() {
           Yönetim paneli
         </Button>
       ) : null}
+      {account.role === "isletme" || account.role === "admin" ? (
+        <Button
+          className="mt-6 h-11 rounded-xl"
+          variant={account.role === "admin" ? "outline" : "default"}
+          nativeButton={false}
+          render={<Link href="/panel" />}
+        >
+          İşletme paneli
+        </Button>
+      ) : null}
       <Button type="button" variant="outline" className="mt-6 h-11 rounded-xl" onClick={logout}>
         Çıkış yap
       </Button>

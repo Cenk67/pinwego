@@ -43,6 +43,11 @@ export function Header() {
               Yönetim
             </Link>
           ) : null}
+          {account?.role === "isletme" || account?.role === "admin" ? (
+            <Link href="/panel" className="hover:text-primary">
+              İşletme paneli
+            </Link>
+          ) : null}
           {account ? (
             <Link href="/hesap" className="hover:text-primary">
               Hesap
