@@ -18,6 +18,9 @@ export function Header() {
           <Logo />
         </Link>
         <nav className="ml-4 hidden items-center gap-5 text-sm md:flex">
+          <Link href="/blog" className="hover:text-primary">
+            Blog
+          </Link>
           <Link href="/ara" className="hover:text-primary">
             Keşfet
           </Link>
@@ -53,9 +56,12 @@ export function Header() {
             </Link>
           )}
         </nav>
+        <Link href="/blog" className="ml-auto text-sm hover:text-primary md:hidden">
+          Blog
+        </Link>
         <Link
           href={account?.role === "admin" ? "/yonetim" : "/hesap"}
-          className="ml-auto text-sm hover:text-primary md:hidden"
+          className="text-sm hover:text-primary md:hidden"
         >
           {account?.role === "admin" ? "Yönetim" : account ? "Hesap" : "Giriş"}
         </Link>
