@@ -54,6 +54,29 @@ export function isPlace(value: unknown): value is Place {
   return typeof place.lat === "number" && typeof place.lng === "number" && typeof place.country === "string"
 }
 
+export function placeFromPoint(input: {
+  city: string
+  district?: string
+  lat: number
+  lng: number
+}): Place {
+  return {
+    ...defaultPlace,
+    label: [input.district, input.city].filter(Boolean).join(", ") || input.city,
+    province: input.city,
+    district: input.district ?? "",
+    lat: input.lat,
+    lng: input.lng,
+    nearMe: false,
+  }
+}
+
+export function placeCity(place: Place) {
+  const parts = [place.neighborhood || place.district, place.province || place.region, place.country].filter(Boolean)
+  const unique = parts.filter((part, index) => parts.indexOf(part) === index)
+  return unique.slice(0, 2).join(", ") || place.label
+}
+
 export function placeLabel(place: Place) {
   if (place.nearMe) return "Yakınımdakiler"
   const parts = [place.neighborhood, place.district, place.province, place.region, place.country].filter(Boolean)
