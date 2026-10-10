@@ -9,6 +9,7 @@ import { fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
 import { SearchForm } from "@/components/directory/search-form"
 import { SectorForm } from "@/components/directory/sector-form"
+import { BlogStrip } from "@/components/blog/blog-strip"
 import { SectorStrip } from "@/components/directory/sector-strip"
 import { Button } from "@/components/ui/button"
 import { suggestions } from "@/lib/catalog"
@@ -194,6 +195,7 @@ export function HomeScreen() {
           </Button>
         </div>
       </section>
+      <BlogStrip />
     </div>
   )
 }

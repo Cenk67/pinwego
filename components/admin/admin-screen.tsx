@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
+import { BlogAdmin } from "@/components/blog/blog-admin"
 import { SectorForm } from "@/components/directory/sector-form"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
@@ -29,6 +30,7 @@ const tabs = [
   { id: "sektorler", label: "Sektörler" },
   { id: "talepler", label: "Talepler" },
   { id: "hesaplar", label: "Hesaplar" },
+  { id: "blog", label: "Blog" },
 ] as const
 
 type Tab = (typeof tabs)[number]["id"]
@@ -106,6 +108,7 @@ export function AdminScreen() {
       {tab === "sektorler" ? <SectorAdmin /> : null}
       {tab === "talepler" ? <RequestAdmin /> : null}
       {tab === "hesaplar" ? <AccountAdmin /> : null}
+      {tab === "blog" ? <BlogAdmin /> : null}
     </div>
   )
 }

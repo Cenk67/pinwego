@@ -1,7 +1,9 @@
 import type { Metadata } from "next"
 import { Fraunces, Outfit } from "next/font/google"
+import { BlogProvider } from "@/components/blog/blog-context"
 import { Shell } from "@/components/directory/shell"
 import { AuthProvider } from "@/lib/auth-context"
+import { readBlogState } from "@/lib/blog-file"
 import { DirectoryProvider } from "@/lib/directory-context"
 import { MessageProvider } from "@/lib/message-context"
 import "./globals.css"
@@ -17,6 +19,7 @@ const fraunces = Fraunces({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://pinwego.com"),
   title: {
     default: "pinwego",
     template: "%s · pinwego",
@@ -25,17 +28,20 @@ export const metadata: Metadata = {
     "Yakındaki işletmeyi yorum, fiyat, mesafe ve randevuyla bulun. pinwego, yazdığınız cümleye göre eşleştirir.",
 }
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const blogState = await readBlogState()
   return (
     <html lang="tr" className={`${outfit.variable} ${fraunces.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
-        <DirectoryProvider>
-          <AuthProvider>
-            <MessageProvider>
-              <Shell>{children}</Shell>
-            </MessageProvider>
-          </AuthProvider>
-        </DirectoryProvider>
+        <BlogProvider initial={blogState}>
+          <DirectoryProvider>
+            <AuthProvider>
+              <MessageProvider>
+                <Shell>{children}</Shell>
+              </MessageProvider>
+            </AuthProvider>
+          </DirectoryProvider>
+        </BlogProvider>
       </body>
     </html>
   )

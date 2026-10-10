@@ -15,6 +15,7 @@ export function Footer() {
         <div className="text-sm">
           <p className="font-medium">Gez</p>
           <div className="mt-3 grid gap-2 text-muted-foreground">
+            <Link href="/blog">Blog</Link>
             <Link href="/ara">Arama</Link>
             <Link href="/talep">Uzman talebi</Link>
             <Link href="/mesajlar">Mesajlar</Link>
