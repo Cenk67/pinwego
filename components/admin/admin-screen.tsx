@@ -388,7 +388,7 @@ function CreateBusiness({
 }) {
   const { account } = useAuth()
   const [name, setName] = useState("")
-  const [phone, setPhone] = useState("")
+  const [contacts, setContacts] = useState<ContactDraft>({ landline: "", mobile: "", whatsapp: "" })
   const [city, setCity] = useState("İstanbul")
   const [district, setDistrict] = useState("")
   const [summary, setSummary] = useState("")
@@ -409,6 +409,11 @@ function CreateBusiness({
               setError("Ad, semt ve kısa özet gerekli.")
               return
             }
+            const contact = savedContacts(contacts)
+            if (contact.error) {
+              setError(contact.error)
+              return
+            }
             const meta = categoryById(category)
             const slug = slugify(name)
             const center = cityCenter(city)
@@ -423,7 +428,8 @@ function CreateBusiness({
               address: `${district.trim()}, ${city}`,
               lat: center.lat + (Math.random() - 0.5) * 0.04,
               lng: center.lng + (Math.random() - 0.5) * 0.04,
-              phone: phone.trim() || "0212 555 00 00",
+              phone: contact.phone,
+              contacts: contact.contacts,
               rating: 0,
               reviewCount: 0,
               priceLevel: 2,
@@ -470,7 +476,7 @@ function CreateBusiness({
             </label>
             <Field label="Semt" id="new-district" value={district} onChange={setDistrict} />
           </div>
-          <Field label="Telefon" id="new-phone" value={phone} onChange={setPhone} />
+          <ContactEditor value={contacts} onChange={setContacts} />
           <div className="grid gap-1.5">
             <Label htmlFor="new-summary">Özet</Label>
             <Textarea id="new-summary" value={summary} onChange={(event) => setSummary(event.target.value)} className="min-h-24" />

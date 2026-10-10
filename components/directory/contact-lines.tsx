@@ -12,7 +12,7 @@ function Mark({ kind }: { kind: ContactKind }) {
   if (kind === "mobile") return <Smartphone className="size-4" />
   if (kind === "whatsapp") {
     return (
-      <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
+      <svg viewBox="0 0 24 24" className="size-4 text-emerald-700" aria-hidden>
         <path
           fill="currentColor"
           d="M12.1 4.2a7.6 7.6 0 0 0-6.6 11.3L4.4 19.6l4.2-1.1A7.6 7.6 0 1 0 12.1 4.2Zm4.4 10.8c-.2.5-1 .9-1.4 1-.4.1-.8.1-1.3 0-.3-.1-1.1-.4-2.1-1.2-1.2-1-2-2.3-2.2-2.6-.2-.4-.5-1.1 0-1.6.2-.2.5-.5.7-.7.2-.2.2-.4.3-.6.1-.2 0-.4 0-.6-.1-.2-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.8s1.2 3.3 1.4 3.5c.2.2 2.4 3.6 5.8 5 .8.3 1.5.6 2 .7.8.3 1.6.2 2.2.1.7-.1 2-.8 2.3-1.6.3-.8.3-1.5.2-1.6-.1-.1-.3-.2-.6-.3Z"
@@ -23,13 +23,24 @@ function Mark({ kind }: { kind: ContactKind }) {
   return <Phone className="size-4" />
 }
 
-export function ContactLines({ business }: { business: Pick<Business, "contacts" | "phone"> }) {
+export function ContactLines({
+  business,
+  compact = false,
+}: {
+  business: Pick<Business, "contacts" | "phone">
+  compact?: boolean
+}) {
   const items = visibleContacts(business)
   const { member, allow } = useGuestGate()
   if (!items.length) return null
+  if (compact && !member) return null
   return (
-    <div className="grid gap-2">
-      <h2 className="font-heading text-lg">İletişim</h2>
+    <div className={compact ? "grid gap-2 px-4 pb-4" : "grid gap-2"}>
+      {compact ? (
+        <p className="text-xs font-medium text-muted-foreground">İletişim</p>
+      ) : (
+        <h2 className="font-heading text-lg">İletişim</h2>
+      )}
       {items.map((item) =>
         member ? (
           <Button

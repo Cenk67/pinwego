@@ -22,7 +22,7 @@ export function OwnerScreen() {
     return (
       <Gate
         title="İşletme paneli giriş ister."
-        body="Sosyal medya ve site linklerini yalnızca işletme sahibi ya da yönetici değiştirir."
+        body="İletişim numaralarını ve site linklerini yalnızca işletme sahibi ya da yönetici değiştirir."
         href="/hesap?kayit=giris&kapi=isletme"
         action="İşletme girişi"
       />
@@ -33,7 +33,7 @@ export function OwnerScreen() {
     return (
       <Gate
         title="Bu panel işletme hesabına açık."
-        body="Müşteri hesabı rehberi kullanır. Kendi işletmenin linklerini düzenlemek için işletme kaydı gerekir."
+        body="Müşteri hesabı arama ve arama sırasında çıkan numaralar içindir. Kendi işletmenin numaralarını düzenlemek için işletme kaydı gerekir."
         href="/hesap?kayit=isletme"
         action="İşletme kaydı"
       />
@@ -45,7 +45,7 @@ export function OwnerScreen() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 md:py-12">
       <p className="text-sm font-medium text-primary">İşletme paneli</p>
-      <h1 className="mt-2 font-heading text-4xl leading-tight">Sosyal medya ve linkler</h1>
+      <h1 className="mt-2 font-heading text-4xl leading-tight">İletişim ve linkler</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
         Sabit telefon, GSM, WhatsApp ve site linklerini buradan ekle, değiştir veya sil. Boş bırakılan numara ve link
         işletme sayfasında görünmez.
