@@ -5,8 +5,10 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { BusinessCard } from "@/components/directory/business-card"
 import { Button } from "@/components/ui/button"
+import { MarkedPhoto } from "@/components/directory/marked-photo"
 import { categoryById, cityCenter } from "@/lib/catalog"
 import { distanceKm, formatDistance, formatTry } from "@/lib/format"
+import { galleryCaption } from "@/lib/gallery-mark"
 import {
   activeGallery,
   activeServices,
@@ -139,7 +141,7 @@ export function ServiceList({
   )
 }
 
-export function GalleryStrip({ profile }: { profile: BusinessProfile }) {
+export function GalleryStrip({ business, profile }: { business: Business; profile: BusinessProfile }) {
   const items = activeGallery(profile)
   const scroller = useRef<HTMLDivElement>(null)
   const [paused, setPaused] = useState(false)
@@ -147,7 +149,7 @@ export function GalleryStrip({ profile }: { profile: BusinessProfile }) {
     const node = scroller.current
     if (!node) return
     const card = node.querySelector("figure")
-    const width = card ? card.getBoundingClientRect().width + 12 : 280
+    const width = card ? card.getBoundingClientRect().width + 12 : 300
     const max = node.scrollWidth - node.clientWidth
     if (direction > 0 && node.scrollLeft >= max - 8) node.scrollTo({ left: 0, behavior: "smooth" })
     else node.scrollBy({ left: width * direction, behavior: "smooth" })
@@ -155,14 +157,24 @@ export function GalleryStrip({ profile }: { profile: BusinessProfile }) {
   useEffect(() => {
     if (items.length < 2 || paused) return
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    const timer = window.setInterval(() => step(1), 5500)
+    const timer = window.setInterval(() => step(1), 4200)
     return () => window.clearInterval(timer)
   }, [items.length, paused, step])
   if (!items.length) return null
   return (
-    <section className="mt-8" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+    <section
+      id="galeri"
+      className="mt-8 scroll-mt-24"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onPointerDown={() => setPaused(true)}
+      onPointerUp={() => setPaused(false)}
+    >
       <div className="flex items-end justify-between gap-3">
-        <h2 className="font-heading text-2xl">Galeri</h2>
+        <div>
+          <h2 className="font-heading text-2xl">Galeri</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Şerit sağdan sola kayar. En fazla 10 görsel.</p>
+        </div>
         {items.length > 1 ? (
           <div className="flex gap-2">
             <button type="button" aria-label="Önceki görsel" onClick={() => step(-1)} className="grid size-9 place-items-center rounded-full bg-card ring-1 ring-foreground/10">
@@ -175,17 +187,23 @@ export function GalleryStrip({ profile }: { profile: BusinessProfile }) {
         ) : null}
       </div>
       <div ref={scroller} className="mt-3 flex snap-x gap-3 overflow-x-auto pb-2">
-        {items.map((item) => (
-          <figure key={item.id} className="w-72 shrink-0 snap-start overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10">
-            <img src={item.image} alt={item.alt || item.title} loading="lazy" decoding="async" className="aspect-[4/3] w-full object-cover" />
-            {item.title || item.description ? (
+        {items.map((item) => {
+          const caption = galleryCaption(business, item)
+          return (
+            <figure key={item.id} className="w-72 shrink-0 snap-start overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10">
+              <MarkedPhoto
+                src={item.image}
+                name={business.name}
+                alt={item.alt || `${caption.name}. ${caption.description}`}
+                className="aspect-[4/3] w-full object-cover"
+              />
               <figcaption className="p-3">
-                {item.title ? <p className="text-sm font-medium">{item.title}</p> : null}
-                {item.description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p> : null}
+                <p className="text-sm font-medium">{caption.name}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{caption.description}</p>
               </figcaption>
-            ) : null}
-          </figure>
-        ))}
+            </figure>
+          )
+        })}
       </div>
     </section>
   )

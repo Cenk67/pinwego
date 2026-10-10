@@ -148,7 +148,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
             profile={profile}
             onPick={(name) => allow(() => { setNote(name); setOpen(true) })}
           />
-          <GalleryStrip profile={profile} />
+          <GalleryStrip business={business} profile={profile} />
 
           <section className="mt-8">
             <h2 className="font-heading text-2xl">Yorumlar</h2>
