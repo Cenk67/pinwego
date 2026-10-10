@@ -14,7 +14,9 @@ import { useAuth } from "@/lib/auth-context"
 import { ADMIN_EMAIL, ADMIN_PASSWORD, openStoredDocument } from "@/lib/auth-store"
 import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
+import { ContactEditor } from "@/components/directory/contact-lines"
 import { SocialLinkEditor } from "@/components/directory/social-links"
+import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
 import { fold, slugify } from "@/lib/format"
 import { maskId } from "@/lib/identity"
 import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
@@ -279,7 +281,7 @@ function BusinessEditor({
   onSave: (patch: Parameters<ReturnType<typeof useDirectory>["patchBusiness"]>[1]) => void
 }) {
   const [name, setName] = useState(business.name)
-  const [phone, setPhone] = useState(business.phone)
+  const [contacts, setContacts] = useState<ContactDraft>(() => draftContacts(business))
   const [city, setCity] = useState(business.city)
   const [district, setDistrict] = useState(business.district)
   const [summary, setSummary] = useState(business.summary)
@@ -303,9 +305,15 @@ function BusinessEditor({
               setLinkError(social.error)
               return
             }
+            const contact = savedContacts(contacts)
+            if (contact.error) {
+              setLinkError(contact.error)
+              return
+            }
             onSave({
               name: name.trim(),
-              phone: phone.trim(),
+              phone: contact.phone,
+              contacts: contact.contacts,
               city,
               district: district.trim(),
               address: `${district.trim()}, ${city}`,
@@ -319,7 +327,7 @@ function BusinessEditor({
           }}
         >
           <Field label="Ad" id="edit-name" value={name} onChange={setName} />
-          <Field label="Telefon" id="edit-phone" value={phone} onChange={setPhone} />
+          <ContactEditor value={contacts} onChange={setContacts} />
           <label className="grid gap-1.5 text-sm">
             Sektör
             <select className={fieldClass} value={category} onChange={(event) => setCategory(event.target.value)}>
@@ -380,7 +388,7 @@ function CreateBusiness({
 }) {
   const { account } = useAuth()
   const [name, setName] = useState("")
-  const [phone, setPhone] = useState("")
+  const [contacts, setContacts] = useState<ContactDraft>({ landline: "", mobile: "", whatsapp: "" })
   const [city, setCity] = useState("İstanbul")
   const [district, setDistrict] = useState("")
   const [summary, setSummary] = useState("")
@@ -401,6 +409,11 @@ function CreateBusiness({
               setError("Ad, semt ve kısa özet gerekli.")
               return
             }
+            const contact = savedContacts(contacts)
+            if (contact.error) {
+              setError(contact.error)
+              return
+            }
             const meta = categoryById(category)
             const slug = slugify(name)
             const center = cityCenter(city)
@@ -415,7 +428,8 @@ function CreateBusiness({
               address: `${district.trim()}, ${city}`,
               lat: center.lat + (Math.random() - 0.5) * 0.04,
               lng: center.lng + (Math.random() - 0.5) * 0.04,
-              phone: phone.trim() || "0212 555 00 00",
+              phone: contact.phone,
+              contacts: contact.contacts,
               rating: 0,
               reviewCount: 0,
               priceLevel: 2,
@@ -462,7 +476,7 @@ function CreateBusiness({
             </label>
             <Field label="Semt" id="new-district" value={district} onChange={setDistrict} />
           </div>
-          <Field label="Telefon" id="new-phone" value={phone} onChange={setPhone} />
+          <ContactEditor value={contacts} onChange={setContacts} />
           <div className="grid gap-1.5">
             <Label htmlFor="new-summary">Özet</Label>
             <Textarea id="new-summary" value={summary} onChange={(event) => setSummary(event.target.value)} className="min-h-24" />

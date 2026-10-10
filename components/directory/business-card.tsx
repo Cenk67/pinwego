@@ -4,6 +4,7 @@ import Link from "next/link"
 import { BadgeCheck } from "lucide-react"
 import { useGuestGate } from "@/components/auth/guest-gate"
 import { ClaimPrompt } from "@/components/directory/claim-button"
+import { ContactLines } from "@/components/directory/contact-lines"
 import { Cover, RatingBlock, SaveButton } from "@/components/directory/bits"
 import { ShareButton } from "@/components/directory/share-button"
 import { MessageButton } from "@/components/messages/message-button"
@@ -100,6 +101,7 @@ export function BusinessCard({
           )}
         </div>
       </Link>
+      <ContactLines business={business} compact />
       {business.source === "google" ? (
         <div className="px-4 pb-4">
           <ClaimPrompt business={business} />

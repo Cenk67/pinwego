@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { BadgeCheck, Clock, MapPin, Navigation, Phone } from "lucide-react"
+import { BadgeCheck, Clock, MapPin, Navigation } from "lucide-react"
 import { useMemo, useState } from "react"
 import { BusinessCard } from "@/components/directory/business-card"
 import { ClaimPrompt } from "@/components/directory/claim-button"
@@ -10,6 +10,7 @@ import { ShareButton } from "@/components/directory/share-button"
 import { MessageButton } from "@/components/messages/message-button"
 import { MiniMap } from "@/components/directory/mini-map"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
+import { ContactLines } from "@/components/directory/contact-lines"
 import { SocialLinks } from "@/components/directory/social-links"
 import { Button } from "@/components/ui/button"
 import { useGuestGate } from "@/components/auth/guest-gate"
@@ -276,21 +277,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
                 {bookingLabel(business.booking)}
               </Button>
               <MessageButton business={business} />
-              {business.phone ? (
-                member ? (
-                  <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={`tel:${business.phone.replace(/\s/g, "")}`} />}>
-                    <Phone className="size-4" />
-                    {business.phone}
-                  </Button>
-                ) : (
-                  <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => allow(() => undefined)}>
-                    <Phone className="size-4" />
-                    Telefonu gör
-                  </Button>
-                )
-              ) : (
-                <p className="text-sm text-muted-foreground">Telefon kaydı yok.</p>
-              )}
+              <ContactLines business={business} />
               {member ? (
                 <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<a href={maps} target="_blank" rel="noreferrer" />}>
                   <Navigation className="size-4" />

@@ -2,10 +2,13 @@
 
 import Link from "next/link"
 import { useState } from "react"
+import { ContactEditor } from "@/components/directory/contact-lines"
 import { SocialLinkEditor } from "@/components/directory/social-links"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
+import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
+import type { BusinessContacts } from "@/lib/types"
 import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
 import type { Business } from "@/lib/types"
 
@@ -19,7 +22,7 @@ export function OwnerScreen() {
     return (
       <Gate
         title="İşletme paneli giriş ister."
-        body="Sosyal medya ve site linklerini yalnızca işletme sahibi ya da yönetici değiştirir."
+        body="İletişim numaralarını ve site linklerini yalnızca işletme sahibi ya da yönetici değiştirir."
         href="/hesap?kayit=giris&kapi=isletme"
         action="İşletme girişi"
       />
@@ -30,7 +33,7 @@ export function OwnerScreen() {
     return (
       <Gate
         title="Bu panel işletme hesabına açık."
-        body="Müşteri hesabı rehberi kullanır. Kendi işletmenin linklerini düzenlemek için işletme kaydı gerekir."
+        body="Müşteri hesabı arama ve arama sırasında çıkan numaralar içindir. Kendi işletmenin numaralarını düzenlemek için işletme kaydı gerekir."
         href="/hesap?kayit=isletme"
         action="İşletme kaydı"
       />
@@ -42,10 +45,10 @@ export function OwnerScreen() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 md:py-12">
       <p className="text-sm font-medium text-primary">İşletme paneli</p>
-      <h1 className="mt-2 font-heading text-4xl leading-tight">Sosyal medya ve linkler</h1>
+      <h1 className="mt-2 font-heading text-4xl leading-tight">İletişim ve linkler</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-        Web sitesi, sosyal hesap ve ilan sitelerini buradan ekle, değiştir veya sil. Dolu olanlar işletme sayfasında,
-        çalışma saatlerinin altında logo olarak görünür.
+        Sabit telefon, GSM, WhatsApp ve site linklerini buradan ekle, değiştir veya sil. Boş bırakılan numara ve link
+        işletme sayfasında görünmez.
       </p>
       {account.role === "admin" ? (
         <p className="mt-3 text-sm text-muted-foreground">
@@ -95,9 +98,10 @@ function OwnerCard({
   onSave,
 }: {
   business: Business
-  onSave: (patch: { links: BusinessLinks; website: string }) => void
+  onSave: (patch: { links: BusinessLinks; website: string; contacts: BusinessContacts; phone: string }) => void
 }) {
   const [links, setLinks] = useState<BusinessLinks>(() => draftLinks(business))
+  const [contacts, setContacts] = useState<ContactDraft>(() => draftContacts(business))
   const [error, setError] = useState("")
   const [saved, setSaved] = useState(false)
 
@@ -106,14 +110,30 @@ function OwnerCard({
       className="grid gap-3 rounded-3xl bg-card p-5 ring-1 ring-foreground/10"
       onSubmit={(event) => {
         event.preventDefault()
+        const contact = savedContacts(contacts)
+        if (contact.error) {
+          setSaved(false)
+          setError(contact.error)
+          return
+        }
         const social = savedLinks(links)
         if (social.error) {
           setSaved(false)
           setError(social.error)
           return
         }
-        onSave({ links: social.links, website: social.website })
+        onSave({
+          links: social.links,
+          website: social.website,
+          contacts: contact.contacts,
+          phone: contact.phone,
+        })
         setLinks(social.links)
+        setContacts({
+          landline: contact.contacts.landline ?? "",
+          mobile: contact.contacts.mobile ?? "",
+          whatsapp: contact.contacts.whatsapp ?? "",
+        })
         setError("")
         setSaved(true)
       }}
@@ -129,6 +149,13 @@ function OwnerCard({
           Sayfayı aç
         </Button>
       </div>
+      <ContactEditor
+        value={contacts}
+        onChange={(next) => {
+          setSaved(false)
+          setContacts(next)
+        }}
+      />
       <SocialLinkEditor
         value={links}
         onChange={(next) => {
@@ -137,7 +164,7 @@ function OwnerCard({
         }}
       />
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {saved ? <p className="text-sm text-primary">Linkler kaydedildi.</p> : null}
+      {saved ? <p className="text-sm text-primary">İletişim ve linkler kaydedildi.</p> : null}
       <Button type="submit" className="h-11 rounded-xl">
         Kaydet
       </Button>
