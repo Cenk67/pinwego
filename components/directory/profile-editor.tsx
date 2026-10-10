@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { scaleImageFile } from "@/lib/image-scale"
+import { MarkedPhoto } from "@/components/directory/marked-photo"
+import { GALLERY_HEIGHT, GALLERY_WIDTH } from "@/lib/gallery-mark"
+import { scaleGalleryFile, scaleImageFile } from "@/lib/image-scale"
 import {
   GALLERY_LIMIT,
   moveItem,
@@ -164,7 +166,7 @@ export function ProfileEditor({
         </div>
       </fieldset>
       <ServiceEditor value={value} onChange={onChange} />
-      <GalleryEditor value={value} onChange={onChange} />
+      <GalleryEditor businessName={business.name} value={value} onChange={onChange} />
     </div>
   )
 }
@@ -258,7 +260,15 @@ function ServiceEditor({ value, onChange }: { value: BusinessProfile; onChange: 
   )
 }
 
-function GalleryEditor({ value, onChange }: { value: BusinessProfile; onChange: (next: BusinessProfile) => void }) {
+function GalleryEditor({
+  businessName,
+  value,
+  onChange,
+}: {
+  businessName: string
+  value: BusinessProfile
+  onChange: (next: BusinessProfile) => void
+}) {
   const [error, setError] = useState("")
   function update(index: number, patch: Partial<GalleryItem>) {
     onChange({
@@ -266,13 +276,56 @@ function GalleryEditor({ value, onChange }: { value: BusinessProfile; onChange: 
       gallery: value.gallery.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
     })
   }
+  async function addFiles(list: FileList | File[]) {
+    const room = GALLERY_LIMIT - value.gallery.length
+    const files = [...list].slice(0, room)
+    if (!files.length) {
+      setError(`Galeri ${GALLERY_LIMIT} görsel ile dolu.`)
+      return
+    }
+    const added: GalleryItem[] = []
+    try {
+      for (const file of files) {
+        const scaled = await scaleGalleryFile(file)
+        added.push({
+          id: `galeri-${Date.now()}-${added.length}`,
+          image: scaled.dataUrl,
+          title: businessName,
+          description: "",
+          alt: businessName,
+          seoTags: [],
+          aiTags: [],
+          active: true,
+          order: value.gallery.length + added.length,
+        })
+        setError(`${scaled.sourceWidth}×${scaled.sourceHeight} görsel ${GALLERY_WIDTH}×${GALLERY_HEIGHT} ölçüsüne kırpıldı.`)
+      }
+      onChange({ ...value, gallery: [...value.gallery, ...added].slice(0, GALLERY_LIMIT) })
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Görsel eklenemedi.")
+    }
+  }
   return (
     <fieldset className="grid gap-3">
       <legend className="font-heading text-xl">Galeri</legend>
-      <p className="text-sm text-muted-foreground">En fazla {GALLERY_LIMIT} görsel. Yüklenen dosya WebP olarak küçülür ve yatay şeritte kayar.</p>
+      <p className="text-sm leading-6 text-muted-foreground">
+        {value.gallery.length}/{GALLERY_LIMIT} görsel. Şerit sağdan sola kayar. Yüklenen görsel {GALLERY_WIDTH}×{GALLERY_HEIGHT}
+        ölçüsüne kırpılır. Kartın altında işletme adı ve açıklama durur. Görselin üzerinde şeffaf “{businessName}” filigranı vardır.
+      </p>
       {value.gallery.map((item, index) => (
-        <div key={item.id} className="grid gap-2 rounded-2xl bg-card p-3 ring-1 ring-foreground/10 sm:grid-cols-[7rem_1fr]">
-          <img src={item.image} alt="" className="h-24 w-full rounded-xl object-cover" />
+        <div key={item.id} className="grid gap-2 rounded-2xl bg-card p-3 ring-1 ring-foreground/10 sm:grid-cols-[9rem_1fr]">
+          <div
+            draggable
+            onDragStart={(event) => event.dataTransfer.setData("text/plain", String(index))}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault()
+              const from = Number(event.dataTransfer.getData("text/plain"))
+              if (Number.isInteger(from)) onChange({ ...value, gallery: moveItem(value.gallery, from, index) })
+            }}
+          >
+            <MarkedPhoto src={item.image} name={businessName} alt="" className="aspect-[4/3] h-24 w-full rounded-xl object-cover" />
+          </div>
           <div className="grid gap-2">
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" className="h-8 rounded-lg" onClick={() => onChange({ ...value, gallery: moveItem(value.gallery, index, index - 1) })}>Yukarı</Button>
@@ -283,48 +336,46 @@ function GalleryEditor({ value, onChange }: { value: BusinessProfile; onChange: 
                 Aktif
               </label>
             </div>
-            <Field label="Başlık" value={item.title} onChange={(title) => update(index, { title })} />
+            <p className="text-sm font-medium">{businessName}</p>
             <Field label="Açıklama" value={item.description} onChange={(description) => update(index, { description })} />
             <Field label="Alt metin" value={item.alt} onChange={(alt) => update(index, { alt })} />
             <TagField label="SEO etiketleri" values={item.seoTags} onChange={(seoTags) => update(index, { seoTags })} />
             <TagField label="AI etiketleri" values={item.aiTags} onChange={(aiTags) => update(index, { aiTags })} />
+            <label className="text-sm">
+              Görseli değiştir
+              <input
+                type="file"
+                accept="image/*"
+                className="mt-1 block w-full text-sm"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0]
+                  event.target.value = ""
+                  if (!file) return
+                  try {
+                    const scaled = await scaleGalleryFile(file)
+                    update(index, { image: scaled.dataUrl })
+                    setError(`Görsel ${GALLERY_WIDTH}×${GALLERY_HEIGHT} olarak değiştirildi.`)
+                  } catch (cause) {
+                    setError(cause instanceof Error ? cause.message : "Görsel değiştirilemedi.")
+                  }
+                }}
+              />
+            </label>
           </div>
         </div>
       ))}
       <label className="text-sm">
-        Görsel yükle
+        Görsel ekle
         <input
           type="file"
           accept="image/*"
+          multiple
           className="mt-1 block w-full text-sm"
           disabled={value.gallery.length >= GALLERY_LIMIT}
-          onChange={async (event) => {
-            const file = event.target.files?.[0]
+          onChange={(event) => {
+            const files = [...(event.target.files ?? [])]
             event.target.value = ""
-            if (!file) return
-            try {
-              const scaled = await scaleImageFile(file, 1400)
-              onChange({
-                ...value,
-                gallery: [
-                  ...value.gallery,
-                  {
-                    id: `galeri-${Date.now()}`,
-                    image: scaled.dataUrl,
-                    title: "",
-                    description: "",
-                    alt: "",
-                    seoTags: [],
-                    aiTags: [],
-                    active: true,
-                    order: value.gallery.length,
-                  },
-                ].slice(0, GALLERY_LIMIT),
-              })
-              setError(`${scaled.sourceWidth}×${scaled.sourceHeight} görsel ${scaled.width}×${scaled.height} olarak eklendi.`)
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : "Görsel eklenemedi.")
-            }
+            if (files.length) void addFiles(files)
           }}
         />
       </label>

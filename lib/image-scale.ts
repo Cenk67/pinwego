@@ -1,3 +1,5 @@
+import { coverFrame, GALLERY_HEIGHT, GALLERY_WIDTH } from "@/lib/gallery-mark"
+
 export const BLOG_IMAGE_MAX = 1600
 
 export function scaledSize(width: number, height: number, max = BLOG_IMAGE_MAX) {
@@ -27,6 +29,33 @@ export async function scaleImageFile(file: File, preferredMax = BLOG_IMAGE_MAX) 
     ...result,
     sourceWidth: source.width,
     sourceHeight: source.height,
+  }
+}
+
+export async function scaleGalleryFile(file: File) {
+  if (!file.type.startsWith("image/")) throw new Error("Yalnızca görsel yüklenir.")
+  const source = await readImage(file)
+  const frame = coverFrame(source.naturalWidth, source.naturalHeight, GALLERY_WIDTH, GALLERY_HEIGHT)
+  const canvas = document.createElement("canvas")
+  canvas.width = frame.frameWidth
+  canvas.height = frame.frameHeight
+  const context = canvas.getContext("2d")
+  if (!context) throw new Error("Görsel ölçeklenemedi.")
+  context.fillStyle = "#ffffff"
+  context.fillRect(0, 0, frame.frameWidth, frame.frameHeight)
+  context.drawImage(source, frame.dx, frame.dy, frame.dw, frame.dh)
+  const webp = canvas.toDataURL("image/webp", 0.82)
+  let dataUrl = webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/jpeg", 0.82)
+  if (dataUrl.length > 700_000) {
+    const smaller = canvas.toDataURL("image/webp", 0.68)
+    dataUrl = smaller.startsWith("data:image/webp") ? smaller : canvas.toDataURL("image/jpeg", 0.68)
+  }
+  return {
+    dataUrl,
+    width: frame.frameWidth,
+    height: frame.frameHeight,
+    sourceWidth: source.naturalWidth,
+    sourceHeight: source.naturalHeight,
   }
 }
 
