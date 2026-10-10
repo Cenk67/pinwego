@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,7 +10,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth-context"
 import { loginDoorProblem, type AuthDoor, type AuthMode } from "@/lib/auth-path"
 import { ADMIN_EMAIL, getSnapshot, previewLogin } from "@/lib/auth-store"
-import { businesses, cities } from "@/lib/catalog"
+import { businesses } from "@/lib/catalog"
+import { PlaceEditor } from "@/components/directory/place-picker"
+import { defaultPlace, placeCity, placeFromPoint, type Place } from "@/lib/place"
 import { CLAIM_KEY, claimListing } from "@/lib/claim"
 import { adoptListingThreads } from "@/lib/message-store"
 import { useDirectory } from "@/lib/directory-context"
@@ -422,7 +423,9 @@ function BusinessForm({
   const [phone, setPhone] = useState("")
   const [taxId, setTaxId] = useState("")
   const [taxOffice, setTaxOffice] = useState("")
-  const [city, setCity] = useState(claim?.city ?? cities[0]?.name ?? "İstanbul")
+  const [place, setPlace] = useState<Place>(
+    claim ? placeFromPoint({ city: claim.city, district: claim.district, lat: claim.lat, lng: claim.lng }) : defaultPlace,
+  )
   const [address, setAddress] = useState(claim?.address ?? "")
   const [password, setPassword] = useState("")
   const [again, setAgain] = useState("")
@@ -448,6 +451,7 @@ function BusinessForm({
       validPhone(phone) ? null : "Telefon 5 ile başlayan bir cep numarası olmalı.",
       validVkn(taxId.replace(/\D/g, "")) ? null : "Vergi kimlik numarası 10 haneli ve geçerli olmalı.",
       taxOffice.trim().length < 2 ? "Vergi dairesini yaz." : null,
+      place.country && Number.isFinite(place.lat) ? null : "Şehir ve konum seç.",
       address.trim().length < 8 ? "Açık adresi yaz." : null,
       validPassword(password) ? null : "Şifre en az 8 karakter olmalı.",
       password === again ? null : "Şifre tekrarı eşleşmedi.",
@@ -469,7 +473,7 @@ function BusinessForm({
           owner: owner.trim(),
           taxId: taxId.replace(/\D/g, ""),
           taxOffice: taxOffice.trim(),
-          city,
+          city: placeCity(place),
           address: address.trim(),
         },
         uploads: uploads.map((item) => ({ label: item.label, file: item.file as File })),
@@ -507,13 +511,12 @@ function BusinessForm({
       <Field id="biz-phone" label="Cep telefonu" value={phone} onChange={setPhone} inputMode="tel" />
       <Field id="biz-tax" label="Vergi kimlik numarası" value={taxId} onChange={setTaxId} inputMode="numeric" />
       <Field id="biz-office" label="Vergi dairesi" value={taxOffice} onChange={setTaxOffice} />
-      <div className="grid gap-1.5">
-        <Label htmlFor="biz-city">Şehir</Label>
-        <select id="biz-city" className={fieldClass} value={city} onChange={(event) => setCity(event.target.value)}>
-          {cities.map((item) => (
-            <option key={item.name}>{item.name}</option>
-          ))}
-        </select>
+      <div className="grid gap-2 rounded-3xl bg-card p-4 ring-1 ring-foreground/10">
+        <Label>Şehir</Label>
+        <p className="text-xs leading-5 text-muted-foreground">
+          Ülke, il ve semt seç veya istediğin yeri ara. Seçtiğin nokta Google Haritalar üzerinde durur.
+        </p>
+        <PlaceEditor current={place} onChange={setPlace} embedded />
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="biz-address">Açık adres</Label>

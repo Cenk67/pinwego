@@ -11,7 +11,9 @@ import { useAuth } from "@/lib/auth-context"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
+import { PlaceEditor } from "@/components/directory/place-picker"
+import { categoryById, defaultBooking } from "@/lib/catalog"
+import { defaultPlace, placeCity, type Place } from "@/lib/place"
 import { useDirectory } from "@/lib/directory-context"
 import { slugify } from "@/lib/format"
 import type { Business, CategoryId } from "@/lib/types"
@@ -25,8 +27,9 @@ export function ListScreen() {
   const [sectorOpen, setSectorOpen] = useState(false)
   const [name, setName] = useState("")
   const [category, setCategory] = useState<CategoryId>("yeme")
-  const [city, setCity] = useState("İstanbul")
+  const [place, setPlace] = useState<Place>(defaultPlace)
   const [district, setDistrict] = useState("")
+  const [districtTouched, setDistrictTouched] = useState(false)
   const [phone, setPhone] = useState("")
   const [summary, setSummary] = useState("")
   const [error, setError] = useState("")
@@ -34,15 +37,20 @@ export function ListScreen() {
   function submit(event: React.FormEvent) {
     event.preventDefault()
     const digits = phone.replace(/\D/g, "")
-    if (name.trim().length < 2 || district.trim().length < 2 || summary.trim().length < 12) {
+    const city = placeCity(place)
+    const area = district.trim() || place.neighborhood || place.district
+    if (name.trim().length < 2 || area.length < 2 || summary.trim().length < 12) {
       setError("Ad, semt ve en az bir cümlelik özet gerekli.")
+      return
+    }
+    if (!place.country || !Number.isFinite(place.lat)) {
+      setError("Şehir ve konum seç.")
       return
     }
     if (digits.length < 10) {
       setError("Telefon için en az 10 rakam gir.")
       return
     }
-    const center = cityCenter(city)
     const meta = categoryById(category)
     const slug = slugify(name)
     const business: Business = {
@@ -52,10 +60,10 @@ export function ListScreen() {
       category,
       subcategory: meta.label,
       city,
-      district: district.trim(),
-      address: `${district.trim()}, ${city}`,
-      lat: center.lat + (Math.random() - 0.5) * 0.04,
-      lng: center.lng + (Math.random() - 0.5) * 0.04,
+      district: area,
+      address: `${area}, ${city}`,
+      lat: place.lat,
+      lng: place.lng,
       phone: phone.trim(),
       rating: 0,
       reviewCount: 0,
@@ -130,19 +138,31 @@ export function ListScreen() {
             Listede yoksa sektör ekle
           </button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="grid gap-1.5">
-            <Label htmlFor="biz-city">Şehir</Label>
-            <select id="biz-city" className={fieldClass} value={city} onChange={(event) => setCity(event.target.value)}>
-              {cities.map((item) => (
-                <option key={item.name}>{item.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="biz-district">Semt</Label>
-            <Input id="biz-district" value={district} onChange={(event) => setDistrict(event.target.value)} className="h-11" />
-          </div>
+        <div className="grid gap-2 rounded-3xl bg-card p-4 ring-1 ring-foreground/10">
+          <Label>Şehir</Label>
+          <p className="text-xs leading-5 text-muted-foreground">
+            Ülke, il ve semt seç veya istediğin yeri ara. Seçtiğin nokta Google Haritalar üzerinde durur.
+          </p>
+          <PlaceEditor
+            current={place}
+            embedded
+            onChange={(next) => {
+              setPlace(next)
+              if (!districtTouched) setDistrict(next.neighborhood || next.district || "")
+            }}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="biz-district">Semt</Label>
+          <Input
+            id="biz-district"
+            value={district}
+            onChange={(event) => {
+              setDistrictTouched(true)
+              setDistrict(event.target.value)
+            }}
+            className="h-11"
+          />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="biz-phone">Telefon</Label>

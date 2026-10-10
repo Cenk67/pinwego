@@ -370,7 +370,14 @@ async function divisions(url: URL) {
       }
     }
     const name = await englishCountry(country)
-    const cities = region ? await cityNames(name, region) : []
+    let cities: string[] = []
+    if (region) {
+      try {
+        cities = await cityNames(name, region)
+      } catch {
+        cities = []
+      }
+    }
     let center = given
     if (!center && region) center = await pointFor([region, name].filter(Boolean).join(", "), country)
     if (!cities.length && region) {

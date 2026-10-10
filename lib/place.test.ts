@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { businesses } from "./catalog"
-import { businessInPlace, type Place } from "./place"
+import { businessInPlace, placeCity, type Place } from "./place"
 
 function place(patch: Partial<Place>): Place {
   return {
@@ -76,6 +76,12 @@ const moda = businesses.filter((item) =>
 )
 assert.ok(moda.some((item) => item.address.includes("Moda")))
 assert.ok(moda.every((item) => item.city === "İstanbul"))
+
+assert.equal(placeCity(place({ neighborhood: "Moda", district: "Kadıköy", province: "İstanbul" })), "Moda, İstanbul")
+assert.equal(
+  placeCity(place({ province: "Paris", region: "Île-de-France", country: "Fransa", countryCode: "fr", district: "", neighborhood: "" })),
+  "Paris, Fransa",
+)
 
 console.log(
   `zonguldak ${province.length}, merkez ${merkez.length}, ereğli ${eregli.length}, alaplı ${alapli.length}, kozlu ${kozlu.length}`,

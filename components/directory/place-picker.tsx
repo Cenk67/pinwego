@@ -298,7 +298,10 @@ export function PlaceEditor({
       if (generation.current === token && next.province) await loadLevel("district", next, token)
       if (generation.current === token && next.district) await loadLevel("neighborhood", next, token)
     } catch (caught) {
-      if (generation.current === token) setError(caught instanceof Error ? caught.message : "Konum açılamadı.")
+      if (generation.current !== token) return
+      setStatus("")
+      if (next.country && Number.isFinite(next.lat)) return
+      setError(caught instanceof Error ? caught.message : "Konum açılamadı.")
     }
   }
 
