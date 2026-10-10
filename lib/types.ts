@@ -39,6 +39,8 @@ export type Fact = {
   value: string
 }
 
+export type BusinessContacts = Partial<Record<"landline" | "mobile" | "whatsapp", string>>
+
 export type BusinessLinks = Partial<
   Record<
     | "website"
@@ -69,6 +71,7 @@ export type Business = {
   lat: number
   lng: number
   phone: string
+  contacts?: BusinessContacts
   rating: number
   reviewCount: number
   priceLevel: 1 | 2 | 3 | 4
@@ -139,6 +142,7 @@ export type BusinessOverride = Partial<
     Business,
     | "name"
     | "phone"
+    | "contacts"
     | "summary"
     | "about"
     | "verified"

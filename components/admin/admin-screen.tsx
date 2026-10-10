@@ -14,7 +14,9 @@ import { useAuth } from "@/lib/auth-context"
 import { ADMIN_EMAIL, ADMIN_PASSWORD, openStoredDocument } from "@/lib/auth-store"
 import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
+import { ContactEditor } from "@/components/directory/contact-lines"
 import { SocialLinkEditor } from "@/components/directory/social-links"
+import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
 import { fold, slugify } from "@/lib/format"
 import { maskId } from "@/lib/identity"
 import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
@@ -279,7 +281,7 @@ function BusinessEditor({
   onSave: (patch: Parameters<ReturnType<typeof useDirectory>["patchBusiness"]>[1]) => void
 }) {
   const [name, setName] = useState(business.name)
-  const [phone, setPhone] = useState(business.phone)
+  const [contacts, setContacts] = useState<ContactDraft>(() => draftContacts(business))
   const [city, setCity] = useState(business.city)
   const [district, setDistrict] = useState(business.district)
   const [summary, setSummary] = useState(business.summary)
@@ -303,9 +305,15 @@ function BusinessEditor({
               setLinkError(social.error)
               return
             }
+            const contact = savedContacts(contacts)
+            if (contact.error) {
+              setLinkError(contact.error)
+              return
+            }
             onSave({
               name: name.trim(),
-              phone: phone.trim(),
+              phone: contact.phone,
+              contacts: contact.contacts,
               city,
               district: district.trim(),
               address: `${district.trim()}, ${city}`,
@@ -319,7 +327,7 @@ function BusinessEditor({
           }}
         >
           <Field label="Ad" id="edit-name" value={name} onChange={setName} />
-          <Field label="Telefon" id="edit-phone" value={phone} onChange={setPhone} />
+          <ContactEditor value={contacts} onChange={setContacts} />
           <label className="grid gap-1.5 text-sm">
             Sektör
             <select className={fieldClass} value={category} onChange={(event) => setCategory(event.target.value)}>
