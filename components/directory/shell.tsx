@@ -3,13 +3,14 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Bookmark, Compass, MessageCircle, Plus, Search } from "lucide-react"
-import { Suspense, type ReactNode } from "react"
+import { Suspense, useEffect, useState, type ReactNode } from "react"
 import { GuestGateProvider } from "@/components/auth/guest-gate"
 import { Assistant } from "@/components/directory/assistant"
 import { Footer } from "@/components/directory/footer"
 import { Header } from "@/components/directory/header"
 import { MessageToast } from "@/components/messages/message-toast"
 import { useAuth } from "@/lib/auth-context"
+import { withReturn } from "@/lib/auth-session"
 import { useDirectory } from "@/lib/directory-context"
 import { useMessages } from "@/lib/message-context"
 import { cn } from "cn"
@@ -52,6 +53,19 @@ function BottomNav() {
   )
 }
 
+function EntryLink({ href, className, children }: { href: string; className: string; children: ReactNode }) {
+  const pathname = usePathname()
+  const [target, setTarget] = useState(href)
+  useEffect(() => {
+    setTarget(withReturn(href, `${pathname}${window.location.search}`))
+  }, [href, pathname])
+  return (
+    <Link href={target} className={className}>
+      {children}
+    </Link>
+  )
+}
+
 function GuestBar() {
   const { account } = useAuth()
   if (account) return null
@@ -62,18 +76,18 @@ function GuestBar() {
           <span className="font-medium">Misafir.</span> Rehberi izleyebilirsin. İletişim bilgileri ve özellikler kapalı.
         </p>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Link
+          <EntryLink
             href="/hesap"
             className="inline-flex h-10 items-center justify-center rounded-full bg-card px-4 text-sm font-medium ring-1 ring-foreground/15"
           >
             Giriş
-          </Link>
-          <Link
+          </EntryLink>
+          <EntryLink
             href="/hesap?kayit=musteri"
             className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"
           >
             Müşteri kaydı oluşturun
-          </Link>
+          </EntryLink>
         </div>
       </div>
     </div>
@@ -83,6 +97,11 @@ function GuestBar() {
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const { ready } = useAuth()
+  useEffect(() => {
+    if (window.location.hostname !== "www.pinwego.com") return
+    const next = `https://pinwego.com${window.location.pathname}${window.location.search}${window.location.hash}`
+    window.location.replace(next)
+  }, [])
   const indexable = pathname === "/blog" || pathname.startsWith("/blog/") || pathname.startsWith("/isletme/")
   if (!ready && !indexable) {
     return (

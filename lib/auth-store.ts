@@ -1,3 +1,4 @@
+import { digestPassword, normalizeEmail, passwordMatches, sameEmail } from "@/lib/auth-session"
 import { fileProblem } from "@/lib/identity"
 
 export type Role = "musteri" | "isletme" | "admin"
@@ -94,21 +95,25 @@ function writeAccounts(accounts: Account[]) {
 
 function readSessionId() {
   try {
-    return sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY)
+    return localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY)
   } catch {
-    return localStorage.getItem(SESSION_KEY)
+    try {
+      return sessionStorage.getItem(SESSION_KEY)
+    } catch {
+      return null
+    }
   }
 }
 
 function writeSessionId(id: string | null) {
-  try {
-    if (id) sessionStorage.setItem(SESSION_KEY, id)
-    else sessionStorage.removeItem(SESSION_KEY)
-  } catch {
-    /* ignore */
+  for (const store of [localStorage, sessionStorage]) {
+    try {
+      if (id) store.setItem(SESSION_KEY, id)
+      else store.removeItem(SESSION_KEY)
+    } catch {
+      /* ignore */
+    }
   }
-  if (id) localStorage.removeItem(SESSION_KEY)
-  else localStorage.removeItem(SESSION_KEY)
 }
 
 function load(): Snapshot {
@@ -116,14 +121,7 @@ function load(): Snapshot {
   const id = readSessionId()
   const account = accounts.find((item) => item.id === id) ?? null
   if (!account) writeSessionId(null)
-  else {
-    try {
-      sessionStorage.setItem(SESSION_KEY, account.id)
-      localStorage.removeItem(SESSION_KEY)
-    } catch {
-      /* ignore */
-    }
-  }
+  else writeSessionId(account.id)
   return { ready: true, account, accounts }
 }
 
@@ -142,12 +140,6 @@ export function getSnapshot() {
 
 export function getServerSnapshot(): Snapshot {
   return loggedOut
-}
-
-async function hashPassword(email: string, password: string) {
-  const data = new TextEncoder().encode(`${email}\0${password}`)
-  const digest = await crypto.subtle.digest("SHA-256", data)
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("")
 }
 
 function openFiles() {
@@ -229,9 +221,9 @@ export async function registerAccount(input: {
   customer?: Account["customer"]
   business?: Account["business"]
 }) {
-  const email = input.email.trim().toLowerCase()
+  const email = normalizeEmail(input.email)
   const accounts = readAccounts()
-  if (accounts.some((item) => item.email === email)) {
+  if (accounts.some((item) => sameEmail(item.email, email))) {
     return "Bu e-posta ile bir kayıt var. Giriş yap."
   }
   const id = crypto.randomUUID()
@@ -240,7 +232,7 @@ export async function registerAccount(input: {
     id,
     role: input.role,
     email,
-    passwordHash: await hashPassword(email, input.password),
+    passwordHash: await digestPassword(email, input.password),
     createdAt: new Date().toISOString(),
     name: input.name.trim(),
     phone: input.phone.trim(),
@@ -254,11 +246,11 @@ export async function registerAccount(input: {
 }
 
 export async function previewLogin(email: string, password: string): Promise<Account | string> {
-  const normalized = email.trim().toLowerCase()
-  const account = readAccounts().find((item) => item.email === normalized)
+  const account = readAccounts().find((item) => sameEmail(item.email, email))
   if (!account) return "E-posta veya şifre eşleşmedi."
-  const hash = await hashPassword(normalized, password)
-  if (hash !== account.passwordHash) return "E-posta veya şifre eşleşmedi."
+  if (!(await passwordMatches(account.email, account.passwordHash, password))) {
+    return "E-posta veya şifre eşleşmedi."
+  }
   return account
 }
 

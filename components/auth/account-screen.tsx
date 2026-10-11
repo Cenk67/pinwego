@@ -1,24 +1,47 @@
 "use client"
 
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
-import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
 import { AuthScreen } from "@/components/auth/auth-screen"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
-import { authDoor, authMode } from "@/lib/auth-path"
+import { authDoor, authMode, loginDoorProblem } from "@/lib/auth-path"
+import { destinationFor, safeReturnPath } from "@/lib/auth-session"
 import { openDocument } from "@/lib/auth-store"
+import { CLAIM_KEY } from "@/lib/claim"
 import { maskId } from "@/lib/identity"
 
 export function AccountScreen() {
   const { account, ready, logout } = useAuth()
+  const router = useRouter()
   const params = useSearchParams()
   const [message, setMessage] = useState("")
-
-  if (!ready) return null
+  const redirected = useRef(false)
   const kayit = params.get("kayit")
   const mode = authMode(kayit)
-  const switching = account?.role === "musteri" && (mode === "isletme" || mode === "admin" || mode === "login")
+  const door = authDoor(params.get("kapi"), mode)
+  const entering =
+    Boolean(account) &&
+    mode !== "choose" &&
+    ((mode === "musteri" && account?.role === "musteri") ||
+      (mode === "isletme" && account?.role === "isletme") ||
+      (mode === "admin" && account?.role === "admin") ||
+      (mode === "login" && account != null && !loginDoorProblem(door, account.role)))
+
+  useEffect(() => {
+    if (!entering || !account || redirected.current) return
+    if (sessionStorage.getItem(CLAIM_KEY) && account.role !== "musteri") return
+    redirected.current = true
+    router.replace(destinationFor(account.role, null, safeReturnPath(params.get("donus"))))
+  }, [entering, account, params, router])
+
+  if (!ready) return null
+  const switching =
+    account?.role === "musteri" && (mode === "isletme" || mode === "admin" || (mode === "login" && door !== "musteri"))
+  if (entering) {
+    return <p className="mx-auto max-w-xl px-4 py-16 text-sm text-muted-foreground">Hesabın açık. Siteye geçiliyor.</p>
+  }
   if (!account || switching) {
     return (
       <AuthScreen
@@ -107,6 +130,9 @@ export function AccountScreen() {
         ))}
       </ul>
       {message ? <p className="mt-3 text-sm text-destructive">{message}</p> : null}
+      <Button className="mt-6 h-11 rounded-xl" nativeButton={false} render={<Link href="/" />}>
+        Siteye dön
+      </Button>
       {account.role === "admin" ? (
         <Button className="mt-6 h-11 rounded-xl" nativeButton={false} render={<Link href="/yonetim" />}>
           Yönetim paneli

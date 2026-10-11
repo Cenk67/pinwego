@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Logo } from "@/components/brand/logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth-context"
 import { loginDoorProblem, type AuthDoor, type AuthMode } from "@/lib/auth-path"
+import { destinationFor, safeReturnPath, submittedField } from "@/lib/auth-session"
 import { ADMIN_EMAIL, getSnapshot, previewLogin } from "@/lib/auth-store"
 import { businesses } from "@/lib/catalog"
 import { PlaceEditor } from "@/components/directory/place-picker"
@@ -234,9 +235,8 @@ function LoginForm({
   claim: Business | null
 }) {
   const router = useRouter()
+  const params = useSearchParams()
   const { addListing } = useDirectory()
-  const [email, setEmail] = useState(initialEmail)
-  const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
   const title = door === "yonetici" ? "Yönetici girişi" : door === "isletme" ? "İşletme girişi" : "Müşteri girişi"
@@ -247,11 +247,14 @@ function LoginForm({
         ? "Kayıtlı işletme e-postası ve şifresi. Sahiplenme bekliyorsa girişten sonra kayda yazılır."
         : "Daha önce açtığın müşteri hesabının e-postası ve şifresi."
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const form = event.currentTarget
+    const typedEmail = submittedField(form, "username", "login-email", "")
+    const typedPassword = submittedField(form, "password", "login-password", "")
     setPending(true)
     try {
-      const preview = await previewLogin(email, password)
+      const preview = await previewLogin(typedEmail, typedPassword)
       if (typeof preview === "string") {
         setErrors([preview])
         return
@@ -261,7 +264,7 @@ function LoginForm({
         setErrors([problem])
         return
       }
-      const message = await login(email, password)
+      const message = await login(typedEmail, typedPassword)
       if (message) {
         setErrors([message])
         return
@@ -274,7 +277,7 @@ function LoginForm({
         router.push(`/isletme/${claim.slug}`)
         return
       }
-      if (account?.role === "admin") router.push("/yonetim")
+      if (account) router.push(destinationFor(account.role, null, safeReturnPath(params.get("donus"))))
     } finally {
       setPending(false)
     }
@@ -288,11 +291,18 @@ function LoginForm({
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="login-email">E-posta</Label>
-        <Input id="login-email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} className="h-11" />
+        <Input
+          id="login-email"
+          name="username"
+          type="email"
+          autoComplete="username"
+          defaultValue={initialEmail || undefined}
+          className="h-11"
+        />
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="login-password">Şifre</Label>
-        <Input id="login-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="h-11" />
+        <Input id="login-password" name="password" type="password" autoComplete="current-password" className="h-11" />
       </div>
       <ErrorList errors={errors} />
       <Button type="submit" className="h-11 rounded-xl" disabled={pending}>
@@ -330,17 +340,27 @@ function CustomerForm({
   const [document, setDocument] = useState<File | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
+  const router = useRouter()
+  const params = useSearchParams()
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const form = event.currentTarget
+    const typedName = submittedField(form, "name", "cust-name", name)
+    const typedEmail = submittedField(form, "email", "cust-email", email)
+    const typedPhone = submittedField(form, "phone", "cust-phone", phone)
+    const typedId = submittedField(form, "national-id", "cust-id", nationalId)
+    const typedBirth = submittedField(form, "birth", "cust-birth", birthDate)
+    const typedPassword = submittedField(form, "password", "cust-pass", password)
+    const typedAgain = submittedField(form, "password-again", "cust-again", again)
     const errors = problemsOf([
-      name.trim().split(/\s+/).length < 2 ? "Ad ve soyadı birlikte yaz." : null,
-      validEmail(email) ? null : "Geçerli bir e-posta yaz.",
-      validPhone(phone) ? null : "Telefon 5 ile başlayan bir cep numarası olmalı.",
-      validTckn(nationalId.replace(/\D/g, "")) ? null : "T.C. kimlik numarası geçersiz.",
-      adultBirthDate(birthDate) ? null : "Doğum tarihi 18 yaşından büyük bir gün olmalı.",
-      validPassword(password) ? null : "Şifre en az 8 karakter olmalı.",
-      password === again ? null : "Şifre tekrarı eşleşmedi.",
+      typedName.trim().split(/\s+/).length < 2 ? "Ad ve soyadı birlikte yaz." : null,
+      validEmail(typedEmail) ? null : "Geçerli bir e-posta yaz.",
+      validPhone(typedPhone) ? null : "Telefon 5 ile başlayan bir cep numarası olmalı.",
+      validTckn(typedId.replace(/\D/g, "")) ? null : "T.C. kimlik numarası geçersiz.",
+      adultBirthDate(typedBirth) ? null : "Doğum tarihi 18 yaşından büyük bir gün olmalı.",
+      validPassword(typedPassword) ? null : "Şifre en az 8 karakter olmalı.",
+      typedPassword === typedAgain ? null : "Şifre tekrarı eşleşmedi.",
       document ? fileProblem(document) : "Teyit belgesi yükle.",
     ])
     if (errors.length || !document) {
@@ -351,14 +371,18 @@ function CustomerForm({
     try {
       const message = await registerAccount({
         role: "musteri",
-        email,
-        password,
-        name,
-        phone,
-        customer: { nationalId: nationalId.replace(/\D/g, ""), birthDate },
+        email: typedEmail,
+        password: typedPassword,
+        name: typedName,
+        phone: typedPhone,
+        customer: { nationalId: typedId.replace(/\D/g, ""), birthDate: typedBirth },
         uploads: [{ label: "Teyit belgesi", file: document }],
       })
-      setErrors(message ? [message] : [])
+      if (message) {
+        setErrors([message])
+        return
+      }
+      router.push(destinationFor("musteri", null, safeReturnPath(params.get("donus"))))
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Belge kaydedilemedi."])
     } finally {
@@ -375,16 +399,16 @@ function CustomerForm({
           durur.
         </p>
       </div>
-      <Field id="cust-name" label="Ad soyad" value={name} onChange={setName} autoComplete="name" />
-      <Field id="cust-email" label="E-posta" type="email" value={email} onChange={setEmail} autoComplete="email" />
-      <Field id="cust-phone" label="Cep telefonu" value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" />
-      <Field id="cust-id" label="T.C. kimlik numarası" value={nationalId} onChange={setNationalId} inputMode="numeric" />
+      <Field id="cust-name" name="name" label="Ad soyad" value={name} onChange={setName} autoComplete="name" />
+      <Field id="cust-email" name="email" label="E-posta" type="email" value={email} onChange={setEmail} autoComplete="email" />
+      <Field id="cust-phone" name="phone" label="Cep telefonu" value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" />
+      <Field id="cust-id" name="national-id" label="T.C. kimlik numarası" value={nationalId} onChange={setNationalId} inputMode="numeric" />
       <div className="grid gap-1.5">
         <Label htmlFor="cust-birth">Doğum tarihi</Label>
-        <Input id="cust-birth" type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className="h-11" />
+        <Input id="cust-birth" name="birth" type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className="h-11" />
       </div>
-      <Field id="cust-pass" label="Şifre" type="password" value={password} onChange={setPassword} autoComplete="new-password" />
-      <Field id="cust-again" label="Şifre tekrarı" type="password" value={again} onChange={setAgain} autoComplete="new-password" />
+      <Field id="cust-pass" name="password" label="Şifre" type="password" value={password} onChange={setPassword} autoComplete="new-password" />
+      <Field id="cust-again" name="password-again" label="Şifre tekrarı" type="password" value={again} onChange={setAgain} autoComplete="new-password" />
       <DocField
         label="Teyit belgesi"
         hint="Nüfus cüzdanı, kimlik kartı, ehliyet veya yerleşim yeri belgesi. PDF, JPG, PNG veya WEBP. En fazla 4 MB."
@@ -432,9 +456,14 @@ function BusinessForm({
   const [kimlik, setKimlik] = useState<File | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
+  const params = useSearchParams()
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const form = event.currentTarget
+    const typedEmail = submittedField(form, "email", "biz-email", email)
+    const typedPassword = submittedField(form, "password", "biz-pass", password)
+    const typedAgain = submittedField(form, "password-again", "biz-again", again)
     const uploads: Array<{ label: string; file: File | null }> = [
       { label: "Vergi levhası", file: vergi },
       { label: "İmza sirküleri", file: imza },
@@ -444,14 +473,14 @@ function BusinessForm({
     const errors = problemsOf([
       title.trim().length < 2 ? "İşletme unvanını yaz." : null,
       owner.trim().split(/\s+/).length < 2 ? "Yetkilinin adını ve soyadını yaz." : null,
-      validEmail(email) ? null : "Geçerli bir e-posta yaz.",
+      validEmail(typedEmail) ? null : "Geçerli bir e-posta yaz.",
       validPhone(phone) ? null : "Telefon 5 ile başlayan bir cep numarası olmalı.",
       validVkn(taxId.replace(/\D/g, "")) ? null : "Vergi kimlik numarası 10 haneli ve geçerli olmalı.",
       taxOffice.trim().length < 2 ? "Vergi dairesini yaz." : null,
       place.country && Number.isFinite(place.lat) ? null : "Şehir ve konum seç.",
       address.trim().length < 8 ? "Açık adresi yaz." : null,
-      validPassword(password) ? null : "Şifre en az 8 karakter olmalı.",
-      password === again ? null : "Şifre tekrarı eşleşmedi.",
+      validPassword(typedPassword) ? null : "Şifre en az 8 karakter olmalı.",
+      typedPassword === typedAgain ? null : "Şifre tekrarı eşleşmedi.",
       ...uploads.map((item) => (item.file ? fileProblem(item.file) && `${item.label}: ${fileProblem(item.file)}` : `${item.label} yükle.`)),
     ])
     if (errors.length || uploads.some((item) => !item.file)) {
@@ -462,8 +491,8 @@ function BusinessForm({
     try {
       const message = await registerAccount({
         role: "isletme",
-        email,
-        password,
+        email: typedEmail,
+        password: typedPassword,
         name: title,
         phone,
         business: {
@@ -481,8 +510,13 @@ function BusinessForm({
         if (ownerId) adoptListingThreads(claim.id, ownerId)
         sessionStorage.removeItem(CLAIM_KEY)
         router.push(`/isletme/${claim.slug}`)
+        return
       }
-      setErrors(message ? [message] : [])
+      if (!message) {
+        router.push(destinationFor("isletme", null, safeReturnPath(params.get("donus"))))
+        return
+      }
+      setErrors([message])
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Belgeler kaydedilemedi."])
     } finally {
@@ -504,7 +538,7 @@ function BusinessForm({
       </div>
       <Field id="biz-title" label="İşletme unvanı" value={title} onChange={setTitle} />
       <Field id="biz-owner" label="Yetkili ad soyad" value={owner} onChange={setOwner} autoComplete="name" />
-      <Field id="biz-email" label="E-posta" type="email" value={email} onChange={setEmail} autoComplete="email" />
+      <Field id="biz-email" name="email" label="E-posta" type="email" value={email} onChange={setEmail} autoComplete="email" />
       <Field id="biz-phone" label="Cep telefonu" value={phone} onChange={setPhone} inputMode="tel" />
       <Field id="biz-tax" label="Vergi kimlik numarası" value={taxId} onChange={setTaxId} inputMode="numeric" />
       <Field id="biz-office" label="Vergi dairesi" value={taxOffice} onChange={setTaxOffice} />
@@ -519,8 +553,8 @@ function BusinessForm({
         <Label htmlFor="biz-address">Açık adres</Label>
         <Textarea id="biz-address" value={address} onChange={(event) => setAddress(event.target.value)} className="min-h-20" />
       </div>
-      <Field id="biz-pass" label="Şifre" type="password" value={password} onChange={setPassword} autoComplete="new-password" />
-      <Field id="biz-again" label="Şifre tekrarı" type="password" value={again} onChange={setAgain} autoComplete="new-password" />
+      <Field id="biz-pass" name="password" label="Şifre" type="password" value={password} onChange={setPassword} autoComplete="new-password" />
+      <Field id="biz-again" name="password-again" label="Şifre tekrarı" type="password" value={again} onChange={setAgain} autoComplete="new-password" />
       <DocField label="Vergi levhası" hint="Güncel vergi levhası." file={vergi} onChange={setVergi} />
       <DocField label="İmza sirküleri" hint="Noter onaylı imza sirküleri veya yetki belgesi." file={imza} onChange={setImza} />
       <DocField label="Ticaret sicil veya faaliyet belgesi" hint="Sicil gazetesi ya da faaliyet belgesi." file={sicil} onChange={setSicil} />
@@ -541,6 +575,7 @@ function BusinessForm({
 
 function Field({
   id,
+  name,
   label,
   value,
   onChange,
@@ -549,6 +584,7 @@ function Field({
   inputMode,
 }: {
   id: string
+  name?: string
   label: string
   value: string
   onChange: (value: string) => void
@@ -561,6 +597,7 @@ function Field({
       <Label htmlFor={id}>{label}</Label>
       <Input
         id={id}
+        name={name}
         type={type}
         value={value}
         autoComplete={autoComplete}
