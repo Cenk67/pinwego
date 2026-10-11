@@ -1,4 +1,5 @@
 import { categoryById, cityCenter } from "./catalog"
+import { sameTrade } from "./match"
 import { distanceKm, fold } from "./format"
 import type {
   Business,
@@ -394,7 +395,7 @@ export function recommendBusinesses(list: Business[], business: Business) {
   }
   const origin = cityCenter(business.city)
   const ranked = list
-    .filter((item) => item.id !== business.id && item.profile?.published !== false && item.category === business.category)
+    .filter((item) => item.id !== business.id && item.profile?.published !== false && sameTrade(business, item))
     .map((item) => ({ business: item, match: matchBreakdown(item, intent), km: distanceKm(origin, item) }))
   const local = ranked.filter((item) => fold(item.business.city) === fold(business.city))
   return (local.length ? local : ranked)

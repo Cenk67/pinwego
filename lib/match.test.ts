@@ -1,5 +1,6 @@
 import { businesses } from "./catalog"
-import { searchDirectory, defaultFilters } from "./match"
+import { fold } from "./format"
+import { searchDirectory, defaultFilters, parseQuery } from "./match"
 import assert from "node:assert/strict"
 
 const cases: [string, string][] = [
@@ -23,4 +24,19 @@ for (const [query, expected] of cases) {
 }
 
 assert.equal(failed, 0, `${failed} eşleştirme yanlış`)
+
+const dentist = searchDirectory(businesses, "diş hekimi", { ...defaultFilters, sehir: "hepsi" })
+assert.ok(dentist.length > 0)
+assert.ok(dentist.every((item) => fold(item.business.subcategory).includes("dis")))
+assert.equal(dentist.some((item) => item.business.subcategory === "Eczane"), false)
+
+const service = searchDirectory(businesses, "Kadıköy oto servis", { ...defaultFilters, sehir: "hepsi" })
+assert.ok(service.length > 0)
+assert.ok(service.every((item) => item.business.category === "oto"))
+
+const cleaning = searchDirectory(businesses, "Çankaya ofis temizliği", { ...defaultFilters, sehir: "hepsi" })
+assert.equal(cleaning[0]?.business.slug, "baskent-ofis-temizlik")
+assert.ok(cleaning.every((item) => item.business.category === "temizlik"))
+assert.equal(parseQuery("Çankaya ofis temizliği", businesses).category, "temizlik")
+
 console.log("tüm örnek aramalar beklenen kaydı seçti")

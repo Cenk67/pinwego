@@ -7,6 +7,7 @@ import {
   matchBreakdown,
   profileReadiness,
   resolveProfile,
+  recommendBusinesses,
   suggestAiTags,
   tagKey,
 } from "./profile"
@@ -103,5 +104,10 @@ const resolved = resolveProfile({ ...dent, profile: { ...profile, seoTags: ["imp
 assert.deepEqual(resolved.seoTags, ["implant"])
 assert.equal(resolved.aiTags.includes("diş ağrısı"), true)
 assert.ok(profileReadiness(profile) >= 70)
+
+const picks = recommendBusinesses(businesses, dent)
+assert.ok(picks.length > 0)
+assert.ok(picks.every((item) => item.business.subcategory.toLocaleLowerCase("tr-TR").includes("diş")))
+assert.equal(picks.some((item) => item.business.slug === "kadikoy-fizik"), false)
 
 console.log("profil, etiket ve eşleşme skoru geçti")
