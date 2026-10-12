@@ -17,11 +17,13 @@ import {
   type VoiceCopyKey,
 } from "@/lib/voice/settings"
 import {
+  clearVoiceTrail,
   consumeVoicePending,
   getServerVoiceTrail,
   getVoiceTrail,
   stageVoiceTrail,
   subscribeVoiceTrail,
+  voiceQueryMark,
 } from "@/lib/voice/trail"
 import { useLocale } from "@/lib/use-locale"
 import type { MessageKey } from "@/lib/messages"
@@ -137,7 +139,7 @@ export function VoiceSearchRoot({
 
   function commit(text: string, patch: VoicePatch, speechLang: string, note: "location" | null) {
     pending.current = null
-    stageVoiceTrail(patch, { language: speechLang, queryLength: text.length, note })
+    stageVoiceTrail(patch, { language: speechLang, queryLength: text.length, query: text, note })
     setPhase("idle")
     setNotice("")
     onCommitRef.current(text, patch)
@@ -461,9 +463,13 @@ export function VoicePanel() {
   )
 }
 
-export function VoiceTrail({ count }: { count: number }) {
+export function VoiceTrail({ count, query }: { count: number; query: string }) {
   const trail = useSyncExternalStore(subscribeVoiceTrail, getVoiceTrail, getServerVoiceTrail)
   const { t } = useLocale()
+  const current = trail && trail.mark === voiceQueryMark(query) ? trail : null
+  useEffect(() => {
+    if (trail && trail.mark !== voiceQueryMark(query)) clearVoiceTrail()
+  }, [trail, query])
   useEffect(() => {
     const pending = consumeVoicePending()
     if (!pending) return
@@ -473,21 +479,21 @@ export function VoiceTrail({ count }: { count: number }) {
       resultCount: count,
     })
   }, [count, trail?.id])
-  if (!trail) return null
+  if (!current) return null
   const sortLabel =
-    trail.sort === "fiyat"
+    current.sort === "fiyat"
       ? t("search.sortPrice")
-      : trail.sort === "mesafe"
+        : current.sort === "mesafe"
         ? t("search.sortDistance")
-        : trail.sort === "puan"
+        : current.sort === "puan"
           ? t("search.sortRating")
           : null
   const chips = [
-    trail.open ? t("voice.open") : null,
-    trail.rating ? t("voice.rating", { rating: trail.rating }) : null,
-    trail.near ? t("voice.near") : null,
-    trail.family ? t("voice.family") : null,
-    trail.delivery ? t("voice.delivery") : null,
+    current.open ? t("voice.open") : null,
+    current.rating ? t("voice.rating", { rating: current.rating }) : null,
+    current.near ? t("voice.near") : null,
+    current.family ? t("voice.family") : null,
+    current.delivery ? t("voice.delivery") : null,
     sortLabel,
   ].filter((item): item is string => Boolean(item))
   return (
@@ -500,7 +506,7 @@ export function VoiceTrail({ count }: { count: number }) {
           </span>
         ))}
       </div>
-      {trail.note === "location" ? <p className="mt-2 text-sm text-muted-foreground">{t("voice.locationNeed")}</p> : null}
+      {current.note === "location" ? <p className="mt-2 text-sm text-muted-foreground">{t("voice.locationNeed")}</p> : null}
     </div>
   )
 }

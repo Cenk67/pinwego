@@ -251,7 +251,7 @@ export function SearchScreen() {
             {scoped.widened ? ` · ${t("search.widened")}` : ""}
             {query ? ` · ${t("search.reason")}` : ""}
           </p>
-          <VoiceTrail count={results.length} />
+          <VoiceTrail count={results.length} query={query} />
         </div>
         <div className="flex items-center gap-2">
           <label className="hidden text-sm md:block">

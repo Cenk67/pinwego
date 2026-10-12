@@ -2,6 +2,7 @@ import type { VoicePatch } from "@/lib/voice/intent"
 
 export type VoiceTrail = {
   id: string
+  mark: string
   open: boolean
   rating: string | null
   sort: string | null
@@ -9,6 +10,13 @@ export type VoiceTrail = {
   family: boolean
   delivery: boolean
   note: "location" | null
+}
+
+export function voiceQueryMark(query: string) {
+  let hash = 0
+  const text = query.trim()
+  for (let index = 0; index < text.length; index += 1) hash = (Math.imul(hash, 31) + text.charCodeAt(index)) >>> 0
+  return `${text.length}:${hash}`
 }
 
 export type VoicePending = {
@@ -67,11 +75,12 @@ export function getServerVoiceTrail() {
 
 export function stageVoiceTrail(
   patch: VoicePatch,
-  detail: { language: string; queryLength: number; note?: "location" | null },
+  detail: { language: string; queryLength: number; query: string; note?: "location" | null },
 ) {
   const id = `${Date.now()}`
   chips = {
     id,
+    mark: voiceQueryMark(detail.query ?? ""),
     open: patch.acik === "1",
     rating: patch.puan,
     sort: patch.sirala,
