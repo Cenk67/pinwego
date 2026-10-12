@@ -1,4 +1,5 @@
 import { cityCenter } from "@/lib/catalog"
+import { getLocale, translate } from "@/lib/i18n"
 import {
   bookingLabel,
   distanceKm,
@@ -385,7 +386,11 @@ function explain(business: Business, parsed: ParsedQuery, km: number) {
   if (parsed.tags.includes("acil")) parts.push(`dönüş ${formatResponse(business.responseMinutes)}`)
   if (parsed.openNow && business.openNow) parts.push("şu an açık")
   parts.push(formatDistance(km))
-  parts.push(business.reviewCount ? `${formatRating(business)} puan` : "yeni kayıt")
+  parts.push(
+    business.reviewCount
+      ? `${formatRating(business)} ${translate(getLocale(), "search.points")}`
+      : translate(getLocale(), "card.new"),
+  )
   return parts.join(" · ")
 }
 

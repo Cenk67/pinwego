@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const blogState = await readBlogState()
   return (
-    <html lang="tr" className={`${outfit.variable} ${fraunces.variable} h-full antialiased`}>
+    <html lang="tr" suppressHydrationWarning className={`${outfit.variable} ${fraunces.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <script dangerouslySetInnerHTML={{ __html: localeBootScript }} />
         <LocaleBoot />

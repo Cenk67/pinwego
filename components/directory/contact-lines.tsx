@@ -6,7 +6,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useGuestGate } from "@/components/auth/guest-gate"
 import { contactKinds, visibleContacts, type ContactDraft, type ContactKind } from "@/lib/contacts"
+import type { MessageKey } from "@/lib/messages"
 import type { Business } from "@/lib/types"
+import { useLocale } from "@/lib/use-locale"
+
+const contactLabel: Record<ContactKind, MessageKey> = {
+  landline: "contact.landline",
+  mobile: "contact.mobile",
+  whatsapp: "contact.whatsapp",
+}
 
 function Mark({ kind }: { kind: ContactKind }) {
   if (kind === "mobile") return <Smartphone className="size-4" />
@@ -32,14 +40,15 @@ export function ContactLines({
 }) {
   const items = visibleContacts(business)
   const { member, allow } = useGuestGate()
+  const { t } = useLocale()
   if (!items.length) return null
   if (compact && !member) return null
   return (
     <div className={compact ? "grid gap-2 px-4 pb-4" : "grid gap-2"}>
       {compact ? (
-        <p className="text-xs font-medium text-muted-foreground">İletişim</p>
+        <p className="text-xs font-medium text-muted-foreground">{t("contact.title")}</p>
       ) : (
-        <h2 className="font-heading text-lg">İletişim</h2>
+        <h2 className="font-heading text-lg">{t("contact.title")}</h2>
       )}
       {items.map((item) =>
         member ? (
@@ -57,7 +66,7 @@ export function ContactLines({
             }
           >
             <Mark kind={item.id} />
-            <span className="text-muted-foreground">{item.label}</span>
+            <span className="text-muted-foreground">{t(contactLabel[item.id])}</span>
             <span>{item.value}</span>
           </Button>
         ) : (

@@ -232,7 +232,7 @@ export function SearchScreen() {
             {query ? `“${query}”` : place.nearMe ? t("search.near") : placeLabel(place)}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {t("search.count", { count: results.length })}
+            {results.length === 1 ? t("search.countOne") : t("search.count", { count: results.length })}
             {scoped.adsFilled ? ` · ${t("search.ads")}` : ""}
             {scoped.widened ? ` · ${t("search.widened")}` : ""}
             {query ? ` · ${t("search.reason")}` : ""}

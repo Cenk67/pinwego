@@ -6,9 +6,11 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { suggestions } from "@/lib/catalog"
+import { searchSuggestions } from "@/lib/i18n"
 import { useDirectory } from "@/lib/directory-context"
 import { formatRating } from "@/lib/format"
 import { concierge, type RankedBusiness } from "@/lib/match"
+import { useLocale } from "@/lib/use-locale"
 
 type Message = {
   id: string
@@ -19,12 +21,14 @@ type Message = {
 
 export function Assistant() {
   const { assistantOpen, setAssistantOpen, visibleBusinesses, city } = useDirectory()
+  const { locale, t } = useLocale()
+  const chips = locale === "tr" ? suggestions : searchSuggestions[locale]
   const [draft, setDraft] = useState("")
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "hello",
       role: "assistant",
-      text: "Katalogda semt, bütçe ya da aciliyet yaz. Üç kayda kadar gerekçesiyle getiririm.",
+      text: "",
     },
   ])
   const endRef = useRef<HTMLDivElement>(null)
@@ -55,27 +59,27 @@ export function Assistant() {
       <button
         type="button"
         onClick={() => setAssistantOpen(true)}
-        className="fixed right-4 bottom-24 z-40 flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-lg md:bottom-6"
+        className="fixed end-4 bottom-24 z-40 flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-lg md:bottom-6"
       >
         <Sparkles className="size-4" />
-        Asistan
+        {t("assist.open")}
       </button>
     )
   }
 
   return (
     <section
-      className="fixed inset-x-3 top-20 bottom-20 z-50 flex flex-col overflow-hidden rounded-3xl bg-popover ring-1 ring-foreground/10 shadow-2xl md:inset-auto md:right-6 md:bottom-6 md:h-[34rem] md:w-[24rem]"
-      aria-label="pinwego asistanı"
+      className="fixed inset-x-3 top-20 bottom-20 z-50 flex flex-col overflow-hidden rounded-3xl bg-popover ring-1 ring-foreground/10 shadow-2xl md:inset-auto md:end-6 md:bottom-6 md:h-[34rem] md:w-[24rem]"
+      aria-label={t("assist.open")}
     >
       <header className="flex items-center justify-between border-b border-foreground/10 px-4 py-3">
         <div>
-          <p className="font-heading text-lg leading-none">Asistan</p>
-          <p className="mt-1 text-xs text-muted-foreground">Katalog içinden eşleştirir</p>
+          <p className="font-heading text-lg leading-none">{t("assist.open")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("assist.matches")}</p>
         </div>
         <button
           type="button"
-          aria-label="Asistanı kapat"
+          aria-label={t("assist.close")}
           onClick={() => setAssistantOpen(false)}
           className="grid size-8 place-items-center rounded-full hover:bg-muted"
         >
@@ -92,7 +96,7 @@ export function Assistant() {
                   : "max-w-[95%] text-sm leading-6"
               }
             >
-              <p>{message.text}</p>
+              <p>{message.id === "hello" ? t("assist.hello") : message.text}</p>
               {message.results?.length ? (
                 <div className="mt-2 grid gap-2">
                   {message.results.map((item) => (
@@ -118,7 +122,7 @@ export function Assistant() {
         ))}
         {messages.length === 1 ? (
           <div className="flex flex-wrap gap-2">
-            {suggestions.slice(0, 3).map((item) => (
+            {chips.slice(0, 3).map((item) => (
               <button
                 key={item}
                 type="button"
@@ -140,11 +144,11 @@ export function Assistant() {
         }}
       >
         <label className="flex-1">
-          <span className="sr-only">Asistana yaz</span>
+          <span className="sr-only">{t("assist.open")}</span>
           <Input
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Üsküdar’da elektrikçi"
+            placeholder={t("search.placeholder")}
             className="h-11"
           />
         </label>
