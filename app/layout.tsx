@@ -11,7 +11,7 @@ import { MessageProvider } from "@/lib/message-context"
 import "./globals.css"
 
 const outfit = Outfit({
-  subsets: ["latin", "latin-ext", "cyrillic"],
+  subsets: ["latin", "latin-ext"],
   variable: "--font-outfit",
 })
 
