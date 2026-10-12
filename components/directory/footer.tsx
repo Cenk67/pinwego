@@ -17,6 +17,7 @@ export function Footer() {
           <p className="font-medium">{t("footer.browse")}</p>
           <div className="mt-3 grid gap-2 text-muted-foreground">
             <Link href="/blog">{t("nav.blog")}</Link>
+            <Link href="/kampanyalar">{t("nav.campaigns")}</Link>
             <Link href="/ara">{t("nav.search")}</Link>
             <Link href="/talep">{t("nav.demand")}</Link>
             <Link href="/mesajlar">{t("nav.messages")}</Link>

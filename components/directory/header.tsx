@@ -16,13 +16,16 @@ export function Header() {
   const { t } = useLocale()
   return (
     <header className="sticky top-0 z-40 border-b border-foreground/10 bg-card/95 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4">
         <Link href="/" aria-label="pinwego" className="flex shrink-0 items-center">
           <Logo />
         </Link>
-        <nav className="ms-4 hidden items-center gap-5 text-sm md:flex">
+        <nav className="ms-2 hidden items-center gap-x-3 text-sm whitespace-nowrap md:flex">
           <Link href="/blog" className="hover:text-primary">
             {t("nav.blog")}
+          </Link>
+          <Link href="/kampanyalar" className="hover:text-primary">
+            {t("nav.campaigns")}
           </Link>
           <Link href="/ara" className="hover:text-primary">
             {t("nav.explore")}

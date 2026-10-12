@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
+import { CampaignOwner } from "@/components/campaigns/campaign-manage"
 import { ContactEditor } from "@/components/directory/contact-lines"
 import { ProfileEditor } from "@/components/directory/profile-editor"
 import { SocialLinkEditor } from "@/components/directory/social-links"
@@ -78,6 +79,7 @@ export function OwnerScreen() {
           </Button>
         </div>
       )}
+      <CampaignOwner />
     </div>
   )
 }

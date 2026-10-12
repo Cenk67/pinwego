@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { BlogAdmin } from "@/components/blog/blog-admin"
 import { VoiceAdmin } from "@/components/admin/voice-admin"
+import { CampaignAdmin } from "@/components/campaigns/campaign-manage"
 import { SectorForm } from "@/components/directory/sector-form"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
@@ -35,6 +36,7 @@ const tabs = [
   { id: "hesaplar", label: "Hesaplar" },
   { id: "blog", label: "Blog" },
   { id: "ses", label: "Sesli arama" },
+  { id: "kampanya", label: "Kampanyalar" },
 ] as const
 
 type Tab = (typeof tabs)[number]["id"]
@@ -114,6 +116,7 @@ export function AdminScreen() {
       {tab === "hesaplar" ? <AccountAdmin /> : null}
       {tab === "blog" ? <BlogAdmin /> : null}
       {tab === "ses" ? <VoiceAdmin /> : null}
+      {tab === "kampanya" ? <CampaignAdmin /> : null}
     </div>
   )
 }

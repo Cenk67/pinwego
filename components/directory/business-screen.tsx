@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { BadgeCheck, Clock, MapPin, Navigation } from "lucide-react"
 import { useState } from "react"
+import { BusinessCampaigns } from "@/components/campaigns/business-campaigns"
 import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, SaveButton, Stars } from "@/components/directory/bits"
 import {
@@ -143,6 +144,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
             onBook={() => allow(() => { setNote(""); setOpen(true) })}
           />
           <AboutBlock profile={profile} body={about} />
+          <BusinessCampaigns businessId={business.id} />
           <SummaryGrid business={business} profile={profile} extra={facts} />
           <ServiceList
             profile={profile}

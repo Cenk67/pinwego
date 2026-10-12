@@ -9,6 +9,7 @@ import { fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
 import { SearchForm } from "@/components/directory/search-form"
 import { SectorForm } from "@/components/directory/sector-form"
+import { HomeCampaigns } from "@/components/campaigns/home-campaigns"
 import { BlogStrip } from "@/components/blog/blog-strip"
 import { SectorStrip } from "@/components/directory/sector-strip"
 import { Button } from "@/components/ui/button"
@@ -88,6 +89,8 @@ export function HomeScreen() {
           />
         </div>
       </section>
+
+      <HomeCampaigns />
 
       <section className="mx-auto max-w-6xl px-4 py-10">
         <div className="flex items-end justify-between gap-4">
