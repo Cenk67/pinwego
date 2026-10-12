@@ -8,6 +8,7 @@ import {
   formatResponse,
 } from "@/lib/format"
 import { allSectors } from "@/lib/sectors"
+import { isWorldPhrase, worldAliases, worldFocus } from "@/lib/world-query"
 import type { Business, CategoryId, Filters } from "@/lib/types"
 
 export type RankedBusiness = {
@@ -32,7 +33,7 @@ function categoryPhrases() {
   return allSectors().map((item) => ({
     id: item.id,
     label: fold(item.label),
-    phrases: [...new Set([...item.phrases, fold(item.label)])],
+    phrases: [...new Set([...item.phrases, fold(item.label), ...worldAliases(item.id).map((alias) => alias.phrase)])],
   }))
 }
 
@@ -84,6 +85,18 @@ const STOPWORDS = new Set([
   "icin",
   "olan",
   "fiyat",
+  "the",
+  "and",
+  "for",
+  "with",
+  "near",
+  "please",
+  "now",
+  "open",
+  "und",
+  "pour",
+  "para",
+  "con",
   "nde",
   "nda",
   "dan",
@@ -245,7 +258,9 @@ export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
     for (const phrase of group.phrases) {
       if (!hasPhrase(text, phrase)) continue
       score += phrase.split(" ").length + phrase.length / 10
-      if (!genericPhrase(phrase, group.label)) hits.push(phrase)
+      const mapped = worldFocus(group.id, phrase)
+      if (mapped) hits.push(mapped)
+      else if (!isWorldPhrase(group.id, phrase) && !genericPhrase(phrase, group.label)) hits.push(phrase)
     }
     if (score <= 0) continue
     const next = { id: group.id, score, focus: hits }
@@ -268,7 +283,14 @@ export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
   else if (text.includes("yuksek puan")) minRating = 4.2
 
   const openNow =
-    text.includes("su an") || text.includes("acik olan") || text.includes("hala acik")
+    text.includes("su an") ||
+    text.includes("acik olan") ||
+    text.includes("hala acik") ||
+    text.includes("open now") ||
+    text.includes("jetzt geoffnet") ||
+    text.includes("ouvert maintenant") ||
+    text.includes("abierto ahora") ||
+    text.includes("aberto agora")
 
   const consumed = new Set<string>(STOPWORDS)
   if (city) consumed.add(fold(city))

@@ -6,12 +6,13 @@ import { useState } from "react"
 import { PlaceButton } from "@/components/directory/place-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useLocale } from "@/lib/use-locale"
 import { cn } from "cn"
 
 export function SearchForm({
   initial = "",
   large = false,
-  placeholder = "Örn. Kadıköy'de çocukla akşam yemeği",
+  placeholder,
   onSearch,
 }: {
   initial?: string
@@ -20,6 +21,8 @@ export function SearchForm({
   onSearch?: (query: string) => void
 }) {
   const router = useRouter()
+  const { t } = useLocale()
+  const hint = placeholder ?? t("search.placeholder")
   const [value, setValue] = useState(initial)
 
   return (
@@ -41,12 +44,12 @@ export function SearchForm({
       }}
     >
       <label className="relative flex-1">
-        <span className="sr-only">Arama</span>
+        <span className="sr-only">{t("search.aria")}</span>
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder={placeholder}
+          placeholder={hint}
           className={cn(
             "h-12 border-0 bg-transparent pl-10 shadow-none focus-visible:ring-0",
             large && "text-base md:text-base",
@@ -56,7 +59,7 @@ export function SearchForm({
       <div className="flex gap-2">
         <PlaceButton className="min-w-0 flex-1 sm:flex-none" />
         <Button type="submit" className="h-12 flex-1 rounded-2xl px-5 sm:flex-none">
-          Eşleştir
+          {t("search.submit")}
         </Button>
       </div>
     </form>

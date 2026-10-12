@@ -15,12 +15,17 @@ import { Button } from "@/components/ui/button"
 import { suggestions } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { fold } from "@/lib/format"
+import { searchSuggestions } from "@/lib/i18n"
+import { sectorCopy } from "@/lib/sector-copy"
+import { useLocale } from "@/lib/use-locale"
 import { distanceFromPlace, placeLabel, applyPlace } from "@/lib/place"
 import { getSectorClicks, getServerSectorClicks, rankSectors, subscribeSectorClicks } from "@/lib/sector-clicks"
 
 export function HomeScreen() {
   const { place, sectors, visibleBusinesses, removeSector } = useDirectory()
   const { allow } = useGuestGate()
+  const { locale, t } = useLocale()
+  const chips = locale === "tr" ? suggestions : searchSuggestions[locale]
   const [sectorQuery, setSectorQuery] = useState("")
   const [sectorOpen, setSectorOpen] = useState(false)
   const sectorClicks = useSyncExternalStore(subscribeSectorClicks, getSectorClicks, getServerSectorClicks)
@@ -29,10 +34,13 @@ export function HomeScreen() {
   const visibleSectors = useMemo(() => {
     const needle = fold(sectorQuery)
     const matched = needle
-      ? sectors.filter((item) => fold(`${item.label} ${item.blurb} ${item.phrases.join(" ")}`).includes(needle))
+      ? sectors.filter((item) => {
+          const copy = sectorCopy(locale, item)
+          return fold(`${item.label} ${item.blurb} ${copy.label} ${copy.blurb} ${item.phrases.join(" ")}`).includes(needle)
+        })
       : sectors
     return rankSectors(matched, sectorClicks)
-  }, [sectors, sectorQuery, sectorClicks])
+  }, [sectors, sectorQuery, sectorClicks, locale])
   const ranked = catalog.map((business) => ({ business, distanceKm: distanceFromPlace(place, business) }))
   const scoped = applyPlace(ranked, place)
   const local = scoped.items
@@ -48,20 +56,20 @@ export function HomeScreen() {
         <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 md:py-16 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <div className="min-w-0">
             <p className="text-sm font-medium text-primary">
-              Ticari rehber · {catalogCount} kayıt · {sectors.length} sektör
+              {t("home.kicker", { count: catalogCount, sectors: sectors.length })}
             </p>
             <h1 className="mt-3 max-w-full font-heading text-4xl leading-[1.05] text-balance md:max-w-xl md:text-6xl">
-              Doğru işletme, tek cümle.
+              {t("home.title")}
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
-              Yorum, fiyat, mesafe ve randevuyu aynı kartta topladık. Ne aradığını yaz; pinwego
-              yakındaki kaydı gerekçesiyle sıralasın.
+              {t("home.lead")}
             </p>
+            <p className="mt-2 max-w-xl text-sm text-muted-foreground">{t("home.original")}</p>
             <div className="mt-6">
               <SearchForm large />
             </div>
             <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-              {suggestions.map((item) => (
+              {chips.map((item) => (
                 <Link
                   key={item}
                   href={`/ara?q=${encodeURIComponent(item)}`}
@@ -73,7 +81,7 @@ export function HomeScreen() {
             </div>
           </div>
           <MiniMap
-            label={place.nearMe ? "Yakınımdakiler" : `${placeLabel(place)} kayıtları`}
+            label={place.nearMe ? t("search.near") : `${placeLabel(place)}`}
             points={local.map((item) => item.business)}
             focus={place}
             className="min-h-80"
@@ -84,15 +92,13 @@ export function HomeScreen() {
       <section className="mx-auto max-w-6xl px-4 py-10">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <h2 className="font-heading text-3xl">Şu an açık</h2>
+            <h2 className="font-heading text-3xl">{t("home.open")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {scoped.widened
-                ? "40 km içinde açık kayıt yok. En yakın örnekler duruyor."
-                : `${placeLabel(place)} çevresindeki açık kayıtlar`}
+              {scoped.widened ? t("home.openWide") : t("home.openHere", { place: placeLabel(place) })}
             </p>
           </div>
           <Link href="/ara?acik=1" className="text-sm text-primary">
-            Tümü
+            {t("home.all")}
           </Link>
         </div>
         {nearby.length ? (
@@ -104,23 +110,21 @@ export function HomeScreen() {
             ))}
           </div>
         ) : (
-          <p className="mt-5 text-sm text-muted-foreground">Bu konumda açık örnek kayıt yok.</p>
+          <p className="mt-5 text-sm text-muted-foreground">{t("home.openEmpty")}</p>
         )}
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="font-heading text-3xl">Sektörler</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {sectors.length} sektör, en çok tıklanan önde. 20’şer sağdan sola kayar.
-            </p>
+            <h2 className="font-heading text-3xl">{t("home.sectors")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t("home.sectorsLead", { count: sectors.length })}</p>
           </div>
           <input
             value={sectorQuery}
             onChange={(event) => setSectorQuery(event.target.value)}
-            placeholder="Sektör ara"
-            aria-label="Sektör ara"
+            placeholder={t("home.sectorSearch")}
+            aria-label={t("home.sectorSearch")}
             className={`${fieldClass} sm:max-w-56`}
           />
         </div>
@@ -132,7 +136,7 @@ export function HomeScreen() {
             onAdd={() => allow(() => setSectorOpen(true))}
           />
         ) : (
-          <p className="mt-4 text-sm text-muted-foreground">Bu aramada sektör yok. Yeni sektör ekleyebilirsin.</p>
+          <p className="mt-4 text-sm text-muted-foreground">{t("home.sectorEmpty")}</p>
         )}
         <SectorForm open={sectorOpen} onOpenChange={setSectorOpen} />
       </section>
@@ -140,15 +144,13 @@ export function HomeScreen() {
       <section className="mx-auto max-w-6xl px-4 py-10">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <h2 className="font-heading text-3xl">Öne çıkanlar</h2>
+            <h2 className="font-heading text-3xl">{t("home.featured")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {sponsored.length
-                ? "Ücretsiz kaydın yanında, sponsoru belli premium görünürlük."
-                : "Bu konumda sponsorlu reklam alanı yok. Yerel kayıtlar bu alana yüklendi."}
+              {sponsored.length ? t("home.featuredOn") : t("home.featuredOff")}
             </p>
           </div>
           <Link href={sponsored.length ? "/ara?one=1" : "/ara"} className="text-sm text-primary">
-            Liste
+            {t("home.list")}
           </Link>
         </div>
         {featured.length ? (
@@ -158,15 +160,15 @@ export function HomeScreen() {
             ))}
           </div>
         ) : (
-          <p className="mt-5 text-sm text-muted-foreground">Bu konumda gösterilecek reklam alanı yok.</p>
+          <p className="mt-5 text-sm text-muted-foreground">{t("home.featuredEmpty")}</p>
         )}
       </section>
 
       <section className="mx-auto grid max-w-6xl gap-4 px-4 py-6 md:grid-cols-3">
         {[
-          ["1", "Anlat", "Semt, bütçe, saat ya da işi düz cümleyle yaz. Süzgeçler arkada durur."],
-          ["2", "Karşılaştır", "Puan, yorum, fiyat aralığı, açıklık ve dönüş süresi aynı kartta."],
-          ["3", "İlerle", "Randevu, rezervasyon ya da teklif talebi işletmenin kendi kaydından gider."],
+          ["1", t("home.step1"), t("home.step1b")],
+          ["2", t("home.step2"), t("home.step2b")],
+          ["3", t("home.step3"), t("home.step3b")],
         ].map(([step, title, copy]) => (
           <article key={step} className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
             <p className="font-heading text-3xl text-primary">{step}</p>
@@ -179,10 +181,8 @@ export function HomeScreen() {
       <section className="mx-auto max-w-6xl px-4 py-8">
         <div className="flex flex-col items-start justify-between gap-4 rounded-3xl bg-primary px-6 py-8 text-primary-foreground md:flex-row md:items-center">
           <div>
-            <h2 className="font-heading text-3xl">İşi anlat, üç kayıt gelsin.</h2>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-primary-foreground/80">
-              Boya, temizlik, tesisat ya da ofis tedariki. Talep, fiyat aralığı yazılı işletmelerle eşleşir.
-            </p>
+            <h2 className="font-heading text-3xl">{t("home.ctaTitle")}</h2>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-primary-foreground/80">{t("home.ctaBody")}</p>
           </div>
           <Button
             variant="secondary"
@@ -190,7 +190,7 @@ export function HomeScreen() {
             nativeButton={false}
             render={<Link href="/talep" />}
           >
-            Talep oluştur
+            {t("nav.request")}
             <ArrowUpRight className="size-4" />
           </Button>
         </div>

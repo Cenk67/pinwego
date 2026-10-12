@@ -5,9 +5,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { articlePath, stripArticles } from "@/lib/blog"
 import { useBlog } from "@/components/blog/blog-context"
+import { useLocale } from "@/lib/use-locale"
 
 export function BlogStrip() {
   const { document } = useBlog()
+  const { t } = useLocale()
   const articles = stripArticles(document)
   const scroller = useRef<HTMLDivElement>(null)
   const [paused, setPaused] = useState(false)
@@ -34,17 +36,17 @@ export function BlogStrip() {
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="font-heading text-3xl">Blog</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Görselli rehber ve şehir sayfaları</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("blog.lead")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" aria-label="Önceki yazılar" onClick={() => step(-1)} className="grid size-9 place-items-center rounded-full bg-card ring-1 ring-foreground/10">
+          <button type="button" aria-label={t("blog.prev")} onClick={() => step(-1)} className="grid size-9 place-items-center rounded-full bg-card ring-1 ring-foreground/10">
             <ChevronLeft className="size-4" />
           </button>
-          <button type="button" aria-label="Sonraki yazılar" onClick={() => step(1)} className="grid size-9 place-items-center rounded-full bg-card ring-1 ring-foreground/10">
+          <button type="button" aria-label={t("blog.next")} onClick={() => step(1)} className="grid size-9 place-items-center rounded-full bg-card ring-1 ring-foreground/10">
             <ChevronRight className="size-4" />
           </button>
           <Link href="/blog" className="rounded-full bg-primary px-3 py-1.5 text-sm text-primary-foreground">
-            Tümü
+            {t("home.all")}
           </Link>
         </div>
       </div>

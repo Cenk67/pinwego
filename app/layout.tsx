@@ -1,7 +1,9 @@
 import type { Metadata } from "next"
 import { Fraunces, Outfit } from "next/font/google"
 import { BlogProvider } from "@/components/blog/blog-context"
+import { LocaleBoot } from "@/components/directory/locale-boot"
 import { Shell } from "@/components/directory/shell"
+import { localeBootScript } from "@/lib/i18n"
 import { AuthProvider } from "@/lib/auth-context"
 import { readBlogState } from "@/lib/blog-file"
 import { DirectoryProvider } from "@/lib/directory-context"
@@ -9,7 +11,7 @@ import { MessageProvider } from "@/lib/message-context"
 import "./globals.css"
 
 const outfit = Outfit({
-  subsets: ["latin", "latin-ext"],
+  subsets: ["latin", "latin-ext", "cyrillic"],
   variable: "--font-outfit",
 })
 
@@ -33,6 +35,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="tr" className={`${outfit.variable} ${fraunces.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
+        <script dangerouslySetInnerHTML={{ __html: localeBootScript }} />
+        <LocaleBoot />
         <BlogProvider initial={blogState}>
           <DirectoryProvider>
             <AuthProvider>

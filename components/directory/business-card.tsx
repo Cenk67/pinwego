@@ -11,7 +11,9 @@ import { MessageButton } from "@/components/messages/message-button"
 import { categoryById } from "@/lib/catalog"
 import { watchCopy } from "@/lib/guest"
 import { formatDistance, priceLabel, priceMarks, priceRange } from "@/lib/format"
+import { sectorCopy } from "@/lib/sector-copy"
 import type { Business } from "@/lib/types"
+import { useLocale } from "@/lib/use-locale"
 
 export function BusinessCard({
   business,
@@ -25,7 +27,9 @@ export function BusinessCard({
   layout?: "stack" | "row"
 }) {
   const { member } = useGuestGate()
+  const { locale, t } = useLocale()
   const category = categoryById(business.category)
+  const sector = sectorCopy(locale, category)
   const summary = member ? business.summary : watchCopy(business.summary)
   return (
     <article className="relative flex h-full flex-col overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10">
@@ -54,11 +58,11 @@ export function BusinessCard({
                   : "rounded-full bg-white/90 px-2 py-0.5 text-xs text-foreground/70"
               }
             >
-              {business.openNow ? "Açık" : "Kapalı"}
+              {business.openNow ? t("card.open") : t("card.closed")}
             </span>
             {business.premium ? (
               <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
-                Öne çıkan
+                {t("card.featured")}
               </span>
             ) : null}
           </div>
@@ -68,7 +72,7 @@ export function BusinessCard({
             <div>
               <h3 className="font-heading text-xl leading-tight">{business.name}</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                {category.label} · {business.district}
+                {sector.label} · {business.district}
               </p>
             </div>
             <RatingBlock business={business} />
@@ -88,15 +92,15 @@ export function BusinessCard({
             <span className="text-foreground">{priceRange(business)}</span>
           </div>
           {business.source === "google" ? (
-            <p className="text-xs text-primary">Google Haritalar kaydı</p>
+            <p className="text-xs text-primary">{t("card.google")}</p>
           ) : business.verified ? (
             <p className="flex items-center gap-1 text-xs text-primary">
               <BadgeCheck className="size-3.5" />
-              Doğrulandı
+              {t("card.verified")}
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              {business.source === "senin" ? "Senin kaydın" : "Doğrulama bekliyor"}
+              {business.source === "senin" ? t("card.yours") : t("card.pending")}
             </p>
           )}
         </div>

@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, "Segoe UI", "Noto Sans", "Noto Naskh Arabic", "Noto Sans Arabic", "PingFang SC", "Hiragino Sans", "Noto Sans SC", "Yu Gothic", "Noto Sans JP", "Malgun Gothic", "Noto Sans KR", "Noto Sans Devanagari", "Mangal", sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-serif: var(--font-fraunces), Georgia, "Times New Roman", serif;
   --font-heading: var(--font-fraunces), Georgia, serif;
@@ -127,6 +127,15 @@
   }
   html {
     @apply font-sans;
+  }
+  html[dir="rtl"],
+  html[lang="ar"],
+  html[lang="zh"],
+  html[lang="ja"],
+  html[lang="ko"],
+  html[lang="hi"],
+  html[lang="ru"] {
+    --font-heading: var(--font-outfit), "Noto Naskh Arabic", "Noto Sans Arabic", "PingFang SC", "Hiragino Sans", "Yu Gothic", "Malgun Gothic", "Noto Sans Devanagari", "Segoe UI", sans-serif;
   }
   ::selection {
     background: #c9ecff;

@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { CategoryGlyph, Cover } from "@/components/directory/bits"
 import { recordSectorClick } from "@/lib/sector-clicks"
+import { sectorCopy } from "@/lib/sector-copy"
+import { useLocale } from "@/lib/use-locale"
 import type { Business, Sector } from "@/lib/types"
 import { cn } from "cn"
 
@@ -21,6 +23,7 @@ export function SectorStrip({
   onRemove: (id: string) => void
   onAdd: () => void
 }) {
+  const { locale, t } = useLocale()
   const pages = Math.max(1, Math.ceil(sectors.length / PAGE_SIZE))
   const [page, setPage] = useState(0)
   const [direction, setDirection] = useState<1 | -1>(1)
@@ -59,6 +62,7 @@ export function SectorStrip({
           )}
         >
           {slice.map((category) => {
+            const copy = sectorCopy(locale, category)
             const count = businesses.filter((item) => item.category === category.id).length
             return (
               <div key={category.id} className="relative">
@@ -75,16 +79,16 @@ export function SectorStrip({
                   <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
                   <div className="absolute right-3 bottom-3 left-3 text-white">
                     <CategoryGlyph id={category.id} icon={category.icon} className="size-4" />
-                    <p className="mt-1 font-medium">{category.label}</p>
+                    <p className="mt-1 font-medium">{copy.label}</p>
                     <p className="text-xs text-white/80">
-                      {count} kayıt · {category.blurb}
+                      {t("sector.count", { count })} · {copy.blurb}
                     </p>
                   </div>
                 </Link>
                 {category.custom ? (
                   <button
                     type="button"
-                    aria-label={`${category.label} sektörünü kaldır`}
+                    aria-label={t("card.removeSector", { name: copy.label })}
                     onClick={() => onRemove(category.id)}
                     className="absolute top-2 right-2 grid size-8 place-items-center rounded-full bg-black/55 text-white"
                   >
@@ -103,7 +107,7 @@ export function SectorStrip({
           className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium text-muted-foreground ring-1 ring-foreground/15"
         >
           <Plus className="size-4" />
-          Sektör ekle
+          {t("home.sectorAdd")}
         </button>
         <div className="flex items-center gap-2">
           <p className="text-sm text-muted-foreground">
@@ -111,7 +115,7 @@ export function SectorStrip({
           </p>
           <button
             type="button"
-            aria-label="Önceki 20 sektör"
+            aria-label={t("sector.prev")}
             onClick={() => step(-1)}
             disabled={pages < 2}
             className="grid size-10 place-items-center rounded-full bg-card ring-1 ring-foreground/10 disabled:opacity-40"
@@ -120,7 +124,7 @@ export function SectorStrip({
           </button>
           <button
             type="button"
-            aria-label="Sonraki 20 sektör"
+            aria-label={t("sector.next")}
             onClick={() => step(1)}
             disabled={pages < 2}
             className="grid size-10 place-items-center rounded-full bg-card ring-1 ring-foreground/10 disabled:opacity-40"

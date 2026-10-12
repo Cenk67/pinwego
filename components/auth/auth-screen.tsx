@@ -18,6 +18,7 @@ import { defaultPlace, placeCity, placeFromPoint, type Place } from "@/lib/place
 import { CLAIM_KEY, claimListing } from "@/lib/claim"
 import { adoptListingThreads } from "@/lib/message-store"
 import { useDirectory } from "@/lib/directory-context"
+import { useLocale } from "@/lib/use-locale"
 import type { Business } from "@/lib/types"
 import {
   adultBirthDate,
@@ -166,59 +167,55 @@ function DoorLink({
 }
 
 function Chooser({ claim }: { claim: Business | null }) {
+  const { t } = useLocale()
   return (
     <div>
-      <p className="text-sm font-medium text-primary">Giriş</p>
-      <h1 className="mt-2 font-heading text-4xl leading-tight text-balance">Hesabın varsa gir, yoksa kayıt aç.</h1>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-        Kayıtlı müşteri, kayıtlı işletme ve site yöneticisi ayrı kapıdan girer. İşletmeyi sahiplenmek isteyen yeni
-        sahip işletme kaydını buradan açar. Misafir izleme kayıt istemez.
-      </p>
+      <p className="text-sm font-medium text-primary">{t("auth.signIn")}</p>
+      <h1 className="mt-2 font-heading text-4xl leading-tight text-balance">{t("auth.headline")}</h1>
+      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">{t("auth.lead")}</p>
       {claim ? (
         <p className="mt-4 rounded-2xl bg-primary/10 px-3 py-3 text-sm leading-6 text-primary">
           {claim.name} için sahiplenme bekliyor. Kayıtlı işletme hesabın varsa işletme girişini, ilk kayıtsa işletme
           kaydını kullan.
         </p>
       ) : null}
-      <h2 className="mt-8 font-heading text-2xl">Giriş</h2>
+      <h2 className="mt-8 font-heading text-2xl">{t("auth.signIn")}</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <DoorLink
           href="/hesap?kayit=giris&kapi=musteri"
-          kicker="Müşteri"
-          title="Müşteri girişi"
-          copy="Daha önce müşteri kaydı oluşturduysan e-posta ve şifrenle gir."
+          kicker={t("auth.customer")}
+          title={t("auth.customerIn")}
+          copy={t("auth.customerInCopy")}
         />
         <DoorLink
           href="/hesap?kayit=giris&kapi=isletme"
-          kicker="İşletme"
-          title="İşletme girişi"
-          copy="Kaydı tamamlanmış işletme hesabın varsa gir. Sahiplenilen kayıt açılır."
+          kicker={t("auth.business")}
+          title={t("auth.businessIn")}
+          copy={t("auth.businessInCopy")}
         />
         <DoorLink
           href="/hesap?kayit=yonetici"
-          kicker="Yönetici"
-          title="Yönetici girişi"
-          copy="Site yönetimi, sektör ve hesaplar bu hesapla açılır."
+          kicker={t("auth.admin")}
+          title={t("auth.adminIn")}
+          copy={t("auth.adminInCopy")}
         />
       </div>
-      <h2 className="mt-8 font-heading text-2xl">Kayıt</h2>
+      <h2 className="mt-8 font-heading text-2xl">{t("auth.register")}</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <DoorLink
           href="/hesap?kayit=musteri"
-          kicker="Yeni müşteri"
-          title="Müşteri kaydı oluşturun"
-          copy="Ad, telefon, T.C. kimlik numarası ve bir teyit belgesi. İletişim ve özellikler bu kayıtla açılır."
+          kicker={t("auth.newCustomer")}
+          title={t("guest.register")}
+          copy={t("auth.customerRegCopy")}
         />
         <DoorLink
           href="/hesap?kayit=isletme"
-          kicker="Yeni işletme"
-          title="İşletme kaydı"
-          copy="İşletmeyi sahiplen dediğinde veya yeni işletme eklerken vergi ve yetki belgeleri istenir."
+          kicker={t("auth.newBusiness")}
+          title={t("auth.businessReg")}
+          copy={t("auth.businessRegCopy")}
         />
       </div>
-      <p className="mt-4 text-xs leading-5 text-muted-foreground">
-        Bilgiler ve belgeler bu tarayıcıda durur. Ayrı bir kimlik servisine gönderilmez.
-      </p>
+      <p className="mt-4 text-xs leading-5 text-muted-foreground">{t("auth.local")}</p>
     </div>
   )
 }
@@ -239,13 +236,10 @@ function LoginForm({
   const { addListing } = useDirectory()
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
-  const title = door === "yonetici" ? "Yönetici girişi" : door === "isletme" ? "İşletme girişi" : "Müşteri girişi"
+  const { t } = useLocale()
+  const title = door === "yonetici" ? t("auth.adminIn") : door === "isletme" ? t("auth.businessIn") : t("auth.customerIn")
   const copy =
-    door === "yonetici"
-      ? "Site yönetimi bu tarayıcıdaki yönetici hesabıyla açılır."
-      : door === "isletme"
-        ? "Kayıtlı işletme e-postası ve şifresi. Sahiplenme bekliyorsa girişten sonra kayda yazılır."
-        : "Daha önce açtığın müşteri hesabının e-postası ve şifresi."
+    door === "yonetici" ? t("auth.adminCopy") : door === "isletme" ? t("auth.businessCopy") : t("auth.customerCopy")
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -290,7 +284,7 @@ function LoginForm({
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{copy}</p>
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="login-email">E-posta</Label>
+        <Label htmlFor="login-email">{t("auth.email")}</Label>
         <Input
           id="login-email"
           name="username"
@@ -301,25 +295,25 @@ function LoginForm({
         />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="login-password">Şifre</Label>
+        <Label htmlFor="login-password">{t("auth.password")}</Label>
         <Input id="login-password" name="password" type="password" autoComplete="current-password" className="h-11" />
       </div>
       <ErrorList errors={errors} />
       <Button type="submit" className="h-11 rounded-xl" disabled={pending}>
-        {pending ? "Kontrol ediliyor" : "Giriş yap"}
+        {pending ? t("auth.checking") : t("auth.submit")}
       </Button>
       {door === "musteri" ? (
         <Link href="/hesap?kayit=musteri" className="text-center text-sm text-primary">
-          Hesabın yok mu? Müşteri kaydı oluşturun
+          {t("auth.noCustomer")}
         </Link>
       ) : null}
       {door === "isletme" ? (
         <Link href="/hesap?kayit=isletme" className="text-center text-sm text-primary">
-          İşletme kaydın yok mu? İşletme kaydı
+          {t("auth.noBusiness")}
         </Link>
       ) : null}
       <Button variant="ghost" className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap" />}>
-        Tüm girişlere dön
+        {t("auth.back")}
       </Button>
     </form>
   )

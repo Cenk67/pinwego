@@ -22,22 +22,24 @@ import { cityCenter } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { defaultFilters, parseQuery, searchDirectory } from "@/lib/match"
 import { applyPlace, placeLabel } from "@/lib/place"
+import { sectorCopy } from "@/lib/sector-copy"
 import type { CategoryId, SortKey } from "@/lib/types"
-
-const sorts: { id: SortKey; label: string }[] = [
-  { id: "ilgili", label: "En ilgili" },
-  { id: "puan", label: "Puan" },
-  { id: "yorum", label: "Yorum sayısı" },
-  { id: "mesafe", label: "Mesafe" },
-  { id: "yanit", label: "Dönüş süresi" },
-  { id: "fiyat", label: "Fiyat" },
-]
+import { useLocale } from "@/lib/use-locale"
 
 export function SearchScreen() {
   const params = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
   const { place, sectors, visibleBusinesses } = useDirectory()
+  const { locale, t } = useLocale()
+  const sorts: { id: SortKey; label: string }[] = [
+    { id: "ilgili", label: t("search.sortRelevant") },
+    { id: "puan", label: t("search.sortRating") },
+    { id: "yorum", label: t("search.sortReviews") },
+    { id: "mesafe", label: t("search.sortDistance") },
+    { id: "yanit", label: t("search.sortResponse") },
+    { id: "fiyat", label: t("search.sortPrice") },
+  ]
   const [showMap, setShowMap] = useState(false)
   const [limit, setLimit] = useState(9)
 
@@ -120,32 +122,30 @@ export function SearchScreen() {
   const filters = (
     <div className="grid gap-4">
       <div className="rounded-2xl bg-card px-3 py-3 ring-1 ring-foreground/10">
-        <p className="text-xs text-muted-foreground">Konum</p>
-        <p className="mt-1 text-sm font-medium">{place.nearMe ? "Yakınımdakiler" : placeLabel(place)}</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Eşleştirmenin yanındaki düğmeden ülke, bölge, il, ilçe veya semt değişir.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("search.place")}</p>
+        <p className="mt-1 text-sm font-medium">{place.nearMe ? t("search.near") : placeLabel(place)}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{t("search.placeHint")}</p>
       </div>
       <label className="grid gap-1.5 text-sm">
-        Kategori
+        {t("search.category")}
         <select
           className={fieldClass}
           value={kategori}
           onChange={(event) => update({ kategori: event.target.value })}
         >
-          <option value="hepsi">Hepsi</option>
+          <option value="hepsi">{t("home.all")}</option>
           {sectors.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.label}
+              {sectorCopy(locale, item).label}
             </option>
           ))}
         </select>
       </label>
       <div>
-        <p className="text-sm">En az puan</p>
+        <p className="text-sm">{t("search.minRating")}</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {[
-            ["0", "Hepsi"],
+            ["0", t("home.all")],
             ["3.5", "3.5+"],
             ["4", "4+"],
             ["4.5", "4.5+"],
@@ -166,10 +166,10 @@ export function SearchScreen() {
         </div>
       </div>
       <div>
-        <p className="text-sm">Fiyat tavanı</p>
+        <p className="text-sm">{t("search.priceCap")}</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {[
-            ["4", "Hepsi"],
+            ["4", t("home.all")],
             ["1", "₺"],
             ["2", "₺₺"],
             ["3", "₺₺₺"],
@@ -192,26 +192,26 @@ export function SearchScreen() {
       <div className="grid gap-3">
         <Label className="gap-2">
           <Checkbox checked={openNow} onCheckedChange={(checked) => update({ acik: checked === true ? "1" : null })} />
-          Şu an açık
+          {t("search.openNow")}
         </Label>
         <Label className="gap-2">
           <Checkbox checked={verified} onCheckedChange={(checked) => update({ dogru: checked === true ? "1" : null })} />
-          Doğrulanmış
+          {t("search.verified")}
         </Label>
         <Label className="gap-2">
           <Checkbox checked={premium} onCheckedChange={(checked) => update({ one: checked === true ? "1" : null })} />
-          Öne çıkan
+          {t("search.featured")}
         </Label>
       </div>
       {activeCount ? (
         <button
           type="button"
-          className="text-left text-sm text-primary"
+          className="text-start text-sm text-primary"
             onClick={() =>
             update({ kategori: "hepsi", puan: null, fiyat: null, acik: null, dogru: null, one: null })
           }
         >
-          Süzgeçleri temizle
+          {t("search.clear")}
         </button>
       ) : null}
     </div>
@@ -229,18 +229,18 @@ export function SearchScreen() {
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-heading text-3xl md:text-4xl">
-            {query ? `“${query}”` : place.nearMe ? "Yakınımdakiler" : placeLabel(place)}
+            {query ? `“${query}”` : place.nearMe ? t("search.near") : placeLabel(place)}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {results.length} işletme
-            {scoped.adsFilled ? " · sponsorlu reklam alanı boş, yerel kayıtlar yüklendi" : ""}
-            {scoped.widened ? " · 40 km içinde örnek kayıt yok, en yakınlar duruyor" : ""}
-            {query ? " · gerekçe her kartın altında" : ""}
+            {t("search.count", { count: results.length })}
+            {scoped.adsFilled ? ` · ${t("search.ads")}` : ""}
+            {scoped.widened ? ` · ${t("search.widened")}` : ""}
+            {query ? ` · ${t("search.reason")}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <label className="hidden text-sm md:block">
-            <span className="sr-only">Sırala</span>
+            <span className="sr-only">{t("search.sortRelevant")}</span>
             <select
               className={fieldClass}
               value={sort}
@@ -259,18 +259,19 @@ export function SearchScreen() {
             className="h-10 rounded-xl md:hidden"
             onClick={() => setShowMap((value) => !value)}
           >
-            {showMap ? "Liste" : "Harita"}
+            {showMap ? t("home.list") : t("search.map")}
           </Button>
           <Sheet>
             <SheetTrigger
               render={<Button type="button" variant="outline" className="h-10 rounded-xl lg:hidden" />}
             >
               <SlidersHorizontal className="size-4" />
-              Süz{activeCount ? ` ${activeCount}` : ""}
+              {t("search.filterShort")}
+              {activeCount ? ` ${activeCount}` : ""}
             </SheetTrigger>
             <SheetContent side="bottom" className="max-h-[85vh] rounded-t-3xl">
               <SheetHeader>
-                <SheetTitle className="font-heading text-xl">Süzgeçler</SheetTitle>
+                <SheetTitle className="font-heading text-xl">{t("search.filters")}</SheetTitle>
               </SheetHeader>
               <div className="overflow-y-auto px-4 pb-6">{filters}</div>
             </SheetContent>
@@ -283,7 +284,7 @@ export function SearchScreen() {
         <div>
           {showMap ? (
             <div className="mb-4 lg:hidden">
-              <MiniMap label="Sonuçlar" points={results.slice(0, 30).map((item) => item.business)} focus={place} />
+              <MiniMap label={t("search.resultsLabel")} points={results.slice(0, 30).map((item) => item.business)} focus={place} />
             </div>
           ) : null}
           {visible.length ? (
@@ -300,11 +301,8 @@ export function SearchScreen() {
             </div>
           ) : (
             <div className="rounded-3xl bg-card px-5 py-10 ring-1 ring-foreground/10">
-              <h2 className="font-heading text-2xl">Bu süzgeçte kayıt yok</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Katalogda İstanbul, Ankara, İzmir, Antalya, Bursa ve Google’dan yüklenen Zonguldak kayıtları var.
-                İlçe adı kayıtla örtüşmezse ili seç. Google haritası seçtiğin noktayı yine gösterir.
-              </p>
+              <h2 className="font-heading text-2xl">{t("search.emptyTitle")}</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("search.emptyBody")}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   type="button"
@@ -312,10 +310,10 @@ export function SearchScreen() {
                   className="h-10 rounded-xl"
                   onClick={() => update({ kategori: "hepsi", puan: null, fiyat: null, acik: null, dogru: null, one: null, sehir: "hepsi" })}
                 >
-                  Süzgeçleri kaldır
+                  {t("search.clearAll")}
                 </Button>
                 <Button className="h-10 rounded-xl" nativeButton={false} render={<Link href="/talep" />}>
-                  Talep oluştur
+                  {t("nav.request")}
                 </Button>
               </div>
             </div>
@@ -327,13 +325,13 @@ export function SearchScreen() {
               className="mt-4 h-11 w-full rounded-xl"
               onClick={() => setLimit((value) => value + 9)}
             >
-              Daha fazla göster ({results.length - limit})
+              {t("search.more", { count: results.length - limit })}
             </Button>
           ) : null}
         </div>
         <aside className="hidden lg:block">
           <div className="sticky top-24">
-            <MiniMap label="Sonuçlar" points={results.slice(0, 40).map((item) => item.business)} focus={place} />
+            <MiniMap label={t("search.resultsLabel")} points={results.slice(0, 40).map((item) => item.business)} focus={place} />
           </div>
         </aside>
       </div>
