@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { BlogAdmin } from "@/components/blog/blog-admin"
+import { VoiceAdmin } from "@/components/admin/voice-admin"
 import { SectorForm } from "@/components/directory/sector-form"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
@@ -33,6 +34,7 @@ const tabs = [
   { id: "talepler", label: "Talepler" },
   { id: "hesaplar", label: "Hesaplar" },
   { id: "blog", label: "Blog" },
+  { id: "ses", label: "Sesli arama" },
 ] as const
 
 type Tab = (typeof tabs)[number]["id"]
@@ -111,6 +113,7 @@ export function AdminScreen() {
       {tab === "talepler" ? <RequestAdmin /> : null}
       {tab === "hesaplar" ? <AccountAdmin /> : null}
       {tab === "blog" ? <BlogAdmin /> : null}
+      {tab === "ses" ? <VoiceAdmin /> : null}
     </div>
   )
 }

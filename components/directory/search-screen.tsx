@@ -7,6 +7,7 @@ import { useMemo, useState } from "react"
 import { BusinessCard } from "@/components/directory/business-card"
 import { MiniMap } from "@/components/directory/mini-map"
 import { SearchForm } from "@/components/directory/search-form"
+import { VoiceTrail } from "@/components/directory/voice-search"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -223,7 +224,20 @@ export function SearchScreen() {
         <SearchForm
           key={query}
           initial={query}
-          onSearch={(value) => update({ q: value || null, sehir: null, kategori: null })}
+          onSearch={(value, voice) => {
+            if (voice?.voice) {
+              update({
+                q: value || null,
+                sehir: null,
+                kategori: voice.kategori,
+                acik: voice.acik,
+                puan: voice.puan,
+                sirala: voice.sirala,
+              })
+              return
+            }
+            update({ q: value || null, sehir: null, kategori: null })
+          }}
         />
       </div>
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
@@ -237,6 +251,7 @@ export function SearchScreen() {
             {scoped.widened ? ` · ${t("search.widened")}` : ""}
             {query ? ` · ${t("search.reason")}` : ""}
           </p>
+          <VoiceTrail count={results.length} />
         </div>
         <div className="flex items-center gap-2">
           <label className="hidden text-sm md:block">
