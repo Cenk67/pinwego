@@ -5,6 +5,7 @@ import { BadgeCheck, Clock, MapPin, Navigation } from "lucide-react"
 import { Suspense, useState } from "react"
 import { BusinessCampaigns } from "@/components/campaigns/business-campaigns"
 import { QrArrival } from "@/components/qr/qr-arrival"
+import { BusinessQr } from "@/components/qr/qr-business"
 import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, SaveButton, Stars } from "@/components/directory/bits"
 import {
@@ -135,6 +136,9 @@ export function BusinessScreen({ slug }: { slug: string }) {
               <span className="rounded-full bg-secondary px-3 py-1 text-xs">Google Haritalar kaydı</span>
             ) : null}
           </div>
+          <div className="mt-4 lg:hidden">
+            <BusinessQr businessId={business.id} name={business.name} />
+          </div>
           {business.source === "google" ? (
             <div className="mt-4 max-w-sm">
               <ClaimPrompt business={business} />
@@ -192,6 +196,9 @@ export function BusinessScreen({ slug }: { slug: string }) {
         </div>
 
         <aside className="space-y-4">
+          <div className="hidden lg:block">
+            <BusinessQr businessId={business.id} name={business.name} />
+          </div>
           <div className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10 lg:sticky lg:top-24">
             {business.responseMinutes > 0 ? (
               <p className="flex items-center gap-2 text-sm">

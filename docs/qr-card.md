@@ -18,6 +18,8 @@ Uzak REST yoktur. `GET /q/{kod}/vcard` `text/vcard` döner ve dosyayı `pinwego-
 
 ## Kart
 
+İşletme sayfasının kenarında aynı kod görünür. Okutma kısa karta gider. Kampanya ayrıntısındaki kare, kampanyanın kendi adresini açar.
+
 Misafir üyelik duvarı görmez. Ad, fotoğraf, sektör, kısa özet, telefon, adres, site, açık veya kapalı, Google Haritalar ve Pinwego profil bağlantısı görünür. Birincil düğme telefonuna kaydeder. İkincil düğme tam profile gider. Altta ücretsiz hesabın profilin kalanını açtığı söylenir; kayıt ve giriş, dönüş adresini işletme sayfasında tutar. Hesabı olmayan biri tam profilde mevcut misafir kapısını görür. Kısa kart bu kapının istisnasıdır, çünkü vCard telefon ve adres ister.
 
 Kampanya kodu aynı kartı açar. Kampanya yayındaysa teklif ve kampanya bağlantısı eklenir. Süresi dolmuşsa bunu söyler.
