@@ -107,6 +107,7 @@ export function Shell({ children }: { children: ReactNode }) {
     window.location.replace(next)
   }, [])
   const indexable = pathname === "/blog" || pathname.startsWith("/blog/") || pathname.startsWith("/isletme/") || pathname.startsWith("/q/")
+  const card = pathname.startsWith("/q/")
   if (!ready && !indexable) {
     return (
       <div className="grid min-h-svh place-items-center px-4 text-sm text-muted-foreground">
@@ -121,12 +122,14 @@ export function Shell({ children }: { children: ReactNode }) {
     <GuestGateProvider>
       <Header />
       <GuestBar />
-      <main className="flex-1 pb-20 md:pb-0">{children}</main>
+      <main className={card ? "flex-1" : "flex-1 pb-20 md:pb-0"}>{children}</main>
       <Footer />
-      <Suspense fallback={<div className="h-16 md:hidden" />}>
-        <BottomNav />
-      </Suspense>
-      <Assistant />
+      {card ? null : (
+        <Suspense fallback={<div className="h-16 md:hidden" />}>
+          <BottomNav />
+        </Suspense>
+      )}
+      {card ? null : <Assistant />}
       <MessageToast />
     </GuestGateProvider>
   )

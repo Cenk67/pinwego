@@ -46,7 +46,7 @@ export function QrLanding({
   }, [hit.code, hit.kind, hit.campaignId, business.id])
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-8 pb-28">
+    <div className="mx-auto max-w-lg px-4 py-8">
       <p className="text-sm font-medium text-primary">{t("qr.kicker")}</p>
       <article className="mt-3 overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10">
         <Cover src={business.photo} alt="" className="h-52 w-full" />
