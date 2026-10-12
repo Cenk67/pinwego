@@ -7,7 +7,7 @@ import { useLocale } from "@/lib/use-locale"
 export function Footer() {
   const { t } = useLocale()
   return (
-    <footer className="mt-16 border-t border-foreground/10">
+    <footer className="mt-16 border-t border-foreground/10 print:hidden">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 md:grid-cols-[1.4fr_1fr_1fr]">
         <div>
           <Logo variant="stacked" />

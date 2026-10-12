@@ -2,8 +2,9 @@
 
 import Link from "next/link"
 import { BadgeCheck, Clock, MapPin, Navigation } from "lucide-react"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { BusinessCampaigns } from "@/components/campaigns/business-campaigns"
+import { QrArrival } from "@/components/qr/qr-arrival"
 import { ClaimPrompt } from "@/components/directory/claim-button"
 import { Cover, SaveButton, Stars } from "@/components/directory/bits"
 import {
@@ -75,6 +76,9 @@ export function BusinessScreen({ slug }: { slug: string }) {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 pb-28 md:py-10 md:pb-10">
+      <Suspense fallback={null}>
+        <QrArrival businessId={business.id} />
+      </Suspense>
       <ProfileJsonLd business={business} profile={profile} />
       <ProfileCrumbs business={business} />
       <div className="mt-3 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">

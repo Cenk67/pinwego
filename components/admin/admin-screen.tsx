@@ -5,6 +5,7 @@ import { useMemo, useState } from "react"
 import { BlogAdmin } from "@/components/blog/blog-admin"
 import { VoiceAdmin } from "@/components/admin/voice-admin"
 import { CampaignAdmin } from "@/components/campaigns/campaign-manage"
+import { QrAdmin } from "@/components/qr/qr-center"
 import { SectorForm } from "@/components/directory/sector-form"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
@@ -37,6 +38,7 @@ const tabs = [
   { id: "blog", label: "Blog" },
   { id: "ses", label: "Sesli arama" },
   { id: "kampanya", label: "Kampanyalar" },
+  { id: "qr", label: "QR kartlar" },
 ] as const
 
 type Tab = (typeof tabs)[number]["id"]
@@ -117,6 +119,7 @@ export function AdminScreen() {
       {tab === "blog" ? <BlogAdmin /> : null}
       {tab === "ses" ? <VoiceAdmin /> : null}
       {tab === "kampanya" ? <CampaignAdmin /> : null}
+      {tab === "qr" ? <QrAdmin /> : null}
     </div>
   )
 }

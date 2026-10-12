@@ -29,7 +29,7 @@ function BottomNav() {
     { href: "/kaydedilenler", label: t("nav.saved"), icon: Bookmark, count: saved.length },
   ]
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-foreground/10 bg-card/95 backdrop-blur md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-foreground/10 bg-card/95 backdrop-blur print:hidden md:hidden">
       <ul className="grid grid-cols-5">
         {items.map((item) => {
           const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
@@ -73,7 +73,7 @@ function GuestBar() {
   const { t } = useLocale()
   if (account) return null
   return (
-    <div className="border-b border-foreground/10 bg-primary/10">
+    <div className="border-b border-foreground/10 bg-primary/10 print:hidden">
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm leading-6">
           <span className="font-medium">{t("guest.kicker")}.</span> {t("guest.bar")}
@@ -106,7 +106,7 @@ export function Shell({ children }: { children: ReactNode }) {
     const next = `https://pinwego.com${window.location.pathname}${window.location.search}${window.location.hash}`
     window.location.replace(next)
   }, [])
-  const indexable = pathname === "/blog" || pathname.startsWith("/blog/") || pathname.startsWith("/isletme/")
+  const indexable = pathname === "/blog" || pathname.startsWith("/blog/") || pathname.startsWith("/isletme/") || pathname.startsWith("/q/")
   if (!ready && !indexable) {
     return (
       <div className="grid min-h-svh place-items-center px-4 text-sm text-muted-foreground">

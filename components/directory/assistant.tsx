@@ -59,7 +59,7 @@ export function Assistant() {
       <button
         type="button"
         onClick={() => setAssistantOpen(true)}
-        className="fixed end-4 bottom-24 z-40 flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-lg md:bottom-6"
+        className="fixed end-4 bottom-24 z-40 flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-lg print:hidden md:bottom-6"
       >
         <Sparkles className="size-4" />
         {t("assist.open")}
@@ -69,7 +69,7 @@ export function Assistant() {
 
   return (
     <section
-      className="fixed inset-x-3 top-20 bottom-20 z-50 flex flex-col overflow-hidden rounded-3xl bg-popover ring-1 ring-foreground/10 shadow-2xl md:inset-auto md:end-6 md:bottom-6 md:h-[34rem] md:w-[24rem]"
+      className="fixed inset-x-3 top-20 bottom-20 z-50 flex flex-col overflow-hidden rounded-3xl bg-popover ring-1 ring-foreground/10 shadow-2xl print:hidden md:inset-auto md:end-6 md:bottom-6 md:h-[34rem] md:w-[24rem]"
       aria-label={t("assist.open")}
     >
       <header className="flex items-center justify-between border-b border-foreground/10 px-4 py-3">
