@@ -6,6 +6,7 @@ import { BlogAdmin } from "@/components/blog/blog-admin"
 import { VoiceAdmin } from "@/components/admin/voice-admin"
 import { CampaignAdmin } from "@/components/campaigns/campaign-manage"
 import { QrAdmin } from "@/components/qr/qr-center"
+import { DiscoverAdmin } from "@/components/discover/discover-admin"
 import { SectorForm } from "@/components/directory/sector-form"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
@@ -39,6 +40,7 @@ const tabs = [
   { id: "ses", label: "Sesli arama" },
   { id: "kampanya", label: "Kampanyalar" },
   { id: "qr", label: "QR kartlar" },
+  { id: "kesif", label: "Keşif" },
 ] as const
 
 type Tab = (typeof tabs)[number]["id"]
@@ -120,6 +122,7 @@ export function AdminScreen() {
       {tab === "ses" ? <VoiceAdmin /> : null}
       {tab === "kampanya" ? <CampaignAdmin /> : null}
       {tab === "qr" ? <QrAdmin /> : null}
+      {tab === "kesif" ? <DiscoverAdmin /> : null}
     </div>
   )
 }

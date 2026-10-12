@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { GuestNotice } from "@/components/auth/guest-gate"
 import { fieldClass } from "@/components/directory/bits"
@@ -16,6 +16,8 @@ import { categoryById, defaultBooking } from "@/lib/catalog"
 import { defaultPlace, placeCity, type Place } from "@/lib/place"
 import { useDirectory } from "@/lib/directory-context"
 import { slugify } from "@/lib/format"
+import { cleanDiscoverText } from "@/lib/discover"
+import { recordDiscoverEvent, takeDiscoverLead } from "@/lib/discover-store"
 import type { Business, CategoryId } from "@/lib/types"
 
 const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
@@ -25,14 +27,16 @@ export function ListScreen() {
   const { account } = useAuth()
   const { addListing, listings, sectors } = useDirectory()
   const [sectorOpen, setSectorOpen] = useState(false)
-  const [name, setName] = useState("")
   const [category, setCategory] = useState<CategoryId>("yeme")
   const [place, setPlace] = useState<Place>(defaultPlace)
   const [district, setDistrict] = useState("")
   const [districtTouched, setDistrictTouched] = useState(false)
   const [phone, setPhone] = useState("")
   const [summary, setSummary] = useState("")
+  const params = useSearchParams()
+  const draftAddress = cleanDiscoverText(params.get("adres") ?? "", 120)
   const [error, setError] = useState("")
+  const [name, setName] = useState(() => cleanDiscoverText(params.get("ad") ?? "", 80))
 
   function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -88,6 +92,7 @@ export function ListScreen() {
       ownerAccountId: account?.id,
     }
     addListing(business)
+    if (takeDiscoverLead()) recordDiscoverEvent({ type: "register_done", q: name.trim(), city })
     router.push(`/isletme/${slug}`)
   }
 
@@ -119,6 +124,7 @@ export function ListScreen() {
         <div className="grid gap-1.5">
           <Label htmlFor="biz-name">İşletme adı</Label>
           <Input id="biz-name" value={name} onChange={(event) => setName(event.target.value)} className="h-11" />
+          {draftAddress ? <p className="text-sm leading-6 text-muted-foreground">Taslak adres, kayda kendiliğinden yazılmaz: {draftAddress}</p> : null}
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="biz-category">Kategori</Label>

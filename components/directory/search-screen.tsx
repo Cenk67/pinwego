@@ -8,6 +8,7 @@ import { BusinessCard } from "@/components/directory/business-card"
 import { MiniMap } from "@/components/directory/mini-map"
 import { SearchForm } from "@/components/directory/search-form"
 import { VoiceTrail } from "@/components/directory/voice-search"
+import { DiscoverOffer } from "@/components/discover/discover-offer"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -21,6 +22,8 @@ import {
 } from "@/components/ui/sheet"
 import { cityCenter } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
+import { discoverQuery, showDiscover } from "@/lib/discover"
+import { useDiscoverSettings } from "@/lib/discover-store"
 import { defaultFilters, parseQuery, searchDirectory } from "@/lib/match"
 import { applyPlace, placeLabel } from "@/lib/place"
 import { sectorCopy } from "@/lib/sector-copy"
@@ -33,6 +36,7 @@ export function SearchScreen() {
   const pathname = usePathname()
   const { place, sectors, visibleBusinesses } = useDirectory()
   const { locale, t } = useLocale()
+  const discoverSettings = useDiscoverSettings()
   const sorts: { id: SortKey; label: string }[] = [
     { id: "ilgili", label: t("search.sortRelevant") },
     { id: "puan", label: t("search.sortRating") },
@@ -218,6 +222,11 @@ export function SearchScreen() {
     </div>
   )
 
+  const safeQuery = discoverQuery(query)
+  const discoverOffer = showDiscover(results.length, discoverSettings, Boolean(safeQuery)) ? (
+    <DiscoverOffer query={safeQuery} city={namedCity && namedCity !== "hepsi" ? namedCity : ""} count={results.length} />
+  ) : null
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:py-10">
       <div className="max-w-3xl">
@@ -315,7 +324,9 @@ export function SearchScreen() {
               ))}
             </div>
           ) : (
-            <div className="rounded-3xl bg-card px-5 py-10 ring-1 ring-foreground/10">
+            <>
+              {discoverOffer}
+              <div className="rounded-3xl bg-card px-5 py-10 ring-1 ring-foreground/10">
               <h2 className="font-heading text-2xl">{t("search.emptyTitle")}</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("search.emptyBody")}</p>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -332,6 +343,7 @@ export function SearchScreen() {
                 </Button>
               </div>
             </div>
+            </>
           )}
           {limit < results.length ? (
             <Button
@@ -343,6 +355,7 @@ export function SearchScreen() {
               {t("search.more", { count: results.length - limit })}
             </Button>
           ) : null}
+          {results.length > 0 ? discoverOffer : null}
         </div>
         <aside className="hidden lg:block">
           <div className="sticky top-24">
