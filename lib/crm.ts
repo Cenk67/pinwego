@@ -37,7 +37,7 @@ export type Contact = {
 export type Interaction = {
   id: string
   contactId: string
-  type: "telefon" | "eposta" | "toplanti" | "not" | "diger"
+  type: "telefon" | "eposta" | "toplanti" | "mesaj" | "not" | "diger"
   subject: string
   description: string
   occurredAt: string
@@ -178,7 +178,7 @@ export type Ticket = {
 }
 
 export type Audit = { id: string; actor: string; entity: string; entityId: string; action: string; at: string; meta: string }
-export type Notice = { id: string; key: string; title: string; message: string; entity: string; entityId: string; at: string; readAt: string | null }
+export type Notice = { id: string; key: string; title: string; message: string; entity: string; entityId: string; at: string; readAt: string | null; workspace?: Workspace }
 
 export type CrmState = {
   version: 1
@@ -304,11 +304,17 @@ function audit(state: CrmState, entity: string, entityId: string, action: string
   state.audits = state.audits.slice(0, 400)
 }
 
-function notice(state: CrmState, key: string, title: string, message: string, entity: string, entityId: string, at: string) {
+function notice(state: CrmState, key: string, title: string, message: string, entity: string, entityId: string, at: string, workspace: Workspace) {
   if (state.notices.some((item) => item.key === key)) return false
-  state.notices.unshift({ id: id(), key, title, message, entity, entityId, at, readAt: null })
+  state.notices.unshift({ id: id(), key, title, message, entity, entityId, at, readAt: null, workspace })
   state.notices = state.notices.slice(0, 200)
   return true
+}
+
+export function noticeWorkspace(state: CrmState, item: Notice): Workspace | "" {
+  if (item.workspace) return item.workspace
+  const rows = item.entity === "task" ? state.tasks : item.entity === "quote" ? state.quotes : item.entity === "payment" ? state.payments : item.entity === "subscription" ? state.subscriptions : item.entity === "ticket" ? state.tickets : []
+  return rows.find((row) => row.id === item.entityId)?.workspace || ""
 }
 
 function workspaceOf(value: unknown): Workspace | null {
@@ -328,22 +334,22 @@ export function sweep(state: CrmState, now: number) {
   for (const task of state.tasks) {
     if (task.status === "tamamlandi" || task.status === "iptal") continue
     if (task.reminderAt && new Date(task.reminderAt).getTime() <= now) {
-      notice(state, `task-remind:${task.id}:${task.reminderAt}`, "Görev hatırlatması", task.title, "task", task.id, at)
+      notice(state, `task-remind:${task.id}:${task.reminderAt}`, "Görev hatırlatması", task.title, "task", task.id, at, task.workspace)
     }
     if (task.dueAt && new Date(task.dueAt).getTime() < now) {
-      notice(state, `task-late:${task.id}:${task.dueAt}`, "Görev gecikti", task.title, "task", task.id, at)
+      notice(state, `task-late:${task.id}:${task.dueAt}`, "Görev gecikti", task.title, "task", task.id, at, task.workspace)
     }
   }
   for (const quote of state.quotes) {
     if (!quote.validUntil || quote.validUntil < today || quote.validUntil > leadDay) continue
     if (quote.status === "red" || quote.status === "kabul" || quote.status === "suresi") continue
-    notice(state, `quote:${quote.id}:${quote.validUntil}`, "Teklifin süresi yaklaşıyor", quote.number, "quote", quote.id, at)
+    notice(state, `quote:${quote.id}:${quote.validUntil}`, "Teklifin süresi yaklaşıyor", quote.number, "quote", quote.id, at, quote.workspace)
   }
   for (const payment of state.payments) {
     const status = paymentStatus(payment, now)
     if (status === "odendi" || status === "iptal" || !payment.dueDate) continue
     if (payment.dueDate > leadDay) continue
-    notice(state, `pay:${payment.id}:${payment.dueDate}`, status === "gecikti" ? "Tahsilat gecikti" : "Tahsilat vadesi yaklaşıyor", money(payment.amountCents, payment.currency), "payment", payment.id, at)
+    notice(state, `pay:${payment.id}:${payment.dueDate}`, status === "gecikti" ? "Tahsilat gecikti" : "Tahsilat vadesi yaklaşıyor", money(payment.amountCents, payment.currency), "payment", payment.id, at, payment.workspace)
   }
   for (const item of state.subscriptions) {
     if (item.status === "iptal" || item.status === "suresi" || !item.nextRenewal) continue
@@ -369,12 +375,12 @@ export function sweep(state: CrmState, now: number) {
       updatedAt: at,
       completedAt: null,
     })
-    notice(state, key, "Abonelik yenilemesi", item.plan, "subscription", item.id, at)
+    notice(state, key, "Abonelik yenilemesi", item.plan, "subscription", item.id, at, item.workspace)
   }
   for (const ticket of state.tickets) {
     if (!ticket.dueAt || ticket.status === "cozuldu" || ticket.status === "kapali") continue
     if (new Date(ticket.dueAt).getTime() >= now) continue
-    notice(state, `ticket:${ticket.id}:${ticket.dueAt}`, "Destek talebi gecikti", ticket.subject, "ticket", ticket.id, at)
+    notice(state, `ticket:${ticket.id}:${ticket.dueAt}`, "Destek talebi gecikti", ticket.subject, "ticket", ticket.id, at, ticket.workspace)
   }
   return state
 }
@@ -445,7 +451,7 @@ export function applyCrm(input: CrmState, action: Record<string, unknown>, now =
     state.interactions.unshift({
       id: id(),
       contactId: owner.id,
-      type: oneOf(action.type, ["telefon", "eposta", "toplanti", "not", "diger"] as const, "not"),
+      type: oneOf(action.type, ["telefon", "eposta", "toplanti", "mesaj", "not", "diger"] as const, "not"),
       subject,
       description: text(action.description, 2000),
       occurredAt,
@@ -770,13 +776,35 @@ export function report(state: CrmState, workspace: Workspace, currency: Currency
   const quoted = state.quotes.filter((item) => item.workspace === workspace && item.currency === currency && inRange(istanbulDay(item.createdAt)))
   const collected = state.payments.filter((item) => item.workspace === workspace && item.currency === currency && !item.cancelled).flatMap((item) => item.marks.filter((mark) => inRange(istanbulDay(mark.paidAt))).map((mark) => mark.amountCents))
   const overdue = state.payments.filter((item) => item.workspace === workspace && item.currency === currency && paymentStatus(item, Date.parse(`${to || "2099-01-01"}T12:00:00Z`) || Date.now()) === "gecikti")
+  const fresh = state.contacts.filter((item) => item.workspace === workspace && !item.archivedAt && inRange(istanbulDay(item.createdAt)))
+  const sources: { source: string; count: number }[] = []
+  for (const item of fresh) {
+    const source = item.source || "belirtilmedi"
+    const row = sources.find((entry) => entry.source === source)
+    if (row) row.count += 1
+    else sources.push({ source, count: 1 })
+  }
+  const tasks = state.tasks.filter((item) => item.workspace === workspace && item.dueAt && inRange(istanbulDay(item.dueAt)))
+  const openTasks = tasks.filter((item) => item.status !== "tamamlandi" && item.status !== "iptal")
+  const tickets = state.tickets.filter((item) => item.workspace === workspace)
+  const resolved = tickets.filter((item) => item.resolvedAt && inRange(istanbulDay(item.resolvedAt)))
+  const hours = resolved.map((item) => Math.max(0, new Date(item.resolvedAt || item.updatedAt).getTime() - new Date(item.createdAt).getTime()) / 3600000)
   return {
-    contacts: state.contacts.filter((item) => item.workspace === workspace && !item.archivedAt && inRange(istanbulDay(item.createdAt))).length,
+    contacts: fresh.length,
+    sources,
+    pipeline: stages.map((stage) => ({ stage, count: state.deals.filter((item) => item.workspace === workspace && item.stage === stage).length })),
     wonCents: won.reduce((sum, item) => sum + item.amountCents, 0),
     wonCount: won.length,
     lostCount: lost.length,
     quoteCents: quoted.reduce((sum, item) => sum + quoteTotals(item.items).total, 0),
     collectedCents: collected.reduce((sum, item) => sum + item, 0),
     overdueCount: overdue.length,
+    taskDone: tasks.filter((item) => item.status === "tamamlandi").length,
+    taskLate: openTasks.filter((item) => to && istanbulDay(item.dueAt) < to).length,
+    taskOpen: openTasks.length,
+    ticketsOpen: tickets.filter((item) => item.status !== "cozuldu" && item.status !== "kapali").length,
+    ticketsResolved: resolved.length,
+    ticketHours: hours.length ? Math.round(hours.reduce((sum, item) => sum + item, 0) / hours.length) : 0,
+    renewals: state.subscriptions.filter((item) => item.workspace === workspace && item.nextRenewal && inRange(item.nextRenewal) && item.status !== "iptal").map((item) => ({ plan: item.plan, nextRenewal: item.nextRenewal, status: item.status, currency: item.currency, amountCents: item.amountCents })),
   }
 }

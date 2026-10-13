@@ -82,6 +82,8 @@ run({ op: "task.status", id: task.id, status: "tamamlandi" })
 assert.equal(state.tasks.filter((item) => item.title === "Ara").length, 2)
 const again = applyCrm(state, { op: "notice.read", id: state.notices[0]?.id || "yok" }, now)
 assert.equal(state.notices.filter((item) => item.key.startsWith("task-remind:")).length, 1)
+assert.equal(state.notices.find((item) => item.key.startsWith("task-remind:"))?.workspace, "personal")
+assert.equal(report(state, "personal", "TRY", "2026-10-01", "2026-10-31").sources.some((item) => item.source === "telefon"), true)
 const swept = sweep(structuredClone(again.ok ? again.state : state), now + 1000)
 assert.equal(swept.notices.filter((item) => item.key.startsWith("task-remind:")).length, 1)
 

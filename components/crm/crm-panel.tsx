@@ -8,6 +8,7 @@ import {
   customerTicket,
   istanbulDay,
   money,
+  noticeWorkspace,
   paymentStatus,
   quoteTotals,
   report,
@@ -56,6 +57,19 @@ const quoteLabel: Record<string, string> = { taslak: "Taslak", onay: "Onay bekli
 const payLabel: Record<string, string> = { bekliyor: "Bekliyor", kismi: "Kısmi ödeme", odendi: "Ödendi", gecikti: "Gecikti", iptal: "İptal" }
 const subLabel: Record<string, string> = { deneme: "Deneme", aktif: "Aktif", odeme: "Ödeme bekliyor", askida: "Askıda", iptal: "İptal", suresi: "Süresi doldu" }
 const ticketLabel: Record<string, string> = { yeni: "Yeni", inceleniyor: "İnceleniyor", yanit: "Yanıt bekleniyor", cozuldu: "Çözüldü", kapali: "Kapatıldı" }
+const statusLabel: Record<string, string> = { aday: "Aday", aktif: "Aktif", beklemede: "Beklemede" }
+const eventLabel: Record<string, string> = { randevu: "Randevu", toplanti: "Toplantı", arama: "Arama", kisisel: "Kişisel", son: "Son tarih" }
+
+function wonText(deals: Deal[]) {
+  const groups = (["TRY", "USD", "EUR"] as const).map((currency) => ({ currency, cents: deals.filter((item) => item.currency === currency).reduce((sum, item) => sum + item.amountCents, 0) })).filter((item) => item.cents > 0)
+  return groups.length ? groups.map((item) => money(item.cents, item.currency)).join(" · ") : "0"
+}
+
+function shiftDay(day: string, count: number) {
+  const date = new Date(`${day}T12:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + count)
+  return istanbulDay(date.toISOString())
+}
 
 function nameOf(contact: Contact) {
   return [contact.firstName, contact.lastName, contact.company].filter(Boolean).join(" ")
@@ -75,6 +89,7 @@ export function CrmPanel() {
   const [loading, setLoading] = useState(true)
   const [pending, setPending] = useState(false)
   const [focus, setFocus] = useState("")
+  const [lens, setLens] = useState("")
   const [now, setNow] = useState<number | null>(null)
 
   useEffect(() => {
@@ -146,7 +161,7 @@ export function CrmPanel() {
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {views.map((item) => (
-          <button key={item.id} type="button" onClick={() => setView(item.id)} className={view === item.id ? "rounded-full bg-foreground px-3 py-1.5 text-sm text-background" : "rounded-full bg-card px-3 py-1.5 text-sm ring-1 ring-foreground/10"}>
+          <button key={item.id} type="button" onClick={() => { setLens(""); setView(item.id) }} className={view === item.id ? "rounded-full bg-foreground px-3 py-1.5 text-sm text-background" : "rounded-full bg-card px-3 py-1.5 text-sm ring-1 ring-foreground/10"}>
             {item.label}
           </button>
         ))}
@@ -155,22 +170,22 @@ export function CrmPanel() {
       {view === "ozet" ? (
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            ["Bugünkü görevler", String(openTasks.filter((item) => item.dueAt && istanbulDay(item.dueAt) === today).length), "gorev"],
-            ["Geciken görevler", String(lateTasks.length), "gorev"],
-            ["Bugünkü görüşmeler", String(state.interactions.filter((item) => contacts.some((contact) => contact.id === item.contactId) && istanbulDay(item.occurredAt) === today).length), "gorusme"],
-            ["Açık fırsatlar", String(state.deals.filter((item) => item.workspace === workspace && item.stage !== "kazanildi" && item.stage !== "kaybedildi").length), "firsat"],
-            ["Vadesi gelen tahsilat", String(state.payments.filter((item) => item.workspace === workspace && ["gecikti", "bekliyor", "kismi"].includes(paymentStatus(item, now)) && item.dueDate <= today).length), "tahsilat"],
-            ["Yaklaşan yenileme", String(state.subscriptions.filter((item) => item.workspace === workspace && item.nextRenewal >= today && item.nextRenewal <= renewUntil).length), "abonelik"],
-            ["Açık destek", String(state.tickets.filter((item) => item.workspace === workspace && item.status !== "cozuldu" && item.status !== "kapali").length), "destek"],
-            ["Okunmamış hatırlatma", String(state.notices.filter((item) => !item.readAt).length), "ozet"],
-          ].map(([label, value, target]) => (
-            <button key={label} type="button" onClick={() => setView(target as View)} className="rounded-3xl bg-card p-5 text-left ring-1 ring-foreground/10">
+            ["Bugünkü görevler", String(openTasks.filter((item) => item.dueAt && istanbulDay(item.dueAt) === today).length), "gorev", "today"],
+            ["Geciken görevler", String(lateTasks.length), "gorev", "late"],
+            ["Bugünkü görüşmeler", String(state.events.filter((item) => item.workspace === workspace && item.status !== "iptal" && istanbulDay(item.startAt) === today).length), "ajanda", "today"],
+            ["Açık fırsatlar", String(state.deals.filter((item) => item.workspace === workspace && item.stage !== "kazanildi" && item.stage !== "kaybedildi").length), "firsat", ""],
+            ["Kazanılan tutar", wonText(state.deals.filter((item) => item.workspace === workspace && item.stage === "kazanildi")), "rapor", ""],
+            ["Vadesi gelen tahsilat", String(state.payments.filter((item) => item.workspace === workspace && ["gecikti", "bekliyor", "kismi"].includes(paymentStatus(item, now)) && item.dueDate <= today).length), "tahsilat", "due"],
+            ["Yaklaşan yenileme", String(state.subscriptions.filter((item) => item.workspace === workspace && item.nextRenewal >= today && item.nextRenewal <= renewUntil).length), "abonelik", "soon"],
+            ["Açık destek", String(state.tickets.filter((item) => item.workspace === workspace && item.status !== "cozuldu" && item.status !== "kapali").length), "destek", "open"],
+          ].map(([label, value, target, nextLens]) => (
+            <button key={label} type="button" onClick={() => { setLens(nextLens); setView(target as View) }} className="rounded-3xl bg-card p-5 text-left ring-1 ring-foreground/10">
               <p className="text-xs text-muted-foreground">{label}</p>
               <p className="mt-2 font-heading text-2xl">{value}</p>
             </button>
           ))}
           <div className="sm:col-span-2 lg:col-span-4">
-            {state.notices.filter((item) => !item.readAt).slice(0, 6).map((item) => (
+            {state.notices.filter((item) => !item.readAt && noticeWorkspace(state, item) === workspace).slice(0, 6).map((item) => (
               <button key={item.id} type="button" className="mt-2 block w-full rounded-2xl bg-primary/10 px-3 py-3 text-left text-sm" onClick={() => void send({ op: "notice.read", id: item.id })}>
                 <span className="font-medium">{item.title}</span>
                 <span className="mt-1 block text-muted-foreground">{item.message}</span>
@@ -181,13 +196,13 @@ export function CrmPanel() {
       ) : null}
       {view === "musteri" ? <Customers state={state} contacts={contacts} workspace={workspace} pending={pending} focus={focus} setFocus={setFocus} send={send} /> : null}
       {view === "firsat" ? <Deals state={state} contacts={contacts} workspace={workspace} pending={pending} send={send} /> : null}
-      {view === "ajanda" ? <Agenda state={state} contacts={contacts} workspace={workspace} pending={pending} now={now} send={send} /> : null}
-      {view === "gorev" ? <Tasks state={state} contacts={contacts} workspace={workspace} pending={pending} now={now} send={send} /> : null}
+      {view === "ajanda" ? <Agenda key={`${workspace}-${lens}`} state={state} contacts={contacts} workspace={workspace} pending={pending} now={now} todayStart={lens === "today"} openContact={(id) => { setFocus(id); setLens(""); setView("musteri") }} send={send} /> : null}
+      {view === "gorev" ? <Tasks key={lens} state={state} contacts={contacts} deals={state.deals.filter((item) => item.workspace === workspace)} workspace={workspace} pending={pending} now={now} lateStart={lens === "late"} todayStart={lens === "today"} send={send} /> : null}
       {view === "gorusme" ? <Meetings state={state} contacts={contacts} pending={pending} send={send} /> : null}
-      {view === "teklif" ? <Quotes state={state} contacts={contacts} workspace={workspace} pending={pending} send={send} /> : null}
-      {view === "tahsilat" ? <Payments state={state} contacts={contacts} pending={pending} now={now} send={send} /> : null}
-      {view === "abonelik" ? <Subscriptions state={state} contacts={contacts} pending={pending} send={send} /> : null}
-      {view === "destek" ? <Tickets state={state} contacts={contacts} pending={pending} now={now} send={send} /> : null}
+      {view === "teklif" ? <Quotes state={state} contacts={contacts} deals={state.deals.filter((item) => item.workspace === workspace)} workspace={workspace} pending={pending} send={send} /> : null}
+      {view === "tahsilat" ? <Payments key={lens} state={state} contacts={contacts} workspace={workspace} pending={pending} now={now} dueStart={lens === "due"} send={send} /> : null}
+      {view === "abonelik" ? <Subscriptions key={lens} state={state} contacts={contacts} workspace={workspace} pending={pending} now={now} soonStart={lens === "soon"} send={send} /> : null}
+      {view === "destek" ? <Tickets key={lens} state={state} contacts={contacts} workspace={workspace} pending={pending} now={now} openStart={lens === "open"} send={send} /> : null}
       {view === "rapor" ? <Reports state={state} workspace={workspace} now={now} /> : null}
       {view === "ayar" ? <Settings state={state} pending={pending} send={send} /> : null}
     </div>
@@ -203,28 +218,45 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
+const emptyContact = { firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", source: "", status: "aday", notes: "", contactType: "kisi", businessId: "" }
+
 function Customers({ state, contacts, workspace, pending, focus, setFocus, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; focus: string; setFocus: (id: string) => void; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
   const [query, setQuery] = useState("")
-  const [form, setForm] = useState({ firstName: "", lastName: "", company: "", email: "", phone: "", source: "", contactType: "kisi", businessId: "" })
+  const [status, setStatus] = useState("")
+  const [source, setSource] = useState("")
+  const [form, setForm] = useState(emptyContact)
   const [note, setNote] = useState({ type: "not", subject: "", description: "" })
+  const [quick, setQuick] = useState({ title: "", due: "", start: "", end: "" })
   const selected = contacts.find((item) => item.id === focus) ?? null
-  const shown = contacts.filter((item) => `${nameOf(item)} ${item.email} ${item.phone}`.toLocaleLowerCase("tr-TR").includes(query.toLocaleLowerCase("tr-TR")))
+  const needle = query.toLocaleLowerCase("tr-TR")
+  const shown = contacts.filter((item) => `${nameOf(item)} ${item.email} ${item.phone}`.toLocaleLowerCase("tr-TR").includes(needle) && (!status || item.status === status) && (!source || item.source === source))
   const picks = businesses.filter((item) => item.name.toLocaleLowerCase("tr-TR").includes(form.company.toLocaleLowerCase("tr-TR"))).slice(0, 6)
+  const sources = [...new Set(contacts.map((item) => item.source).filter(Boolean))]
   return (
     <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
       <div>
         <input className={fieldClass} placeholder="Ad, işletme, telefon veya e-posta" value={query} onChange={(event) => setQuery(event.target.value)} />
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <select className={fieldClass} value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Durum">
+            <option value="">Tüm durumlar</option>
+            {Object.entries(statusLabel).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          </select>
+          <select className={fieldClass} value={source} onChange={(event) => setSource(event.target.value)} aria-label="Kaynak">
+            <option value="">Tüm kaynaklar</option>
+            {sources.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </div>
         <div className="mt-3 grid gap-2">
           {shown.length ? shown.map((item) => (
             <button key={item.id} type="button" onClick={() => setFocus(item.id)} className="rounded-2xl bg-card px-3 py-3 text-left ring-1 ring-foreground/10">
               <span className="font-medium">{nameOf(item)}</span>
-              <span className="mt-1 block text-xs text-muted-foreground">{item.phone || "Telefon yok"} · {item.email || "E-posta yok"} · {item.status}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">{item.phone || "Telefon yok"} · {item.email || "E-posta yok"} · {statusLabel[item.status] || item.status}{item.source ? ` · ${item.source}` : ""}</span>
             </button>
           )) : <p className="text-sm text-muted-foreground">Bu alanda müşteri yok.</p>}
         </div>
       </div>
       <div className="grid gap-4">
-        <form className="grid gap-3 rounded-3xl bg-card p-4 ring-1 ring-foreground/10" onSubmit={(event) => { event.preventDefault(); void send({ op: "contact.save", contact: { ...form, workspace, contactType: form.businessId ? "platform" : form.contactType } }).then((ok) => { if (ok) setForm({ firstName: "", lastName: "", company: "", email: "", phone: "", source: "", contactType: "kisi", businessId: "" }) }) }}>
+        <form className="grid gap-3 rounded-3xl bg-card p-4 ring-1 ring-foreground/10" onSubmit={(event) => { event.preventDefault(); void send({ op: "contact.save", contact: { ...form, workspace, contactType: form.businessId ? "platform" : form.contactType } }).then((ok) => { if (ok) setForm(emptyContact) }) }}>
           <p className="font-heading text-xl">Yeni müşteri</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Ad"><input className={fieldClass} value={form.firstName} onChange={(event) => setForm({ ...form, firstName: event.target.value })} /></Field>
@@ -235,26 +267,46 @@ function Customers({ state, contacts, workspace, pending, focus, setFocus, send 
             <button key={item.id} type="button" className="text-left text-sm text-primary" onClick={() => setForm({ ...form, company: item.name, businessId: item.id, contactType: "platform" })}>{item.name} · {item.city}</button>
           )) : null}
           <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Ünvan"><input className={fieldClass} value={form.jobTitle} onChange={(event) => setForm({ ...form, jobTitle: event.target.value })} /></Field>
+            <Field label="Durum"><select className={fieldClass} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>{Object.entries(statusLabel).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="E-posta"><input className={fieldClass} type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></Field>
             <Field label="Telefon"><input className={fieldClass} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></Field>
           </div>
           <Field label="Kaynak"><input className={fieldClass} value={form.source} onChange={(event) => setForm({ ...form, source: event.target.value })} /></Field>
+          <Field label="Not"><textarea className={`${fieldClass} h-20 py-2`} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></Field>
           <Button type="submit" disabled={pending}>Kaydet</Button>
         </form>
         {selected ? (
           <div className="rounded-3xl bg-card p-4 ring-1 ring-foreground/10">
             <p className="font-heading text-xl">{nameOf(selected)}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Son temas: {lastTouch(state, selected.id)}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{selected.jobTitle}{selected.jobTitle ? " · " : ""}Son temas: {lastTouch(state, selected.id)}</p>
+            {selected.notes ? <p className="mt-2 text-sm">{selected.notes}</p> : null}
             <form className="mt-3 grid gap-2" onSubmit={(event) => { event.preventDefault(); void send({ op: "interaction.add", contactId: selected.id, ...note, occurredAt: new Date().toISOString() }).then((ok) => { if (ok) setNote({ type: "not", subject: "", description: "" }) }) }}>
-              <select className={fieldClass} value={note.type} onChange={(event) => setNote({ ...note, type: event.target.value })}>
+              <select className={fieldClass} value={note.type} onChange={(event) => setNote({ ...note, type: event.target.value })} aria-label="Görüşme türü">
                 <option value="telefon">Telefon</option>
                 <option value="eposta">E-posta notu</option>
                 <option value="toplanti">Toplantı</option>
+                <option value="mesaj">Mesaj notu</option>
                 <option value="not">Not</option>
+                <option value="diger">Diğer</option>
               </select>
               <input className={fieldClass} placeholder="Konu" value={note.subject} onChange={(event) => setNote({ ...note, subject: event.target.value })} />
               <textarea className={`${fieldClass} h-24 py-2`} placeholder="Ne konuşuldu? Bu kayıt mesaj gönderildi demek değildir." value={note.description} onChange={(event) => setNote({ ...note, description: event.target.value })} />
               <Button type="submit" disabled={pending}>Görüşmeyi yaz</Button>
+            </form>
+            <form className="mt-3 grid gap-2" onSubmit={(event) => { event.preventDefault(); void send({ op: "task.save", task: { workspace, title: quick.title, contactId: selected.id, dueAt: new Date(quick.due).toISOString() } }).then((ok) => { if (ok) setQuick({ ...quick, title: "", due: "" }) }) }}>
+              <p className="text-sm font-medium">Hızlı görev</p>
+              <input className={fieldClass} placeholder="Görev" value={quick.title} onChange={(event) => setQuick({ ...quick, title: event.target.value })} required />
+              <input className={fieldClass} type="datetime-local" aria-label="Görev zamanı" value={quick.due} onChange={(event) => setQuick({ ...quick, due: event.target.value })} required />
+              <Button type="submit" variant="outline" disabled={pending}>Görevi bağla</Button>
+            </form>
+            <form className="mt-3 grid gap-2" onSubmit={(event) => { event.preventDefault(); void send({ op: "event.save", event: { workspace, title: quick.title || nameOf(selected), eventType: "randevu", contactId: selected.id, startAt: new Date(quick.start).toISOString(), endAt: new Date(quick.end).toISOString() } }) }}>
+              <p className="text-sm font-medium">Hızlı randevu</p>
+              <input className={fieldClass} type="datetime-local" aria-label="Randevu başlangıcı" value={quick.start} onChange={(event) => setQuick({ ...quick, start: event.target.value })} required />
+              <input className={fieldClass} type="datetime-local" aria-label="Randevu bitişi" value={quick.end} onChange={(event) => setQuick({ ...quick, end: event.target.value })} required />
+              <Button type="submit" variant="outline" disabled={pending}>Randevuyu bağla</Button>
             </form>
             <Button type="button" variant="outline" className="mt-3" disabled={pending} onClick={() => { if (confirm("Müşteri arşivlensin mi?")) void send({ op: "contact.archive", id: selected.id }) }}>Arşivle</Button>
             <Related state={state} contactId={selected.id} />
@@ -274,19 +326,30 @@ function lastTouch(state: CrmState, contactId: string) {
 function Related({ state, contactId }: { state: CrmState; contactId: string }) {
   const deals = state.deals.filter((item) => item.contactId === contactId)
   const tasks = state.tasks.filter((item) => item.contactId === contactId)
+  const quotes = state.quotes.filter((item) => item.contactId === contactId)
+  const payments = state.payments.filter((item) => item.contactId === contactId)
   return (
-    <div className="mt-4 text-sm">
+    <div className="mt-4 grid gap-2 text-sm">
       <p className="font-medium">Bağlı kayıtlar</p>
-      <p className="mt-1 text-muted-foreground">{deals.length} fırsat · {tasks.length} görev · {state.quotes.filter((item) => item.contactId === contactId).length} teklif · {state.payments.filter((item) => item.contactId === contactId).length} tahsilat</p>
+      {deals.map((item) => <p key={item.id}>Fırsat · {item.title} · {stageLabel[item.stage]} · {money(item.amountCents, item.currency)}</p>)}
+      {tasks.map((item) => <p key={item.id}>Görev · {item.title} · {taskLabel[item.status]}</p>)}
+      {quotes.map((item) => <p key={item.id}>Teklif · {item.number} · {quoteLabel[item.status]} · {money(quoteTotals(item.items).total, item.currency)}</p>)}
+      {payments.map((item) => <p key={item.id}>Tahsilat · {money(item.amountCents, item.currency)} · vade {item.dueDate}</p>)}
+      {deals.length + tasks.length + quotes.length + payments.length === 0 ? <p className="text-muted-foreground">Bağlı kayıt yok.</p> : null}
     </div>
   )
 }
 
 function Deals({ state, contacts, workspace, pending, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
-  const [form, setForm] = useState({ contactId: "", title: "", amount: "", currency: "TRY", probability: "20", expectedClose: "", stage: "yeni", lostReason: "" })
+  const [form, setForm] = useState({ contactId: "", title: "", amount: "", currency: "TRY", probability: "20", expectedClose: "", stage: "yeni", lostReason: "", assignee: "" })
+  const [layout, setLayout] = useState<"pano" | "liste">("pano")
   const rows = state.deals.filter((item) => item.workspace === workspace)
   return (
     <div className="mt-4">
+      <div className="mb-3 flex gap-2">
+        <button type="button" className={layout === "pano" ? "rounded-full bg-foreground px-3 py-1.5 text-sm text-background" : "rounded-full bg-card px-3 py-1.5 text-sm ring-1 ring-foreground/10"} onClick={() => setLayout("pano")}>Pano</button>
+        <button type="button" className={layout === "liste" ? "rounded-full bg-foreground px-3 py-1.5 text-sm text-background" : "rounded-full bg-card px-3 py-1.5 text-sm ring-1 ring-foreground/10"} onClick={() => setLayout("liste")}>Liste</button>
+      </div>
       <form className="grid gap-3 rounded-3xl bg-card p-4 ring-1 ring-foreground/10 md:grid-cols-3" onSubmit={(event) => { event.preventDefault(); const amountCents = centsOf(form.amount); if (amountCents === null) return; void send({ op: "deal.save", deal: { ...form, amountCents, probability: Number(form.probability) } }) }}>
         <Field label="Müşteri"><select className={fieldClass} value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })} required>{contactOptions(contacts)}</select></Field>
         <Field label="Başlık"><input className={fieldClass} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required /></Field>
@@ -294,17 +357,31 @@ function Deals({ state, contacts, workspace, pending, send }: { state: CrmState;
         <Field label="Para birimi"><select className={fieldClass} value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value })}><option>TRY</option><option>USD</option><option>EUR</option></select></Field>
         <Field label="Olasılık"><input className={fieldClass} inputMode="numeric" value={form.probability} onChange={(event) => setForm({ ...form, probability: event.target.value })} /></Field>
         <Field label="Kapanış"><input className={fieldClass} type="date" value={form.expectedClose} onChange={(event) => setForm({ ...form, expectedClose: event.target.value })} /></Field>
+        <Field label="Sorumlu"><input className={fieldClass} value={form.assignee} onChange={(event) => setForm({ ...form, assignee: event.target.value })} /></Field>
         {form.stage === "kaybedildi" ? <Field label="Kayıp nedeni"><input className={fieldClass} value={form.lostReason} onChange={(event) => setForm({ ...form, lostReason: event.target.value })} /></Field> : null}
         <Button type="submit" disabled={pending}>Fırsatı ekle</Button>
       </form>
-      <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
-        {stages.map((stage) => (
-          <section key={stage} className="min-w-56 flex-1 rounded-3xl bg-secondary/60 p-3">
-            <p className="text-sm font-medium">{stageLabel[stage]}</p>
-            {rows.filter((item) => item.stage === stage).map((item) => <DealCard key={item.id} item={item} contacts={contacts} pending={pending} send={send} />)}
-          </section>
-        ))}
-      </div>
+      {layout === "liste" ? (
+        <div className="mt-4 grid gap-2">
+          {rows.length ? rows.map((item) => (
+            <article key={item.id} className="rounded-2xl bg-card px-3 py-3 text-sm ring-1 ring-foreground/10">
+              <p className="font-medium">{item.title} · {stageLabel[item.stage]}</p>
+              <p className="text-muted-foreground">{money(item.amountCents, item.currency)} · olasılık {item.probability}% · kapanış {item.expectedClose || "yok"} · {item.assignee || "sorumlu yok"}</p>
+              <p className="text-xs text-muted-foreground">{state.quotes.filter((quote) => quote.dealId === item.id).length} teklif · {state.payments.filter((payment) => payment.dealId === item.id).length} tahsilat · {state.subscriptions.filter((subscription) => subscription.contactId === item.contactId).length} abonelik</p>
+            </article>
+          )) : <p className="text-sm text-muted-foreground">Fırsat yok.</p>}
+        </div>
+      ) : null}
+      {layout === "pano" ? (
+        <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
+          {stages.map((stage) => (
+            <section key={stage} className="min-w-56 flex-1 rounded-3xl bg-secondary/60 p-3">
+              <p className="text-sm font-medium">{stageLabel[stage]}</p>
+              {rows.filter((item) => item.stage === stage).map((item) => <DealCard key={item.id} item={item} contacts={contacts} pending={pending} send={send} />)}
+            </section>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -334,58 +411,97 @@ function contactOptions(contacts: Contact[]) {
   return [<option key="" value="">Seç</option>, ...contacts.map((item) => <option key={item.id} value={item.id}>{nameOf(item)}</option>)]
 }
 
-function Agenda({ state, contacts, workspace, pending, now, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; now: number; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
-  const [cursor, setCursor] = useState(() => new Date(now))
+function Agenda({ state, contacts, workspace, pending, now, todayStart, openContact, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; now: number; todayStart: boolean; openContact: (id: string) => void; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
+  const [span, setSpan] = useState<"gun" | "hafta" | "ay">(todayStart ? "gun" : "ay")
   const [day, setDay] = useState(() => istanbulDay(now))
   const [form, setForm] = useState({ title: "", start: "", end: "", eventType: "randevu", contactId: "", location: "" })
-  const year = cursor.getFullYear()
-  const month = cursor.getMonth()
-  const first = new Date(Date.UTC(year, month, 1))
+  const monthStart = `${day.slice(0, 7)}-01`
+  const first = new Date(`${monthStart}T12:00:00Z`)
   const offset = (first.getUTCDay() + 6) % 7
-  const cells = Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(first)
-    date.setUTCDate(index - offset + 1)
-    return istanbulDay(date.toISOString())
-  })
+  const cells = Array.from({ length: 42 }, (_, index) => shiftDay(monthStart, index - offset))
+  const weekStart = shiftDay(day, -((new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7))
+  const week = Array.from({ length: 7 }, (_, index) => shiftDay(weekStart, index))
   const events = state.events.filter((item) => item.workspace === workspace && item.status !== "iptal")
   const tasks = state.tasks.filter((item) => item.workspace === workspace && item.dueAt && item.status !== "iptal")
+  const step = span === "gun" ? 1 : span === "hafta" ? 7 : 0
+  function move(direction: number) {
+    if (span === "ay") {
+      const next = new Date(`${monthStart}T12:00:00Z`)
+      next.setUTCMonth(next.getUTCMonth() + direction)
+      setDay(istanbulDay(next.toISOString()))
+      return
+    }
+    setDay(shiftDay(day, direction * step))
+  }
+  const heading = span === "ay" ? first.toLocaleString("tr-TR", { month: "long", year: "numeric", timeZone: "UTC" }) : span === "hafta" ? `${week[0]} – ${week[6]}` : day
   return (
     <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
       <div>
-        <div className="flex items-center justify-between">
-          <Button type="button" variant="outline" onClick={() => setCursor(new Date(Date.UTC(year, month - 1, 1)))}>Önceki</Button>
-          <p className="font-heading text-xl">{cursor.toLocaleString("tr-TR", { month: "long", year: "numeric", timeZone: "UTC" })}</p>
-          <Button type="button" variant="outline" onClick={() => setCursor(new Date(Date.UTC(year, month + 1, 1)))}>Sonraki</Button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex gap-2">
+            {(["gun", "hafta", "ay"] as const).map((item) => (
+              <button key={item} type="button" className={span === item ? "rounded-full bg-foreground px-3 py-1.5 text-sm text-background" : "rounded-full bg-card px-3 py-1.5 text-sm ring-1 ring-foreground/10"} onClick={() => setSpan(item)}>{item === "gun" ? "Gün" : item === "hafta" ? "Hafta" : "Ay"}</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => move(-1)}>Önceki</Button>
+            <p className="font-heading text-lg">{heading}</p>
+            <Button type="button" variant="outline" onClick={() => move(1)}>Sonraki</Button>
+          </div>
         </div>
-        <div className="mt-3 grid grid-cols-7 gap-1 text-xs">
-          {cells.map((item) => (
-            <button key={item + month} type="button" onClick={() => setDay(item)} className={`min-h-16 rounded-xl p-1 text-left ${item === day ? "bg-primary text-primary-foreground" : "bg-card ring-1 ring-foreground/10"} ${item.slice(5, 7) !== String(month + 1).padStart(2, "0") ? "opacity-50" : ""}`}>
-              {item.slice(8)}
-              <span className="mt-1 block">{events.filter((event) => istanbulDay(event.startAt) === item).length + tasks.filter((task) => istanbulDay(task.dueAt) === item).length || ""}</span>
-            </button>
-          ))}
+        {span === "ay" ? (
+          <div className="mt-3 grid grid-cols-7 gap-1 text-xs">
+            {cells.map((item) => (
+              <button key={item} type="button" onClick={() => { setDay(item); setSpan("gun") }} className={`min-h-16 rounded-xl p-1 text-left ${item === day ? "bg-primary text-primary-foreground" : "bg-card ring-1 ring-foreground/10"} ${item.slice(0, 7) !== day.slice(0, 7) ? "opacity-50" : ""}`}>
+                {item.slice(8)}
+                <span className="mt-1 block">{events.filter((event) => istanbulDay(event.startAt) === item).length + tasks.filter((task) => istanbulDay(task.dueAt) === item).length || ""}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {span === "hafta" ? (
+          <div className="mt-3 grid gap-2 sm:grid-cols-7">
+            {week.map((item) => (
+              <button key={item} type="button" onClick={() => { setDay(item); setSpan("gun") }} className={`rounded-2xl p-2 text-left text-sm ${item === day ? "bg-primary text-primary-foreground" : "bg-card ring-1 ring-foreground/10"}`}>
+                <span className="block font-medium">{item.slice(8)}</span>
+                {events.filter((event) => istanbulDay(event.startAt) === item).map((event) => <span key={event.id} className="mt-1 block truncate text-xs">Etkinlik · {event.title}</span>)}
+                {tasks.filter((task) => istanbulDay(task.dueAt) === item).map((task) => <span key={task.id} className="mt-1 block truncate text-xs">Görev · {task.title}</span>)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {span === "gun" ? <DayList day={day} events={events} tasks={tasks} contacts={contacts} pending={pending} openContact={openContact} send={send} /> : null}
+      </div>
+      <form className="grid gap-2" onSubmit={(event) => { event.preventDefault(); void send({ op: "event.save", event: { workspace, title: form.title, eventType: form.eventType, contactId: form.contactId, location: form.location, startAt: new Date(form.start).toISOString(), endAt: new Date(form.end).toISOString() } }) }}>
+        <p className="font-heading text-xl">Yeni etkinlik</p>
+        <input className={fieldClass} placeholder="Etkinlik" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
+        <select className={fieldClass} aria-label="Etkinlik türü" value={form.eventType} onChange={(event) => setForm({ ...form, eventType: event.target.value })}>
+          {Object.entries(eventLabel).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+        </select>
+        <select className={fieldClass} aria-label="Bağlı müşteri" value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })}>{contactOptions(contacts)}</select>
+        <input className={fieldClass} type="datetime-local" aria-label="Başlangıç" value={form.start} onChange={(event) => setForm({ ...form, start: event.target.value })} required />
+        <input className={fieldClass} type="datetime-local" aria-label="Bitiş" value={form.end} onChange={(event) => setForm({ ...form, end: event.target.value })} required />
+        <input className={fieldClass} placeholder="Yer" value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} />
+        <Button type="submit" disabled={pending}>Ajandaya ekle</Button>
+      </form>
+    </div>
+  )
+}
+
+function DayList({ day, events, tasks, contacts, pending, openContact, send }: { day: string; events: CalendarEvent[]; tasks: CrmState["tasks"]; contacts: Contact[]; pending: boolean; openContact: (id: string) => void; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
+  const dayEvents = events.filter((item) => istanbulDay(item.startAt) === day)
+  const dayTasks = tasks.filter((item) => istanbulDay(item.dueAt) === day)
+  return (
+    <div className="mt-3">
+      <p className="font-heading text-xl">{day}</p>
+      {dayEvents.length + dayTasks.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">Bu günde kayıt yok.</p> : null}
+      {dayEvents.map((item) => (
+        <div key={item.id}>
+          <EventRow item={item} pending={pending} send={send} />
+          {item.contactId ? <button type="button" className="text-xs text-primary" onClick={() => openContact(item.contactId)}>{contacts.find((contact) => contact.id === item.contactId) ? nameOf(contacts.find((contact) => contact.id === item.contactId)!) : "Müşteri"}</button> : null}
         </div>
-      </div>
-      <div>
-        <p className="font-heading text-xl">{day}</p>
-        {events.filter((item) => istanbulDay(item.startAt) === day).map((item) => <EventRow key={item.id} item={item} pending={pending} send={send} />)}
-        {tasks.filter((item) => istanbulDay(item.dueAt) === day).map((item) => <p key={item.id} className="mt-2 rounded-2xl bg-secondary px-3 py-2 text-sm">Görev · {item.title} · {taskLabel[item.status]}</p>)}
-        <form className="mt-4 grid gap-2" onSubmit={(event) => { event.preventDefault(); void send({ op: "event.save", event: { workspace, title: form.title, eventType: form.eventType, contactId: form.contactId, location: form.location, startAt: new Date(form.start).toISOString(), endAt: new Date(form.end).toISOString() } }) }}>
-          <input className={fieldClass} placeholder="Etkinlik" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
-          <select className={fieldClass} value={form.eventType} onChange={(event) => setForm({ ...form, eventType: event.target.value })}>
-            <option value="randevu">Randevu</option>
-            <option value="toplanti">Toplantı</option>
-            <option value="arama">Arama</option>
-            <option value="kisisel">Kişisel</option>
-            <option value="son">Son tarih</option>
-          </select>
-          <select className={fieldClass} value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })}>{contactOptions(contacts)}</select>
-          <input className={fieldClass} type="datetime-local" value={form.start} onChange={(event) => setForm({ ...form, start: event.target.value })} required />
-          <input className={fieldClass} type="datetime-local" value={form.end} onChange={(event) => setForm({ ...form, end: event.target.value })} required />
-          <input className={fieldClass} placeholder="Yer" value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} />
-          <Button type="submit" disabled={pending}>Ajandaya ekle</Button>
-        </form>
-      </div>
+      ))}
+      {dayTasks.map((item) => <p key={item.id} className={`mt-2 rounded-2xl px-3 py-2 text-sm ${item.status === "tamamlandi" ? "bg-secondary" : istanbulDay(item.dueAt) < day ? "bg-destructive/10" : "bg-card ring-1 ring-foreground/10"}`}>Görev · {item.title} · {taskLabel[item.status]} · {priorityLabel[item.priority]}</p>)}
     </div>
   )
 }
@@ -399,18 +515,24 @@ function EventRow({ item, pending, send }: { item: CalendarEvent; pending: boole
   )
 }
 
-function Tasks({ state, contacts, workspace, pending, now, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; now: number; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
-  const [form, setForm] = useState({ title: "", due: "", contactId: "", priority: "normal", recurrence: "" })
-  const [onlyLate, setOnlyLate] = useState(false)
+function Tasks({ state, contacts, deals, workspace, pending, now, lateStart, todayStart, send }: { state: CrmState; contacts: Contact[]; deals: Deal[]; workspace: Workspace; pending: boolean; now: number; lateStart: boolean; todayStart: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
+  const [form, setForm] = useState({ title: "", due: "", contactId: "", dealId: "", priority: "normal", status: "yapilacak", recurrence: "" })
+  const [onlyLate, setOnlyLate] = useState(lateStart)
+  const [onlyToday, setOnlyToday] = useState(todayStart)
+  const [priority, setPriority] = useState("")
+  const [status, setStatus] = useState("")
   const today = istanbulDay(now)
-  const rows = state.tasks.filter((item) => item.workspace === workspace && (!onlyLate || (item.dueAt && istanbulDay(item.dueAt) < today && item.status !== "tamamlandi" && item.status !== "iptal")))
+  const rows = state.tasks.filter((item) => item.workspace === workspace && (!onlyLate || (item.dueAt && istanbulDay(item.dueAt) < today && item.status !== "tamamlandi" && item.status !== "iptal")) && (!onlyToday || (item.dueAt && istanbulDay(item.dueAt) === today)) && (!priority || item.priority === priority) && (!status || item.status === status))
   return (
     <div className="mt-4 grid gap-4">
-      <form className="grid gap-3 md:grid-cols-4" onSubmit={(event) => { event.preventDefault(); void send({ op: "task.save", task: { workspace, title: form.title, contactId: form.contactId, priority: form.priority, recurrence: form.recurrence, dueAt: new Date(form.due).toISOString() } }) }}>
+      <form className="grid gap-3 md:grid-cols-4" onSubmit={(event) => { event.preventDefault(); void send({ op: "task.save", task: { workspace, title: form.title, contactId: form.contactId, dealId: form.dealId, priority: form.priority, status: form.status, recurrence: form.recurrence, dueAt: new Date(form.due).toISOString() } }) }}>
         <input className={fieldClass} placeholder="Görev" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
-        <input className={fieldClass} type="datetime-local" value={form.due} onChange={(event) => setForm({ ...form, due: event.target.value })} required />
-        <select className={fieldClass} value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })}>{contactOptions(contacts)}</select>
-        <select className={fieldClass} value={form.recurrence} onChange={(event) => setForm({ ...form, recurrence: event.target.value })}>
+        <input className={fieldClass} type="datetime-local" aria-label="Son tarih" value={form.due} onChange={(event) => setForm({ ...form, due: event.target.value })} required />
+        <select className={fieldClass} aria-label="Müşteri" value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })}>{contactOptions(contacts)}</select>
+        <select className={fieldClass} aria-label="Fırsat" value={form.dealId} onChange={(event) => setForm({ ...form, dealId: event.target.value })}><option value="">Fırsat yok</option>{deals.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select>
+        <select className={fieldClass} aria-label="Öncelik" value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })}>{Object.entries(priorityLabel).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+        <select className={fieldClass} aria-label="Durum" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>{Object.entries(taskLabel).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+        <select className={fieldClass} aria-label="Tekrar" value={form.recurrence} onChange={(event) => setForm({ ...form, recurrence: event.target.value })}>
           <option value="">Tekrar yok</option>
           <option value="gun">Her gün</option>
           <option value="hafta">Her hafta</option>
@@ -418,7 +540,12 @@ function Tasks({ state, contacts, workspace, pending, now, send }: { state: CrmS
         </select>
         <Button type="submit" disabled={pending}>Görevi ekle</Button>
       </form>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={onlyLate} onChange={(event) => setOnlyLate(event.target.checked)} /> Yalnızca gecikenler</label>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <label className="flex items-center gap-2"><input type="checkbox" checked={onlyLate} onChange={(event) => setOnlyLate(event.target.checked)} /> Yalnızca gecikenler</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={onlyToday} onChange={(event) => setOnlyToday(event.target.checked)} /> Yalnızca bugün</label>
+        <select className={fieldClass} aria-label="Öncelik filtresi" value={priority} onChange={(event) => setPriority(event.target.value)}><option value="">Tüm öncelikler</option>{Object.entries(priorityLabel).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+        <select className={fieldClass} aria-label="Durum filtresi" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Tüm durumlar</option>{Object.entries(taskLabel).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+      </div>
       {rows.length ? rows.map((item) => (
         <article key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-card px-3 py-3 text-sm ring-1 ring-foreground/10">
           <div>
@@ -427,7 +554,8 @@ function Tasks({ state, contacts, workspace, pending, now, send }: { state: CrmS
           </div>
           <div className="flex gap-2">
             <Button type="button" variant="outline" disabled={pending || item.status === "tamamlandi"} onClick={() => void send({ op: "task.status", id: item.id, status: "tamamlandi" })}>Tamamla</Button>
-            <Button type="button" variant="ghost" disabled={pending} onClick={() => void send({ op: "task.postpone", id: item.id, dueAt: new Date(Date.now() + 86400000).toISOString() })}>Yarına ertele</Button>
+            <select className={fieldClass} aria-label="Görev durumu" value={item.status} disabled={pending} onChange={(event) => void send({ op: "task.status", id: item.id, status: event.target.value })}>{Object.entries(taskLabel).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+            <Button type="button" variant="ghost" disabled={pending || !item.dueAt} onClick={() => void send({ op: "task.postpone", id: item.id, dueAt: new Date(new Date(item.dueAt).getTime() + 86400000).toISOString() })}>Bir gün ertele</Button>
           </div>
         </article>
       )) : <p className="text-sm text-muted-foreground">Görev yok.</p>}
@@ -446,6 +574,7 @@ function Meetings({ state, contacts, pending, send }: { state: CrmState; contact
           <option value="telefon">Telefon</option>
           <option value="eposta">E-posta notu</option>
           <option value="toplanti">Toplantı</option>
+          <option value="mesaj">Mesaj notu</option>
           <option value="not">Not</option>
           <option value="diger">Diğer</option>
         </select>
@@ -465,27 +594,40 @@ function Meetings({ state, contacts, pending, send }: { state: CrmState; contact
   )
 }
 
-function Quotes({ state, contacts, workspace, pending, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
-  const [form, setForm] = useState({ contactId: "", description: "", quantity: "1", amount: "", tax: String(state.settings.taxBps / 100), currency: "TRY", validUntil: "" })
+function Quotes({ state, contacts, deals, workspace, pending, send }: { state: CrmState; contacts: Contact[]; deals: Deal[]; workspace: Workspace; pending: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
+  const blank = { description: "", quantity: "1", amount: "", tax: String(state.settings.taxBps / 100) }
+  const [form, setForm] = useState({ contactId: "", dealId: "", currency: "TRY", validUntil: "" })
+  const [lines, setLines] = useState([blank])
   const [printId, setPrintId] = useState("")
   const rows = state.quotes.filter((item) => item.workspace === workspace)
   const printed = rows.find((item) => item.id === printId)
   return (
     <div className="mt-4 grid gap-4">
-      <form className="grid gap-3 md:grid-cols-3" onSubmit={(event) => {
+      <form className="grid gap-3" onSubmit={(event) => {
         event.preventDefault()
-        const unitCents = centsOf(form.amount)
-        const taxBps = Math.round(Number(form.tax) * 100)
-        if (unitCents === null || !Number.isInteger(taxBps)) return
-        void send({ op: "quote.save", quote: { contactId: form.contactId, currency: form.currency, validUntil: form.validUntil, items: [{ description: form.description, quantity: Number(form.quantity), unitCents, taxBps }] } })
+        const items = lines.map((line) => ({ description: line.description, quantity: Number(line.quantity), unitCents: centsOf(line.amount), taxBps: Math.round(Number(line.tax) * 100) }))
+        if (items.some((item) => item.unitCents === null || !Number.isInteger(item.taxBps))) return
+        void send({ op: "quote.save", quote: { ...form, items } })
       }}>
-        <select className={fieldClass} value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })} required>{contactOptions(contacts)}</select>
-        <input className={fieldClass} placeholder="Kalem" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} required />
-        <input className={fieldClass} inputMode="decimal" placeholder="Birim fiyat" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required />
-        <input className={fieldClass} inputMode="numeric" placeholder="Adet" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
-        <input className={fieldClass} inputMode="decimal" placeholder="Vergi %" value={form.tax} onChange={(event) => setForm({ ...form, tax: event.target.value })} />
-        <input className={fieldClass} type="date" value={form.validUntil} onChange={(event) => setForm({ ...form, validUntil: event.target.value })} />
-        <Button type="submit" disabled={pending}>Teklifi kaydet</Button>
+        <div className="grid gap-3 md:grid-cols-3">
+          <select className={fieldClass} aria-label="Teklif müşterisi" value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })} required>{contactOptions(contacts)}</select>
+          <select className={fieldClass} aria-label="Bağlı fırsat" value={form.dealId} onChange={(event) => setForm({ ...form, dealId: event.target.value })}><option value="">Fırsat yok</option>{deals.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select>
+          <select className={fieldClass} aria-label="Para birimi" value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value })}><option>TRY</option><option>USD</option><option>EUR</option></select>
+          <input className={fieldClass} type="date" aria-label="Geçerlilik" value={form.validUntil} onChange={(event) => setForm({ ...form, validUntil: event.target.value })} />
+        </div>
+        {lines.map((line, index) => (
+          <div key={index} className="grid gap-3 md:grid-cols-5">
+            <input className={fieldClass} placeholder="Kalem" aria-label={`Kalem ${index + 1}`} value={line.description} onChange={(event) => setLines(lines.map((item, row) => row === index ? { ...item, description: event.target.value } : item))} required />
+            <input className={fieldClass} inputMode="decimal" placeholder="Birim fiyat" aria-label={`Fiyat ${index + 1}`} value={line.amount} onChange={(event) => setLines(lines.map((item, row) => row === index ? { ...item, amount: event.target.value } : item))} required />
+            <input className={fieldClass} inputMode="numeric" placeholder="Adet" aria-label={`Adet ${index + 1}`} value={line.quantity} onChange={(event) => setLines(lines.map((item, row) => row === index ? { ...item, quantity: event.target.value } : item))} />
+            <input className={fieldClass} inputMode="decimal" placeholder="Vergi %" aria-label={`Vergi ${index + 1}`} value={line.tax} onChange={(event) => setLines(lines.map((item, row) => row === index ? { ...item, tax: event.target.value } : item))} />
+            <Button type="button" variant="ghost" disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, row) => row !== index))}>Kalemi çıkar</Button>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={() => setLines([...lines, blank])}>Kalem ekle</Button>
+          <Button type="submit" disabled={pending}>Teklifi kaydet</Button>
+        </div>
       </form>
       {rows.map((item) => <QuoteRow key={item.id} item={item} pending={pending} send={send} onPrint={() => setPrintId(item.id)} />)}
       {printed ? <Printable quote={printed} contact={contacts.find((item) => item.id === printed.contactId)} /> : null}
@@ -528,22 +670,25 @@ function Printable({ quote, contact }: { quote: Quote; contact?: Contact }) {
   )
 }
 
-function Payments({ state, contacts, pending, now, send }: { state: CrmState; contacts: Contact[]; pending: boolean; now: number; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
-  const [form, setForm] = useState({ contactId: "", amount: "", currency: "TRY", dueDate: "", reference: "" })
+function Payments({ state, contacts, workspace, pending, now, dueStart, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; now: number; dueStart: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
+  const [form, setForm] = useState({ contactId: "", dealId: "", quoteId: "", amount: "", currency: "TRY", dueDate: "", reference: "" })
   const [part, setPart] = useState<Record<string, string>>({})
-  const rows = state.payments.filter((item) => contacts.some((contact) => contact.id === item.contactId) || item.workspace === contacts[0]?.workspace)
-  const visible = state.payments.filter((item) => contacts.some((contact) => contact.id === item.contactId))
+  const [onlyDue, setOnlyDue] = useState(dueStart)
+  const today = istanbulDay(now)
+  const visible = state.payments.filter((item) => item.workspace === workspace && (!onlyDue || (["gecikti", "bekliyor", "kismi"].includes(paymentStatus(item, now)) && item.dueDate <= today)))
   return (
     <div className="mt-4 grid gap-3">
-      <form className="grid gap-3 md:grid-cols-4" onSubmit={(event) => { event.preventDefault(); const amountCents = centsOf(form.amount); if (amountCents === null) return; void send({ op: "payment.save", clientKey: crypto.randomUUID(), payment: { ...form, amountCents } }) }}>
-        <select className={fieldClass} value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })} required>{contactOptions(contacts)}</select>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={onlyDue} onChange={(event) => setOnlyDue(event.target.checked)} /> Yalnızca vadesi gelenler</label>
+      <form className="grid gap-3 md:grid-cols-4" onSubmit={(event) => { event.preventDefault(); const amountCents = centsOf(form.amount); if (amountCents === null) return; void send({ op: "payment.save", clientKey: crypto.randomUUID(), payment: { contactId: form.contactId, dealId: form.dealId, quoteId: form.quoteId, currency: form.currency, dueDate: form.dueDate, reference: form.reference, amountCents } }) }}>
+        <select className={fieldClass} aria-label="Tahsilat müşterisi" value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })} required>{contactOptions(contacts)}</select>
+        <select className={fieldClass} aria-label="Bağlı teklif" value={form.quoteId} onChange={(event) => setForm({ ...form, quoteId: event.target.value })}><option value="">Teklif yok</option>{state.quotes.filter((item) => item.workspace === workspace).map((item) => <option key={item.id} value={item.id}>{item.number}</option>)}</select>
         <input className={fieldClass} inputMode="decimal" placeholder="Tutar" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required />
         <input className={fieldClass} type="date" value={form.dueDate} onChange={(event) => setForm({ ...form, dueDate: event.target.value })} required />
         <input className={fieldClass} placeholder="Referans" value={form.reference} onChange={(event) => setForm({ ...form, reference: event.target.value })} />
         <Button type="submit" disabled={pending}>Vade aç</Button>
       </form>
       <p className="text-xs text-muted-foreground">İşaretlenen ödeme elle girilir. Banka hareketi doğrulanmış sayılmaz.</p>
-      {(visible.length ? visible : rows).map((item) => <PaymentRow key={item.id} item={item} now={now} part={part[item.id] || ""} setPart={(value) => setPart({ ...part, [item.id]: value })} pending={pending} send={send} />)}
+      {visible.length ? visible.map((item) => <PaymentRow key={item.id} item={item} now={now} part={part[item.id] || ""} setPart={(value) => setPart({ ...part, [item.id]: value })} pending={pending} send={send} />) : <p className="text-sm text-muted-foreground">Tahsilat yok.</p>}
     </div>
   )
 }
@@ -566,12 +711,16 @@ function PaymentRow({ item, now, part, setPart, pending, send }: { item: Payment
   )
 }
 
-function Subscriptions({ state, contacts, pending, send }: { state: CrmState; contacts: Contact[]; pending: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
+function Subscriptions({ state, contacts, workspace, pending, now, soonStart, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; now: number; soonStart: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
   const [form, setForm] = useState({ contactId: "", plan: "", amount: "", currency: "TRY", period: "aylik", startsAt: "", nextRenewal: "", status: "aktif" })
-  const rows = state.subscriptions.filter((item) => contacts.some((contact) => contact.id === item.contactId))
+  const [onlySoon, setOnlySoon] = useState(soonStart)
+  const today = istanbulDay(now)
+  const until = istanbulDay(now + 7 * 86400000)
+  const rows = state.subscriptions.filter((item) => item.workspace === workspace && (!onlySoon || (item.nextRenewal >= today && item.nextRenewal <= until)))
   return (
     <div className="mt-4 grid gap-3">
       <p className="text-xs text-muted-foreground">Bu kayıt Pinwego erişimini açmaz ve ödeme alındı demek değildir.</p>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={onlySoon} onChange={(event) => setOnlySoon(event.target.checked)} /> Yalnızca 7 gün içindeki yenilemeler</label>
       <form className="grid gap-3 md:grid-cols-3" onSubmit={(event) => { event.preventDefault(); const amountCents = centsOf(form.amount); if (amountCents === null) return; void send({ op: "subscription.save", subscription: { ...form, amountCents, autoRenew: false } }) }}>
         <select className={fieldClass} value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })} required>{contactOptions(contacts)}</select>
         <input className={fieldClass} placeholder="Plan" value={form.plan} onChange={(event) => setForm({ ...form, plan: event.target.value })} required />
@@ -591,13 +740,19 @@ function Subscriptions({ state, contacts, pending, send }: { state: CrmState; co
   )
 }
 
-function Tickets({ state, contacts, pending, now, send }: { state: CrmState; contacts: Contact[]; pending: boolean; now: number; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
-  const [form, setForm] = useState({ contactId: "", subject: "", description: "", priority: "normal", assignee: "" })
+function Tickets({ state, contacts, workspace, pending, now, openStart, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; now: number; openStart: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
+  const [form, setForm] = useState({ contactId: "", subject: "", description: "", priority: "normal", assignee: "", category: "" })
   const [note, setNote] = useState<Record<string, string>>({})
-  const rows = state.tickets.filter((item) => contacts.some((contact) => contact.id === item.contactId))
+  const [onlyOpen, setOnlyOpen] = useState(openStart)
+  const [priority, setPriority] = useState("")
+  const rows = state.tickets.filter((item) => item.workspace === workspace && (!onlyOpen || (item.status !== "cozuldu" && item.status !== "kapali")) && (!priority || item.priority === priority))
   return (
     <div className="mt-4 grid gap-3">
-      <form className="grid gap-3 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); void send({ op: "ticket.save", ticket: { ...form, dueAt: new Date(Date.now() + 2 * 86400000).toISOString() } }) }}>
+      <div className="flex flex-wrap gap-2">
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={onlyOpen} onChange={(event) => setOnlyOpen(event.target.checked)} /> Yalnızca açık talepler</label>
+        <select className={fieldClass} aria-label="Öncelik filtresi" value={priority} onChange={(event) => setPriority(event.target.value)}><option value="">Tüm öncelikler</option>{Object.entries(priorityLabel).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+      </div>
+      <form className="grid gap-3 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); void send({ op: "ticket.save", ticket: { ...form, dueAt: new Date(now + 2 * 86400000).toISOString() } }) }}>
         <select className={fieldClass} value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })} required>{contactOptions(contacts)}</select>
         <input className={fieldClass} placeholder="Konu" value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} required />
         <input className={fieldClass} placeholder="Açıklama" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
@@ -653,12 +808,31 @@ function Reports({ state, workspace, now }: { state: CrmState; workspace: Worksp
           ["Teklif toplamı", money(row.quoteCents, currency)],
           ["Tahsil edilen", money(row.collectedCents, currency)],
           ["Geciken tahsilat", String(row.overdueCount)],
+          ["Tamamlanan görev", String(row.taskDone)],
+          ["Geciken görev", String(row.taskLate)],
+          ["Açık destek", String(row.ticketsOpen)],
+          ["Çözülen destek", String(row.ticketsResolved)],
+          ["Ortalama çözüm saati", String(row.ticketHours)],
         ].map(([label, value]) => (
           <article key={label} className="rounded-3xl bg-card p-4 ring-1 ring-foreground/10">
             <p className="text-xs text-muted-foreground">{label}</p>
             <p className="mt-2 font-heading text-2xl">{value}</p>
           </article>
         ))}
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <article className="rounded-3xl bg-card p-4 text-sm ring-1 ring-foreground/10">
+          <p className="font-medium">Müşteri kaynakları</p>
+          {row.sources.length ? row.sources.map((item) => <p key={item.source} className="mt-1">{item.source} · {item.count}</p>) : <p className="mt-1 text-muted-foreground">Kayıt yok.</p>}
+        </article>
+        <article className="rounded-3xl bg-card p-4 text-sm ring-1 ring-foreground/10">
+          <p className="font-medium">Satış aşamaları</p>
+          {row.pipeline.map((item) => <p key={item.stage} className="mt-1">{stageLabel[item.stage]} · {item.count}</p>)}
+        </article>
+        <article className="rounded-3xl bg-card p-4 text-sm ring-1 ring-foreground/10 md:col-span-2">
+          <p className="font-medium">Yenileme takvimi</p>
+          {row.renewals.length ? row.renewals.map((item) => <p key={`${item.plan}-${item.nextRenewal}`} className="mt-1">{item.nextRenewal} · {item.plan} · {subLabel[item.status]} · {money(item.amountCents, item.currency)}</p>) : <p className="mt-1 text-muted-foreground">Bu aralıkta yenileme yok.</p>}
+        </article>
       </div>
       <p className="text-xs text-muted-foreground">Teklif, kazanılan fırsat ve tahsilat ayrı durur. Farklı para birimleri birbirine eklenmez. Görünen alan: {workspace === "personal" ? "kişisel" : "Pinwego"}.</p>
     </div>
@@ -673,7 +847,12 @@ function Settings({ state, pending, send }: { state: CrmState; pending: boolean;
       <Field label="Varsayılan vergi yüzdesi"><input className={fieldClass} value={tax} onChange={(event) => setTax(event.target.value)} /></Field>
       <Field label="Hatırlatma günü"><input className={fieldClass} value={days} onChange={(event) => setDays(event.target.value)} /></Field>
       <Button type="submit" disabled={pending}>Ayarları kaydet</Button>
-      <p className="text-xs text-muted-foreground">Vergi her kalemde ayrıca değişir. Hatırlatmalar sunucuda, aynı iş için bir kez üretilir.</p>
+      <p className="text-xs text-muted-foreground">Vergi her kalemde ayrıca değişir. Hatırlatmalar sunucuda, aynı iş için bir kez üretilir. Erişim yönetici oturumundadır.</p>
+      <div className="mt-2 text-sm">
+        <p className="font-medium">Son işlemler</p>
+        {state.audits.slice(0, 8).map((item) => <p key={item.id} className="mt-1 text-muted-foreground">{item.action} · {item.entity} · {new Date(item.at).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}</p>)}
+        {state.audits.length === 0 ? <p className="mt-1 text-muted-foreground">Kayıt yok.</p> : null}
+      </div>
     </form>
   )
 }
