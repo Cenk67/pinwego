@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth-context"
-import { loginDoorProblem, type AuthDoor, type AuthMode } from "@/lib/auth-path"
+import { type AuthDoor, type AuthMode } from "@/lib/auth-path"
 import { destinationFor, safeReturnPath, submittedField } from "@/lib/auth-session"
-import { ADMIN_EMAIL, getSnapshot, previewLogin } from "@/lib/auth-store"
+import { ADMIN_EMAIL, getSnapshot } from "@/lib/auth-store"
 import { businesses } from "@/lib/catalog"
 import { PlaceEditor } from "@/components/directory/place-picker"
 import { defaultPlace, placeCity, placeFromPoint, type Place } from "@/lib/place"
@@ -226,7 +226,7 @@ function LoginForm({
   door,
   claim,
 }: {
-  login: (email: string, password: string) => Promise<string | null>
+  login: (email: string, password: string, door?: AuthDoor) => Promise<string | null>
   initialEmail?: string
   door: AuthDoor
   claim: Business | null
@@ -248,22 +248,16 @@ function LoginForm({
     const typedPassword = submittedField(form, "password", "login-password", "")
     setPending(true)
     try {
-      const preview = await previewLogin(typedEmail, typedPassword)
-      if (typeof preview === "string") {
-        setErrors([preview])
-        return
-      }
-      const problem = loginDoorProblem(door, preview.role)
-      if (problem) {
-        setErrors([problem])
-        return
-      }
-      const message = await login(typedEmail, typedPassword)
+      const message = await login(typedEmail, typedPassword, door)
       if (message) {
         setErrors([message])
         return
       }
       const account = getSnapshot().account
+      if (!account) {
+        setErrors(["E-posta veya şifre eşleşmedi."])
+        return
+      }
       if (account && claim && (account.role === "isletme" || account.role === "admin")) {
         addListing(claimListing(claim, account.id))
         adoptListingThreads(claim.id, account.id)

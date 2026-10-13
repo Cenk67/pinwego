@@ -1,3 +1,4 @@
+import { loginDoorProblem, type AuthDoor } from "@/lib/auth-path"
 import { digestPassword, normalizeEmail, passwordMatches, sameEmail } from "@/lib/auth-session"
 import { fileProblem } from "@/lib/identity"
 
@@ -335,15 +336,19 @@ async function cacheRemote(account: RemoteAccount, password: string) {
   enter(next)
 }
 
-export async function login(email: string, password: string) {
+export async function login(email: string, password: string, door?: AuthDoor) {
   const remote = await postAccount("/api/giris", { email, password })
   if (remote?.ok) {
+    const problem = door ? loginDoorProblem(door, remote.account.role) : null
+    if (problem) return problem
     await cacheRemote(remote.account, password)
     return null
   }
   if (remote?.ok === false && remote.reason === "mismatch") return "E-posta veya şifre eşleşmedi."
   const local = await previewLogin(email, password)
   if (typeof local === "string") return "E-posta veya şifre eşleşmedi."
+  const problem = door ? loginDoorProblem(door, local.role) : null
+  if (problem) return problem
   if (remote?.ok === false && remote.reason === "unknown" && local.role !== "admin") {
     await postAccount("/api/kayit", accountBody({
       id: local.id,
