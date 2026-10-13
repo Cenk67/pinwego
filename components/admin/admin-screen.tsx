@@ -7,6 +7,7 @@ import { VoiceAdmin } from "@/components/admin/voice-admin"
 import { CampaignAdmin } from "@/components/campaigns/campaign-manage"
 import { QrAdmin } from "@/components/qr/qr-center"
 import { DiscoverAdmin } from "@/components/discover/discover-admin"
+import { CrmPanel } from "@/components/crm/crm-panel"
 import { SectorForm } from "@/components/directory/sector-form"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
@@ -41,6 +42,7 @@ const tabs = [
   { id: "kampanya", label: "Kampanyalar" },
   { id: "qr", label: "QR kartlar" },
   { id: "kesif", label: "Keşif" },
+  { id: "crm", label: "CRM" },
 ] as const
 
 type Tab = (typeof tabs)[number]["id"]
@@ -123,6 +125,7 @@ export function AdminScreen() {
       {tab === "kampanya" ? <CampaignAdmin /> : null}
       {tab === "qr" ? <QrAdmin /> : null}
       {tab === "kesif" ? <DiscoverAdmin /> : null}
+      {tab === "crm" ? <CrmPanel /> : null}
     </div>
   )
 }
