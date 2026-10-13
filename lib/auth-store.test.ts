@@ -36,7 +36,7 @@ globalThis.fetch = async (_input, init) => {
   return Response.json({ ok: false, reason: "unknown" })
 }
 
-const { getSnapshot, login, logout } = await import("./auth-store")
+const { getSnapshot, login, logout, previewLogin } = await import("./auth-store")
 
 const opened = await login(remoteAccount.email, "sifre1234", "musteri")
 assert.equal(opened, null)
@@ -71,5 +71,25 @@ local.set("pinwego.accounts.v1", JSON.stringify([onlyLocal]))
 const offline = await login(onlyLocal.email, "sifre1234", "musteri")
 assert.equal(offline, null)
 assert.equal(getSnapshot().account?.id, onlyLocal.id)
+
+const legacy = {
+  id: "admin-pinwego",
+  role: "admin" as const,
+  email: "admin@pinwego.local",
+  passwordHash: "a502141c77771259d7a0471270828e7b4dc7ba13a24669bf18f3f2b34b80933f",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  name: "pinwego yönetici",
+  phone: "05000000000",
+  documents: [],
+}
+local.set("pinwego.accounts.v1", JSON.stringify([legacy]))
+const blocked = await previewLogin(legacy.email, "pinwego-admin")
+assert.match(String(blocked), /eşleşmedi/)
+logout()
+const stored = JSON.parse(local.get("pinwego.accounts.v1") || "[]") as { id: string }[]
+assert.equal(stored.some((item) => item.id === "admin-pinwego"), false)
+const oldDoor = await login(legacy.email, "pinwego-admin", "yonetici")
+assert.match(String(oldDoor), /eşleşmedi|kapalı/)
+assert.equal(getSnapshot().account, null)
 
 console.log("giriş sunucudaki hesabı tarayıcı boşken açıyor")

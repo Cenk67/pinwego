@@ -16,6 +16,10 @@ export default defineConfig({
       BLOG_STATE: bindings.kv({ id: "2d3121e68fb047fca8cd1f2fd02847da" }),
       ACCOUNTS: bindings.kv({ id: "11e917adbae3436c99767c654aed446d" }),
       EMAIL: bindings.sendEmail({ allowedSenderAddresses: ["hesap@pinwego.com"] }),
+      ADMIN_LOGIN: bindings.secret(),
+      ADMIN_PASSWORD_SALT: bindings.secret(),
+      ADMIN_PASSWORD_HASH: bindings.secret(),
+      ADMIN_OTP_TO: bindings.secret(),
     },
   }),
 });

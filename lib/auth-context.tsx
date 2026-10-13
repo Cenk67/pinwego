@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
   const sessionKey = snapshot.account ? `${snapshot.account.id}:${snapshot.account.credentialVersion ?? 1}` : ""
   useEffect(() => {
-    if (!sessionKey || snapshot.account?.role === "admin") return
+    if (!sessionKey) return
     let cancel = false
     void confirmSession().then((stale) => {
       if (cancel || !stale || !snapshot.account) return

@@ -5,7 +5,7 @@ export type OutboundMail = {
   subject: string
   html: string
   text: string
-  purpose: "verify" | "reset" | "changed"
+  purpose: "verify" | "reset" | "changed" | "admin"
 }
 
 type SendEnv = {

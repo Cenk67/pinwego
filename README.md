@@ -46,7 +46,7 @@ Açılmazsa:
 - Paylaş: her işletmenin yanında paylaş düğmesi vardır. Telefonda sistem menüsü bütün uygulamaları açar; değilse WhatsApp, Telegram, X, Facebook, LinkedIn, e-posta, SMS ve bağlantı kopyalama durur.
 - Karşılaştırma: kaydettiğin işletmeleri yan yana bak.
 - Hesap kapısı: kayıtlı olmayan hesap arama, harita, randevu ve kayıt eklemeyi açamaz. Müşteri T.C. kimlik bilgisi ve teyit belgesi girer. İşletme vergi levhası, imza sirküleri, sicil belgesi ve yetkili kimliğini yükler. Kayıt ve belgeler bu tarayıcıda durur.
-- Yönetim: girişte Yönetici girişi vardır (`admin@pinwego.local` / `pinwego-admin`). `/yonetim` panelinden sektör gizleme/ekleme, işletme doğrulama, öne çıkarma, gizleme ve düzenleme, talepleri silme ve hesap belgelerini inceleme yapılır. Değişiklik bu tarayıcıda kalır.
+- Yönetim: yönetici girişi kullanıcı adı ve şifreden sonra posta kutusuna giden tek kullanımlık kod ister. Kullanıcı adı ve şifre repoda durmaz. `/yonetim` panelinden sektör gizleme/ekleme, işletme doğrulama, öne çıkarma, gizleme ve düzenleme, talepleri silme ve hesap belgelerini inceleme yapılır. Katalog değişiklikleri bu tarayıcıda kalır.
 - Kendi kaydın: doğrulanmış işletme hesabı işletme ekle formunu aramaya düşürür; kayıt yalnızca bu tarayıcıda durur.
 - Mesajlar: `/mesajlar` içinde işletme aranır, seçilir ve doğrudan yazılır. Kart ve profildeki Mesaj gönder de aynı sohbeti açar. Rahatsız eden sohbette müşteri işletmeyi, işletme müşteriyi veya başka işletmeyi engeller; Engeli kaldır ile yazışma yeniden açılır. Gelen mesajda ekran uyarısı çıkar; izin verilirse tarayıcı bildirimi de gider. Oturum sekme bazlıdır: iki sekmede iki hesap açıp canlı sohbet edilebilir.
 - Asistan: aynı eşleştiriciyle kısa bir sohbet.

@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth-context"
-import { ADMIN_EMAIL, ADMIN_PASSWORD, openStoredDocument } from "@/lib/auth-store"
+import { openStoredDocument } from "@/lib/auth-store"
 import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { ContactEditor } from "@/components/directory/contact-lines"
@@ -148,7 +148,7 @@ function Overview() {
       <article className="rounded-3xl bg-primary p-5 text-primary-foreground sm:col-span-2 lg:col-span-4">
         <p className="font-heading text-2xl">Yönetici girişi</p>
         <p className="mt-2 text-sm leading-6 text-primary-foreground/85">
-          E-posta {ADMIN_EMAIL}. Şifre {ADMIN_PASSWORD}. Bu tarayıcıdaki örnek panel içindir; ayrı bir sunucu yoktur.
+          Oturum posta koduyla açılır. Kullanıcı adı ve şifre bu ekranda yazılmaz.
         </p>
       </article>
     </div>

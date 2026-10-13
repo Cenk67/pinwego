@@ -1,4 +1,6 @@
-import { ADMIN_PASSWORD } from "@/lib/auth-store"
+import { connection } from "next/server"
+import { accountStore } from "@/lib/account-kv"
+import { adminSessionOpen, readAdminCookie } from "@/lib/admin-gate"
 import { readBlogState, writeBlogState } from "@/lib/blog-file"
 
 export async function GET() {
@@ -6,9 +8,12 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const body = (await request.json()) as { password?: string; state?: unknown }
-  if (body.password !== ADMIN_PASSWORD) return Response.json({ error: "Yetki yok" }, { status: 401 })
+  await connection()
+  const store = await accountStore()
+  const open = Boolean(store && (await adminSessionOpen(store, readAdminCookie(request.headers.get("cookie")))))
+  if (!open) return Response.json({ error: "Yetki yok" }, { status: 401 })
   try {
+    const body = (await request.json()) as { state?: unknown }
     const state = await writeBlogState(body.state)
     return Response.json({ ok: true, state })
   } catch {

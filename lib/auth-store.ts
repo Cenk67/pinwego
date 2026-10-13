@@ -4,9 +4,8 @@ import { fileProblem } from "@/lib/identity"
 
 export type Role = "musteri" | "isletme" | "admin"
 
-export const ADMIN_EMAIL = "admin@pinwego.local"
-export const ADMIN_PASSWORD = "pinwego-admin"
-const ADMIN_PASSWORD_HASH = "a502141c77771259d7a0471270828e7b4dc7ba13a24669bf18f3f2b34b80933f"
+const legacyAdminHash = "a502141c77771259d7a0471270828e7b4dc7ba13a24669bf18f3f2b34b80933f"
+const adminSessionId = "admin-session"
 
 export type AccountDocument = {
   id: string
@@ -56,21 +55,18 @@ const SESSION_KEY = "pinwego.session.v1"
 
 const loggedOut: Snapshot = { ready: false, account: null, accounts: [] }
 
-const seededAdmin: Account = {
-  id: "admin-pinwego",
-  role: "admin",
-  email: ADMIN_EMAIL,
-  passwordHash: ADMIN_PASSWORD_HASH,
-  createdAt: "2026-01-01T00:00:00.000Z",
-  name: "pinwego yönetici",
-  phone: "05000000000",
-  documents: [],
+function keptAccounts(accounts: Account[]) {
+  return accounts.filter((item) => {
+    if (item.id === "admin-pinwego" || item.email === "admin@pinwego.local") return false
+    if (item.passwordHash === legacyAdminHash) return false
+    if (item.role === "admin" && item.id !== adminSessionId) return false
+    return true
+  })
 }
 
-function ensureAdmin(accounts: Account[]) {
-  if (accounts.some((item) => item.role === "admin")) return accounts
-  const next = [seededAdmin, ...accounts.filter((item) => item.email !== ADMIN_EMAIL)]
-  writeAccounts(next)
+function storeAccounts(accounts: Account[]) {
+  const next = keptAccounts(accounts)
+  if (next.length !== accounts.length) writeAccounts(next)
   return next
 }
 let memory: Snapshot = loggedOut
@@ -126,7 +122,7 @@ function writeSessionId(id: string | null) {
 function load(): Snapshot {
   const read = readAccounts()
   if (!read) return { ready: true, account: null, accounts: [] }
-  const accounts = ensureAdmin(read)
+  const accounts = storeAccounts(read)
   const id = readSessionId()
   const account = accounts.find((item) => item.id === id) ?? null
   if (!account) writeSessionId(null)
@@ -280,7 +276,7 @@ function accountBody(input: {
   }
 }
 
-export type AuthNotice = { pending: string }
+export type AuthNotice = { pending: string } | { code: string }
 
 export async function registerAccount(input: {
   role: Exclude<Role, "admin">
@@ -321,7 +317,7 @@ export async function registerAccount(input: {
     emailVerified: remote?.ok ? remote.account.emailVerified !== false : true,
     credentialVersion: remote?.ok ? remote.account.credentialVersion ?? 1 : 1,
   }
-  writeAccounts(ensureAdmin([account, ...accounts]))
+  writeAccounts(keptAccounts([account, ...accounts]))
   if (remote?.ok && remote.account.emailVerified === false) return { pending: email }
   enter(account)
   return null
@@ -330,7 +326,7 @@ export async function registerAccount(input: {
 export async function previewLogin(email: string, password: string): Promise<Account | string> {
   const accounts = readAccounts()
   const account = accounts?.find((item) => sameEmail(item.email, email))
-  if (!account) return "E-posta veya şifre eşleşmedi."
+  if (!account || account.role === "admin") return "E-posta veya şifre eşleşmedi."
   if (!(await passwordMatches(account.email, account.passwordHash, password))) {
     return "E-posta veya şifre eşleşmedi."
   }
@@ -355,11 +351,63 @@ async function cacheRemote(account: RemoteAccount, password: string) {
     credentialVersion: account.credentialVersion ?? 1,
   }
   const rest = (readAccounts() ?? []).filter((item) => item.id !== next.id && !sameEmail(item.email, email))
-  writeAccounts(ensureAdmin([next, ...rest]))
+  writeAccounts(keptAccounts([next, ...rest]))
   enter(next)
 }
 
+async function postAdmin(path: string, body: unknown) {
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    })
+    const data = (await response.json().catch(() => null)) as { ok?: boolean; step?: string; reason?: string } | null
+    return { status: response.status, data }
+  } catch {
+    return { status: 0, data: null }
+  }
+}
+
+function adminFailure(status: number, reason?: string) {
+  if (status === 0 || status === 503 || reason === "unavailable") return "Yönetici girişi şu an kapalı."
+  if (reason === "limited") return "Çok fazla deneme. Bir süre sonra tekrar dene."
+  if (reason === "expired") return "Kodun süresi doldu. Şifreyi yeniden yaz."
+  return "E-posta veya şifre eşleşmedi."
+}
+
+export async function confirmAdminCode(code: string) {
+  const { status, data } = await postAdmin("/api/yonetici/kod", { code })
+  if (!data?.ok) {
+    if (data?.reason === "invalid" || data?.reason === "expired") {
+      return data.reason === "expired" ? "Kodun süresi doldu. Şifreyi yeniden yaz." : "Kod eşleşmedi."
+    }
+    return adminFailure(status, data?.reason)
+  }
+  const marker: Account = {
+    id: adminSessionId,
+    role: "admin",
+    email: "yonetici@pinwego.local",
+    passwordHash: "",
+    createdAt: new Date().toISOString(),
+    name: "pinwego yönetici",
+    phone: "",
+    documents: [],
+  }
+  const rest = keptAccounts(readAccounts() ?? []).filter((item) => item.id !== marker.id)
+  writeAccounts([marker, ...rest])
+  enter(marker)
+  return null
+}
+
 export async function login(email: string, password: string, door?: AuthDoor, extra?: { turnstile?: string; locale?: string }): Promise<string | AuthNotice | null> {
+  if (door === "yonetici") {
+    const { status, data } = await postAdmin("/api/yonetici", { email, password, locale: extra?.locale })
+    if (data?.ok && data.step === "code") return { code: "sent" }
+    if (data?.reason === "mismatch" || data?.reason === "invalid") return "E-posta veya şifre eşleşmedi."
+    return adminFailure(status, data?.reason)
+  }
   const remote = await postAccount("/api/giris", { email, password, turnstile: extra?.turnstile, locale: extra?.locale })
   if (remote?.ok) {
     const problem = door ? loginDoorProblem(door, remote.account.role) : null
@@ -399,7 +447,15 @@ export async function login(email: string, password: string, door?: AuthDoor, ex
 
 export async function confirmSession() {
   const account = getSnapshot().account
-  if (!account || account.role === "admin") return false
+  if (!account) return false
+  if (account.role === "admin") {
+    try {
+      const response = await fetch("/api/yonetici", { credentials: "include" })
+      return response.status === 401
+    } catch {
+      return false
+    }
+  }
   const remote = await postAccount("/api/oturum", { email: account.email, credentialVersion: account.credentialVersion ?? 1 })
   if (!remote) return false
   return remote.ok === false
@@ -412,9 +468,10 @@ export function retireLocal(email: string) {
 }
 
 export function logout() {
+  void fetch("/api/yonetici", { method: "DELETE", credentials: "include" }).catch(() => undefined)
   writeSessionId(null)
   const read = readAccounts()
-  memory = { ready: true, account: null, accounts: read ? ensureAdmin(read) : [] }
+  memory = { ready: true, account: null, accounts: read ? storeAccounts(read) : [] }
   loaded = true
   notify()
 }
@@ -424,7 +481,7 @@ export function removeAccount(id: string) {
   if (current.account?.id === id) return "Oturumdaki hesabı silemezsin."
   const read = readAccounts()
   if (!read) return "Hesap bulunamadı."
-  const accounts = ensureAdmin(read)
+  const accounts = storeAccounts(read)
   const target = accounts.find((item) => item.id === id)
   if (!target) return "Hesap bulunamadı."
   if (target.role === "admin" && accounts.filter((item) => item.role === "admin").length < 2) {

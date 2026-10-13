@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { ADMIN_PASSWORD } from "@/lib/auth-store"
 import {
   articlePath,
   categoryProblem,
@@ -46,7 +45,8 @@ export function BlogAdmin() {
       const response = await fetch("/api/blog", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ password: ADMIN_PASSWORD, state: next }),
+        credentials: "include",
+        body: JSON.stringify({ state: next }),
       })
       setNotice(response.ok ? "Kaydedildi." : "Değişiklik ekranda duruyor, dosyaya yazılamadı.")
     } catch {

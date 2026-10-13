@@ -13,7 +13,7 @@ import { type AuthDoor, type AuthMode } from "@/lib/auth-path"
 import { PendingMail } from "@/components/auth/pending-mail"
 import { TurnstileField } from "@/components/auth/turnstile-field"
 import { destinationFor, safeReturnPath, submittedField } from "@/lib/auth-session"
-import { ADMIN_EMAIL, getSnapshot } from "@/lib/auth-store"
+import { confirmAdminCode, getSnapshot, type AuthNotice } from "@/lib/auth-store"
 import { businesses } from "@/lib/catalog"
 import { PlaceEditor } from "@/components/directory/place-picker"
 import { defaultPlace, placeCity, placeFromPoint, type Place } from "@/lib/place"
@@ -134,7 +134,7 @@ export function AuthScreen({
         {mode === "login" || mode === "admin" ? (
           <LoginForm
             login={login}
-            initialEmail={mode === "admin" ? ADMIN_EMAIL : ""}
+            initialEmail=""
             door={mode === "admin" ? "yonetici" : door}
             claim={claim}
             siteKey={siteKey}
@@ -232,7 +232,7 @@ function LoginForm({
   claim,
   siteKey,
 }: {
-  login: (email: string, password: string, door?: AuthDoor, extra?: { turnstile?: string; locale?: string }) => Promise<string | { pending: string } | null>
+  login: (email: string, password: string, door?: AuthDoor, extra?: { turnstile?: string; locale?: string }) => Promise<string | AuthNotice | null>
   initialEmail?: string
   door: AuthDoor
   claim: Business | null
@@ -245,6 +245,8 @@ function LoginForm({
   const [pending, setPending] = useState(false)
   const [token, setToken] = useState("")
   const [hold, setHold] = useState<{ email: string; password: string } | null>(null)
+  const [codeStep, setCodeStep] = useState(false)
+  const [code, setCode] = useState("")
   const { t, locale } = useLocale()
   const title = door === "yonetici" ? t("auth.adminIn") : door === "isletme" ? t("auth.businessIn") : t("auth.customerIn")
   const copy =
@@ -258,7 +260,13 @@ function LoginForm({
     setPending(true)
     try {
       const message = await login(typedEmail, typedPassword, door, { turnstile: token, locale })
-      if (message && typeof message === "object") {
+      if (message && typeof message === "object" && "code" in message) {
+        setErrors([])
+        setCode("")
+        setCodeStep(true)
+        return
+      }
+      if (message && typeof message === "object" && "pending" in message) {
         setHold({ email: message.pending, password: typedPassword })
         return
       }
@@ -284,7 +292,64 @@ function LoginForm({
     }
   }
 
+  async function submitCode(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setPending(true)
+    try {
+      const message = await confirmAdminCode(code)
+      if (message) {
+        setErrors([
+          message === "Kod eşleşmedi." ? t("auth.adminCodeBad") : message === "Yönetici girişi şu an kapalı." ? t("auth.adminClosed") : message,
+        ])
+        return
+      }
+      router.push("/yonetim")
+    } finally {
+      setPending(false)
+    }
+  }
+
   if (hold) return <PendingMail email={hold.email} password={hold.password} siteKey={siteKey} />
+
+  if (codeStep) {
+    return (
+      <form onSubmit={submitCode} autoComplete="off" className="grid gap-4">
+        <div>
+          <h1 className="font-heading text-4xl">{t("auth.adminCode")}</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("auth.adminCodeCopy")}</p>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="admin-code">{t("auth.adminCode")}</Label>
+          <Input
+            id="admin-code"
+            name="one-time-code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={8}
+            value={code}
+            onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 8))}
+            className="h-11 tracking-[0.3em]"
+          />
+        </div>
+        <ErrorList errors={errors} />
+        <Button type="submit" className="h-11 rounded-xl" disabled={pending || code.length !== 8}>
+          {pending ? t("auth.checking") : t("auth.submit")}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-11 rounded-xl"
+          onClick={() => {
+            setCodeStep(false)
+            setCode("")
+            setErrors([])
+          }}
+        >
+          {t("auth.back")}
+        </Button>
+      </form>
+    )
+  }
 
   return (
     <form onSubmit={submit} className="grid gap-4">
