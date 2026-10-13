@@ -13,19 +13,16 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { PlaceEditor } from "@/components/directory/place-picker"
 import { categoryById, defaultBooking } from "@/lib/catalog"
-import { defaultPlace, placeCity, type Place } from "@/lib/place"
+import { defaultPlace, type Place } from "@/lib/place"
 import { useDirectory } from "@/lib/directory-context"
-import { slugify } from "@/lib/format"
 import { cleanDiscoverText } from "@/lib/discover"
 import { recordDiscoverEvent, takeDiscoverLead } from "@/lib/discover-store"
 import type { Business, CategoryId } from "@/lib/types"
 
-const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-
 export function ListScreen() {
   const router = useRouter()
   const { account } = useAuth()
-  const { addListing, listings, sectors } = useDirectory()
+  const { addListing, rememberListing, sectors } = useDirectory()
   const [sectorOpen, setSectorOpen] = useState(false)
   const [category, setCategory] = useState<CategoryId>("yeme")
   const [place, setPlace] = useState<Place>(defaultPlace)
@@ -36,12 +33,13 @@ export function ListScreen() {
   const params = useSearchParams()
   const draftAddress = cleanDiscoverText(params.get("adres") ?? "", 120)
   const [error, setError] = useState("")
+  const [pending, setPending] = useState(false)
   const [name, setName] = useState(() => cleanDiscoverText(params.get("ad") ?? "", 80))
 
-  function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent) {
     event.preventDefault()
     const digits = phone.replace(/\D/g, "")
-    const city = placeCity(place)
+    const city = (place.province || place.region || place.country).trim()
     const area = district.trim() || place.neighborhood || place.district
     if (name.trim().length < 2 || area.length < 2 || summary.trim().length < 12) {
       setError("Ad, semt ve en az bir cümlelik özet gerekli.")
@@ -56,44 +54,55 @@ export function ListScreen() {
       return
     }
     const meta = categoryById(category)
-    const slug = slugify(name)
-    const business: Business = {
-      id: slug,
-      slug,
-      name: name.trim(),
-      category,
-      subcategory: meta.label,
-      city,
-      district: area,
-      address: `${area}, ${city}`,
-      lat: place.lat,
-      lng: place.lng,
-      phone: phone.trim(),
-      rating: 0,
-      reviewCount: 0,
-      priceLevel: 2,
-      openNow: true,
-      summary: summary.trim(),
-      about: summary.trim(),
-      services: [],
-      amenities: ["Yeni kayıt"],
-      tags: [],
-      reviews: [],
-      premium: false,
-      verified: false,
-      responseMinutes: 180,
-      founded: new Date().getFullYear(),
-      photo: meta.photo,
-      photoPosition: "center",
-      booking: defaultBooking(category),
-      hours: DAYS.map((day) => ({ day, hours: day === "Pazar" ? "Kapalı" : "09:00–18:00" })),
-      facts: [],
-      source: "senin",
-      ownerAccountId: account?.id,
+    setPending(true)
+    setError("")
+    try {
+      const response = await fetch("/api/ilan", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          op: "create",
+          name: name.trim(),
+          category,
+          subcategory: meta.label,
+          city,
+          district: area,
+          address: `${area}, ${city}`,
+          lat: place.lat,
+          lng: place.lng,
+          phone: phone.trim(),
+          summary: summary.trim(),
+          photo: meta.photo,
+          booking: defaultBooking(category),
+        }),
+      })
+      const data = (await response.json().catch(() => null)) as { listing?: Business; reason?: string } | null
+      if (response.status === 401 || data?.reason === "oturum") {
+        setError("Bu oturum işletme kaydını sunucuya yazamıyor. İşletme hesabınla yeniden giriş yap.")
+        return
+      }
+      if (data?.reason === "yetki") {
+        setError("Bu hesap işletme kaydı açamaz.")
+        return
+      }
+      if (data?.reason === "limited") {
+        setError("Çok fazla deneme. Bir süre sonra tekrar dene.")
+        return
+      }
+      if (!response.ok || !data?.listing) {
+        setError("Kayıt kaydedilemedi. Alanları kontrol edip tekrar dene.")
+        return
+      }
+      addListing(data.listing)
+      rememberListing(data.listing)
+      if (takeDiscoverLead()) recordDiscoverEvent({ type: "register_done", q: name.trim(), city })
+      router.push(`/isletme/${data.listing.slug}`)
+    } catch {
+      setError("Kayıt kaydedilemedi. Bağlantını kontrol edip tekrar dene.")
+    } finally {
+      setPending(false)
     }
-    addListing(business)
-    if (takeDiscoverLead()) recordDiscoverEvent({ type: "register_done", q: name.trim(), city })
-    router.push(`/isletme/${slug}`)
   }
 
   if (!account) return <GuestNotice />
@@ -118,7 +127,7 @@ export function ListScreen() {
       <p className="text-sm font-medium text-primary">Ücretsiz kayıt</p>
       <h1 className="mt-2 font-heading text-4xl leading-tight">İşletmeni ekle.</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        Kayıt bu tarayıcıda kalır, aramada ve profilde görünür. Doğrulama ve öne çıkarma bu demoda elle açılmaz.
+        Kayıt aramada ve işletme sayfasında görünür. Doğrulama ve öne çıkarma yönetici onayından sonra açılır.
       </p>
       <form onSubmit={submit} className="mt-6 grid gap-4">
         <div className="grid gap-1.5">
@@ -185,13 +194,10 @@ export function ListScreen() {
           />
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button type="submit" className="h-11 rounded-xl">
-          Kaydı oluştur
+        <Button type="submit" className="h-11 rounded-xl" disabled={pending}>
+          {pending ? "Kaydediliyor" : "Kaydı oluştur"}
         </Button>
       </form>
-      {listings.length ? (
-        <p className="mt-4 text-sm text-muted-foreground">{listings.length} kaydın bu tarayıcıda duruyor.</p>
-      ) : null}
       <SectorForm open={sectorOpen} onOpenChange={setSectorOpen} />
     </div>
   )

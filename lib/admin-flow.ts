@@ -15,10 +15,11 @@ import {
 } from "@/lib/admin-gate"
 import { adminSecrets } from "@/lib/admin-secrets"
 import { jsonReply, mailReady, readJson, requestIp, sendLogged, takeIpSlot } from "@/lib/account-route"
+import { clearMemberCookie, closeMemberSession, readMemberCookie, requestIsSecure } from "@/lib/member-session"
 import { noteAdminLimit, noteAdminSession } from "@/lib/notify-flow"
 
 function secureRequest(request: Request) {
-  return new URL(request.url).protocol === "https:"
+  return requestIsSecure(request)
 }
 
 export async function adminStartFlow(request: Request, now = Date.now()) {
@@ -75,8 +76,12 @@ export async function adminSessionFlow(request: Request) {
 export async function adminLogoutFlow(request: Request) {
   const store = await accountStore()
   const token = readAdminCookie(request.headers.get("cookie"))
+  const member = readMemberCookie(request.headers.get("cookie"))
   if (store && token) await closeAdminSession(store, token)
+  if (store && member) await closeMemberSession(store, member)
   const response = jsonReply({ ok: true })
-  response.headers.append("set-cookie", clearAdminCookie(secureRequest(request)))
+  const secure = secureRequest(request)
+  response.headers.append("set-cookie", clearAdminCookie(secure))
+  response.headers.append("set-cookie", clearMemberCookie(secure))
   return response
 }

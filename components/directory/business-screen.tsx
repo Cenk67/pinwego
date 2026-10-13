@@ -40,7 +40,7 @@ import {
 } from "@/lib/format"
 
 export function BusinessScreen({ slug }: { slug: string }) {
-  const { ready, place, visibleBusinesses } = useDirectory()
+  const { ready, remoteReady, place, visibleBusinesses } = useDirectory()
   const { member, allow } = useGuestGate()
   const business = visibleBusinesses.find((item) => item.slug === slug)
   const [note, setNote] = useState("")
@@ -48,7 +48,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
   const [helpful, setHelpful] = useState<Record<string, number>>({})
 
   if (!business) {
-    if (!ready) {
+    if (!ready || !remoteReady) {
       return (
         <div className="mx-auto max-w-6xl px-4 py-10">
           <div className="h-72 animate-pulse rounded-3xl bg-foreground/5" />

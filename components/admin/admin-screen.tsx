@@ -100,8 +100,8 @@ export function AdminScreen() {
       <p className="text-sm font-medium text-primary">Yönetim paneli</p>
       <h1 className="mt-2 font-heading text-4xl leading-tight">pinwego’yu buradan yönet.</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-        Sektör, işletme, talep ve hesap kayıtları bu tarayıcıda durur. Gizlenen sektör ve işletme keşif, arama ve
-        talepte görünmez.
+        Yeni işletme kayıtları sunucuda durur; arama ve işletme sayfası onları gösterir. Sektör, talep ve belgeler bu
+        tarayıcıda kalır. Gizlenen sektör ve işletme keşif, arama ve talepte görünmez.
       </p>
       <div className="mt-6 flex flex-wrap gap-2">
         {tabs.map((item) => (
@@ -164,6 +164,17 @@ function Overview() {
   )
 }
 
+async function postListing(body: Record<string, unknown>) {
+  const response = await fetch("/api/ilan", {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  const data = (await response.json().catch(() => null)) as { ok?: boolean; listing?: Business } | null
+  return { response, data }
+}
+
 function BusinessAdmin() {
   const {
     managedBusinesses,
@@ -173,6 +184,9 @@ function BusinessAdmin() {
     patchBusiness,
     addListing,
     removeListing,
+    rememberListing,
+    forgetListing,
+    rememberHidden,
   } = useDirectory()
   const [query, setQuery] = useState("")
   const [limit, setLimit] = useState(12)
@@ -230,12 +244,34 @@ function BusinessAdmin() {
                     type="button"
                     variant="outline"
                     className="h-9 rounded-xl"
-                    onClick={() => hideBusiness(business.id, !hidden)}
+                    onClick={() => {
+                      const next = !hidden
+                      if (business.source !== "senin") {
+                        hideBusiness(business.id, next)
+                        return
+                      }
+                      void postListing({ op: "flags", id: business.id, hidden: next }).then(({ response }) => {
+                        if (!response.ok) return
+                        hideBusiness(business.id, next)
+                        rememberHidden(business.id, next)
+                      })
+                    }}
                   >
                     {hidden ? "Göster" : "Gizle"}
                   </Button>
                   {business.source === "senin" ? (
-                    <Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => removeListing(business.id)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 rounded-xl"
+                      onClick={() => {
+                        void postListing({ op: "delete", id: business.id }).then(({ response }) => {
+                          if (!response.ok) return
+                          removeListing(business.id)
+                          forgetListing(business.id)
+                        })
+                      }}
+                    >
                       Sil
                     </Button>
                   ) : null}
@@ -245,21 +281,54 @@ function BusinessAdmin() {
                 <Label className="gap-2">
                   <Checkbox
                     checked={business.verified}
-                    onCheckedChange={(checked) => patchBusiness(business.id, { verified: checked === true })}
+                    onCheckedChange={(checked) => {
+                      const verified = checked === true
+                      if (business.source !== "senin") {
+                        patchBusiness(business.id, { verified })
+                        return
+                      }
+                      void postListing({ op: "flags", id: business.id, verified }).then(({ response, data }) => {
+                        if (!response.ok || !data?.listing) return
+                        patchBusiness(business.id, { verified: data.listing.verified })
+                        rememberListing(data.listing)
+                      })
+                    }}
                   />
                   Doğrulanmış
                 </Label>
                 <Label className="gap-2">
                   <Checkbox
                     checked={business.premium}
-                    onCheckedChange={(checked) => patchBusiness(business.id, { premium: checked === true })}
+                    onCheckedChange={(checked) => {
+                      const premium = checked === true
+                      if (business.source !== "senin") {
+                        patchBusiness(business.id, { premium })
+                        return
+                      }
+                      void postListing({ op: "flags", id: business.id, premium }).then(({ response, data }) => {
+                        if (!response.ok || !data?.listing) return
+                        patchBusiness(business.id, { premium: data.listing.premium })
+                        rememberListing(data.listing)
+                      })
+                    }}
                   />
                   Öne çıkan
                 </Label>
                 <Label className="gap-2">
                   <Checkbox
                     checked={business.openNow}
-                    onCheckedChange={(checked) => patchBusiness(business.id, { openNow: checked === true })}
+                    onCheckedChange={(checked) => {
+                      const openNow = checked === true
+                      if (business.source !== "senin") {
+                        patchBusiness(business.id, { openNow })
+                        return
+                      }
+                      void postListing({ op: "flags", id: business.id, openNow }).then(({ response, data }) => {
+                        if (!response.ok || !data?.listing) return
+                        patchBusiness(business.id, { openNow: data.listing.openNow })
+                        rememberListing(data.listing)
+                      })
+                    }}
                   />
                   Şu an açık
                 </Label>
@@ -300,9 +369,13 @@ function BusinessAdmin() {
         <CreateBusiness
           sectors={managedSectors}
           onClose={() => setCreating(false)}
-          onCreate={(business) => {
-            addListing(business)
+          onCreate={async (business) => {
+            const { response, data } = await postListing({ op: "create", ...business, verified: true })
+            if (!response.ok || !data?.listing) return "Kayıt sunucuya yazılamadı. Yönetici oturumu açık olsun."
+            addListing(data.listing)
+            rememberListing(data.listing)
             setCreating(false)
+            return null
           }}
         />
       ) : null}
@@ -472,7 +545,7 @@ function CreateBusiness({
 }: {
   sectors: { id: string; label: string; photo?: string }[]
   onClose: () => void
-  onCreate: (business: Business) => void
+  onCreate: (business: Business) => Promise<string | null>
 }) {
   const { account } = useAuth()
   const [name, setName] = useState("")
@@ -493,7 +566,7 @@ function CreateBusiness({
           className="grid gap-3"
           onSubmit={(event) => {
             event.preventDefault()
-            if (name.trim().length < 2 || district.trim().length < 2 || summary.trim().length < 8) {
+            if (name.trim().length < 2 || district.trim().length < 2 || summary.trim().length < 12) {
               setError("Ad, semt ve kısa özet gerekli.")
               return
             }
@@ -502,10 +575,14 @@ function CreateBusiness({
               setError(contact.error)
               return
             }
+            if (contact.phone.replace(/\D/g, "").length < 10) {
+              setError("Telefon için en az 10 rakam yaz.")
+              return
+            }
             const meta = categoryById(category)
             const slug = slugify(name)
             const center = cityCenter(city)
-            onCreate({
+            void onCreate({
               id: slug,
               slug,
               name: name.trim(),
@@ -539,6 +616,8 @@ function CreateBusiness({
               facts: [],
               source: "senin",
               ownerAccountId: account?.id,
+            }).then((message) => {
+              if (message) setError(message)
             })
           }}
         >

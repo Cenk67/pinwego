@@ -6,6 +6,7 @@ import { mailContent } from "@/lib/mail-copy"
 import { linkBase, pickLocale } from "@/lib/mail-policy"
 import { normalizeEmail } from "@/lib/auth-session"
 import { validEmail } from "@/lib/identity"
+import { memberSessionCookie, openMemberSession, requestIsSecure } from "@/lib/member-session"
 
 export async function registerFlow(request: Request, now = Date.now()) {
   const body = await readJson(request, 8000)
@@ -50,7 +51,9 @@ export async function loginFlow(request: Request, now = Date.now()) {
   if (!result.ok && result.reason === "invalid") return jsonReply(result, 400)
   await noteLogin(store, email, now, result.ok || result.reason === "unverified")
   if (result.ok) await noteSignedIn(store, result.account, now)
-  return jsonReply(result)
+  const response = jsonReply(result)
+  if (result.ok) await attachMemberCookie(response, store, result.account.email, request)
+  return response
 }
 
 export async function verifyFlow(request: Request, now = Date.now()) {
@@ -62,7 +65,18 @@ export async function verifyFlow(request: Request, now = Date.now()) {
   const result = await consumeMailToken(store, body.token, "verify", now)
   if (!result.ok) return jsonReply({ ok: false, reason: result.reason })
   await noteVerified(store, result.account, now, request.headers.get("origin"))
-  return jsonReply({ ok: true })
+  const response = jsonReply({ ok: true })
+  await attachMemberCookie(response, store, result.account.email, request)
+  return response
+}
+
+async function attachMemberCookie(response: Response, store: NonNullable<Awaited<ReturnType<typeof accountStore>>>, email: string, request: Request) {
+  try {
+    const token = await openMemberSession(store, email)
+    response.headers.append("set-cookie", memberSessionCookie(token, requestIsSecure(request)))
+  } catch {
+    // Giriş yine tamamlanır. Çerez yazılamazsa ilan formu yeniden giriş ister.
+  }
 }
 
 export async function resendFlow(request: Request, now = Date.now()) {
