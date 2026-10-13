@@ -15,6 +15,7 @@ import {
 } from "@/lib/admin-gate"
 import { adminSecrets } from "@/lib/admin-secrets"
 import { jsonReply, mailReady, readJson, requestIp, sendLogged, takeIpSlot } from "@/lib/account-route"
+import { noteAdminLimit, noteAdminSession } from "@/lib/notify-flow"
 
 function secureRequest(request: Request) {
   return new URL(request.url).protocol === "https:"
@@ -26,10 +27,16 @@ export async function adminStartFlow(request: Request, now = Date.now()) {
   const secrets = await adminSecrets()
   const store = await accountStore()
   if (!secrets || !store) return jsonReply({ ok: false, reason: "unavailable" }, 503)
-  if (!(await takeIpSlot(requestIp(request), "yonetici", now, 8, 15 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
+  if (!(await takeIpSlot(requestIp(request), "yonetici", now, 8, 15 * 60 * 1000))) {
+    await noteAdminLimit(store, now)
+    return jsonReply({ ok: false, reason: "limited" })
+  }
   const email = typeof body.email === "string" ? body.email : ""
   const password = typeof body.password === "string" ? body.password : ""
-  if (!(await takeEmailSlot(store, "yonetici", email || "bos", now, 8, 15 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
+  if (!(await takeEmailSlot(store, "yonetici", email || "bos", now, 8, 15 * 60 * 1000))) {
+    await noteAdminLimit(store, now)
+    return jsonReply({ ok: false, reason: "limited" })
+  }
   if (!(await passwordAccepted(email, password, secrets))) return jsonReply({ ok: false, reason: "mismatch" })
   if (!(await mailReady())) return jsonReply({ ok: false, reason: "unavailable" }, 503)
   if (!(await takeEmailSlot(store, "yonetici-kod", secrets.otpTo, now, 8, 60 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
@@ -51,6 +58,7 @@ export async function adminCodeFlow(request: Request, now = Date.now()) {
   const result = await consumeAdminOtp(store, body.code, now)
   if (result !== "ok") return jsonReply({ ok: false, reason: result })
   const token = await openAdminSession(store)
+  await noteAdminSession(store, now, request.headers.get("origin"))
   const response = jsonReply({ ok: true })
   response.headers.append("set-cookie", adminSessionCookie(token, secureRequest(request)))
   return response

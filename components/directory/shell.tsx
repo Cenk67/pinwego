@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Bookmark, Compass, MessageCircle, Plus, Search } from "lucide-react"
 import { Suspense, useEffect, useState, type ReactNode } from "react"
+import { VisitBeacon } from "@/components/admin/visit-beacon"
 import { GuestGateProvider } from "@/components/auth/guest-gate"
 import { Assistant } from "@/components/directory/assistant"
 import { Footer } from "@/components/directory/footer"
@@ -131,6 +132,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </Suspense>
       )}
       {card ? null : <Assistant />}
+      <VisitBeacon />
       <MessageToast />
     </GuestGateProvider>
   )

@@ -1,4 +1,5 @@
 import { consumeMailToken, issueMailToken, loginInStore, loginLimited, noteLogin, registerInStore } from "@/lib/account-record"
+import { noteMailFailed, noteRegistered, noteSignedIn, noteSuspicious, noteVerified } from "@/lib/notify-flow"
 import { accountStore } from "@/lib/account-kv"
 import { emailSlot, guardChallenge, jsonReply, mailReady, readJson, requestIp, sendLogged, takeIpSlot } from "@/lib/account-route"
 import { mailContent } from "@/lib/mail-copy"
@@ -11,20 +12,28 @@ export async function registerFlow(request: Request, now = Date.now()) {
   if (!body) return jsonReply({ ok: false, reason: "invalid" }, 400)
   const store = await accountStore()
   if (!store) return jsonReply({ ok: false, reason: "unavailable" }, 503)
-  if (!(await takeIpSlot(requestIp(request), "kayit", now, 20, 60_000))) return jsonReply({ ok: false, reason: "limited" })
+  if (!(await takeIpSlot(requestIp(request), "kayit", now, 20, 60_000))) {
+    await noteSuspicious(store, now, request.headers.get("origin"))
+    return jsonReply({ ok: false, reason: "limited" })
+  }
   const email = typeof body.email === "string" ? body.email : ""
-  if (!(await emailSlot(store, "kayit", email, now, 8, 10 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
+  if (!(await emailSlot(store, "kayit", email, now, 8, 10 * 60 * 1000))) {
+    await noteSuspicious(store, now, request.headers.get("origin"))
+    return jsonReply({ ok: false, reason: "limited" })
+  }
   const challenge = await guardChallenge(body, request)
   if (!challenge.ok) return jsonReply({ ok: false, reason: "challenge" }, 400)
   const verify = await mailReady()
   const result = await registerInStore(store, body, new Date(now).toISOString(), { emailVerified: verify ? false : undefined })
   if (!result.ok) return jsonReply(result, result.reason === "exists" ? 409 : 400)
+  await noteRegistered(store, result.account, now, request.headers.get("origin"))
   if (!verify) return jsonReply({ ok: true, account: result.account, mail: "unconfigured" })
   const issued = await issueMailToken(store, result.account.email, "verify", now)
   if (!issued.ok) return jsonReply({ ok: true, account: { ...result.account, emailVerified: false }, mail: "failed" })
   const url = `${linkBase(request.headers.get("origin"))}/dogrula?token=${encodeURIComponent(issued.token)}`
   const content = mailContent({ locale: pickLocale(body.locale), kind: "verify", url, business: result.account.role === "isletme" })
   const sent = await sendLogged(store, { to: result.account.email, purpose: "verify", ...content })
+  if (!sent.ok) await noteMailFailed(store, now, "dogrulama")
   return jsonReply({ ok: true, account: { ...result.account, emailVerified: false }, mail: sent.ok ? "sent" : "failed" })
 }
 
@@ -40,6 +49,7 @@ export async function loginFlow(request: Request, now = Date.now()) {
   const result = await loginInStore(store, body)
   if (!result.ok && result.reason === "invalid") return jsonReply(result, 400)
   await noteLogin(store, email, now, result.ok || result.reason === "unverified")
+  if (result.ok) await noteSignedIn(store, result.account, now)
   return jsonReply(result)
 }
 
@@ -51,6 +61,7 @@ export async function verifyFlow(request: Request, now = Date.now()) {
   if (!(await takeIpSlot(requestIp(request), "dogrula", now, 20, 10 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
   const result = await consumeMailToken(store, body.token, "verify", now)
   if (!result.ok) return jsonReply({ ok: false, reason: result.reason })
+  await noteVerified(store, result.account, now, request.headers.get("origin"))
   return jsonReply({ ok: true })
 }
 
