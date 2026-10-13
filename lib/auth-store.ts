@@ -78,19 +78,23 @@ function notify() {
   listeners.forEach((listener) => listener())
 }
 
-function readAccounts(): Account[] {
+function readAccounts(): Account[] | null {
   try {
     const raw = localStorage.getItem(ACCOUNTS_KEY)
     if (!raw) return []
     const data = JSON.parse(raw) as Account[]
-    return Array.isArray(data) ? data : []
+    return Array.isArray(data) ? data : null
   } catch {
-    return []
+    return null
   }
 }
 
 function writeAccounts(accounts: Account[]) {
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts))
+  try {
+    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts))
+  } catch {
+    // The browser quota can fill. The server copy still opens the next sign-in.
+  }
 }
 
 function readSessionId() {
@@ -117,7 +121,9 @@ function writeSessionId(id: string | null) {
 }
 
 function load(): Snapshot {
-  const accounts = ensureAdmin(readAccounts())
+  const read = readAccounts()
+  if (!read) return { ready: true, account: null, accounts: [] }
+  const accounts = ensureAdmin(read)
   const id = readSessionId()
   const account = accounts.find((item) => item.id === id) ?? null
   if (!account) writeSessionId(null)
@@ -206,9 +212,60 @@ export async function openDocument(account: Account, documentId: string) {
 
 function enter(account: Account) {
   writeSessionId(account.id)
-  memory = { ready: true, account, accounts: readAccounts() }
+  memory = { ready: true, account, accounts: readAccounts() ?? [account] }
   loaded = true
   notify()
+}
+
+type RemoteAccount = {
+  id: string
+  role: Exclude<Role, "admin">
+  email: string
+  name: string
+  phone: string
+  createdAt: string
+  customer?: Account["customer"]
+  business?: Account["business"]
+}
+
+type RemoteResult = { ok: true; account: RemoteAccount } | { ok: false; reason: string } | null
+
+async function postAccount(path: string, body: unknown): Promise<RemoteResult> {
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    if (response.status === 503 || response.status === 429) return null
+    const data = (await response.json()) as RemoteResult
+    if (!data || typeof data !== "object" || !("ok" in data)) return null
+    return data
+  } catch {
+    return null
+  }
+}
+
+function accountBody(input: {
+  id?: string
+  role: Exclude<Role, "admin">
+  email: string
+  password: string
+  name: string
+  phone: string
+  customer?: Account["customer"]
+  business?: Account["business"]
+}) {
+  return {
+    id: input.id,
+    role: input.role,
+    email: input.email,
+    password: input.password,
+    name: input.name,
+    phone: input.phone,
+    customer: input.customer,
+    business: input.business,
+  }
 }
 
 export async function registerAccount(input: {
@@ -222,18 +279,21 @@ export async function registerAccount(input: {
   business?: Account["business"]
 }) {
   const email = normalizeEmail(input.email)
-  const accounts = readAccounts()
+  const accounts = readAccounts() ?? []
   if (accounts.some((item) => sameEmail(item.email, email))) {
     return "Bu e-posta ile bir kayıt var. Giriş yap."
   }
-  const id = crypto.randomUUID()
+  const remote = await postAccount("/api/kayit", accountBody({ ...input, email }))
+  if (remote?.ok === false && remote.reason === "exists") return "Bu e-posta ile bir kayıt var. Giriş yap."
+  if (remote?.ok === false && remote.reason === "invalid") return "Kayıt bilgisi kabul edilmedi."
+  const id = remote?.ok ? remote.account.id : crypto.randomUUID()
   const documents = await storeFiles(id, input.uploads)
   const account: Account = {
     id,
     role: input.role,
     email,
     passwordHash: await digestPassword(email, input.password),
-    createdAt: new Date().toISOString(),
+    createdAt: remote?.ok ? remote.account.createdAt : new Date().toISOString(),
     name: input.name.trim(),
     phone: input.phone.trim(),
     documents,
@@ -246,7 +306,8 @@ export async function registerAccount(input: {
 }
 
 export async function previewLogin(email: string, password: string): Promise<Account | string> {
-  const account = readAccounts().find((item) => sameEmail(item.email, email))
+  const accounts = readAccounts()
+  const account = accounts?.find((item) => sameEmail(item.email, email))
   if (!account) return "E-posta veya şifre eşleşmedi."
   if (!(await passwordMatches(account.email, account.passwordHash, password))) {
     return "E-posta veya şifre eşleşmedi."
@@ -254,16 +315,55 @@ export async function previewLogin(email: string, password: string): Promise<Acc
   return account
 }
 
+async function cacheRemote(account: RemoteAccount, password: string) {
+  const email = normalizeEmail(account.email)
+  const prior = readAccounts()?.find((item) => sameEmail(item.email, email))
+  const next: Account = {
+    id: account.id,
+    role: account.role,
+    email,
+    passwordHash: await digestPassword(email, password.trim() || password),
+    createdAt: account.createdAt,
+    name: account.name,
+    phone: account.phone,
+    documents: prior?.documents ?? [],
+    customer: account.customer,
+    business: account.business,
+  }
+  const rest = (readAccounts() ?? []).filter((item) => item.id !== next.id && !sameEmail(item.email, email))
+  writeAccounts(ensureAdmin([next, ...rest]))
+  enter(next)
+}
+
 export async function login(email: string, password: string) {
-  const result = await previewLogin(email, password)
-  if (typeof result === "string") return result
-  enter(result)
+  const remote = await postAccount("/api/giris", { email, password })
+  if (remote?.ok) {
+    await cacheRemote(remote.account, password)
+    return null
+  }
+  if (remote?.ok === false && remote.reason === "mismatch") return "E-posta veya şifre eşleşmedi."
+  const local = await previewLogin(email, password)
+  if (typeof local === "string") return "E-posta veya şifre eşleşmedi."
+  if (remote?.ok === false && remote.reason === "unknown" && local.role !== "admin") {
+    await postAccount("/api/kayit", accountBody({
+      id: local.id,
+      role: local.role === "isletme" ? "isletme" : "musteri",
+      email: local.email,
+      password,
+      name: local.name,
+      phone: local.phone,
+      customer: local.customer,
+      business: local.business,
+    }))
+  }
+  enter(local)
   return null
 }
 
 export function logout() {
   writeSessionId(null)
-  memory = { ready: true, account: null, accounts: ensureAdmin(readAccounts()) }
+  const read = readAccounts()
+  memory = { ready: true, account: null, accounts: read ? ensureAdmin(read) : [] }
   loaded = true
   notify()
 }
@@ -271,7 +371,9 @@ export function logout() {
 export function removeAccount(id: string) {
   const current = getSnapshot()
   if (current.account?.id === id) return "Oturumdaki hesabı silemezsin."
-  const accounts = ensureAdmin(readAccounts())
+  const read = readAccounts()
+  if (!read) return "Hesap bulunamadı."
+  const accounts = ensureAdmin(read)
   const target = accounts.find((item) => item.id === id)
   if (!target) return "Hesap bulunamadı."
   if (target.role === "admin" && accounts.filter((item) => item.role === "admin").length < 2) {

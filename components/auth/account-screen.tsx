@@ -103,7 +103,7 @@ export function AccountScreen() {
       </p>
       <h1 className="mt-2 font-heading text-4xl text-balance">{account.name}</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        Kimlik bilgisi ve yüklenen belgeler kontrol edildiği için rehber bu hesapla açık. Kayıt bu tarayıcıda durur.
+        Hesap e-posta ve şifreyle yeniden açılır. Yüklenen belgeler bu tarayıcıda kalır.
       </p>
       <dl className="mt-6 grid gap-3">
         {rows.map(([label, value]) => (

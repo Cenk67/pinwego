@@ -7,6 +7,7 @@ import { PlaceButton } from "@/components/directory/place-picker"
 import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
 import { useMessages } from "@/lib/message-context"
+import { customerLoginPath } from "@/lib/auth-path"
 import { useLocale } from "@/lib/use-locale"
 
 export function Header() {
@@ -59,7 +60,7 @@ export function Header() {
               {t("nav.account")}
             </Link>
           ) : (
-            <Link href="/hesap" className="rounded-full bg-primary px-3 py-1.5 text-primary-foreground">
+            <Link href={customerLoginPath} className="rounded-full bg-primary px-3 py-1.5 text-primary-foreground">
               {t("nav.login")}
             </Link>
           )}
@@ -68,7 +69,7 @@ export function Header() {
           {t("nav.blog")}
         </Link>
         <Link
-          href={account?.role === "admin" ? "/yonetim" : "/hesap"}
+          href={account?.role === "admin" ? "/yonetim" : account ? "/hesap" : customerLoginPath}
           className="text-sm hover:text-primary md:hidden"
         >
           {account?.role === "admin" ? t("nav.admin") : account ? t("nav.account") : t("nav.login")}

@@ -10,6 +10,7 @@ import { Footer } from "@/components/directory/footer"
 import { Header } from "@/components/directory/header"
 import { MessageToast } from "@/components/messages/message-toast"
 import { useAuth } from "@/lib/auth-context"
+import { customerLoginPath } from "@/lib/auth-path"
 import { withReturn } from "@/lib/auth-session"
 import { useDirectory } from "@/lib/directory-context"
 import { useMessages } from "@/lib/message-context"
@@ -80,7 +81,7 @@ function GuestBar() {
         </p>
         <div className="flex shrink-0 flex-wrap gap-2">
           <EntryLink
-            href="/hesap"
+            href={customerLoginPath}
             className="inline-flex h-10 items-center justify-center rounded-full bg-card px-4 text-sm font-medium ring-1 ring-foreground/15"
           >
             {t("nav.login")}

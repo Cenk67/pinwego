@@ -1,5 +1,7 @@
 import type { Role } from "@/lib/auth-store"
 
+export const customerLoginPath = "/hesap?kayit=giris&kapi=musteri"
+
 export type AuthMode = "choose" | "login" | "admin" | "musteri" | "isletme"
 export type AuthDoor = "musteri" | "isletme" | "yonetici"
 
