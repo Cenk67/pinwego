@@ -36,6 +36,8 @@ export type Account = {
     city: string
     address: string
   }
+  emailVerified?: boolean
+  credentialVersion?: number
 }
 
 export type Upload = {
@@ -227,9 +229,14 @@ type RemoteAccount = {
   createdAt: string
   customer?: Account["customer"]
   business?: Account["business"]
+  emailVerified?: boolean
+  credentialVersion?: number
 }
 
-type RemoteResult = { ok: true; account: RemoteAccount } | { ok: false; reason: string } | null
+type RemoteResult =
+  | { ok: true; account: RemoteAccount; mail?: string }
+  | { ok: false; reason: string; role?: "musteri" | "isletme"; mail?: string }
+  | null
 
 async function postAccount(path: string, body: unknown): Promise<RemoteResult> {
   try {
@@ -256,6 +263,8 @@ function accountBody(input: {
   phone: string
   customer?: Account["customer"]
   business?: Account["business"]
+  turnstile?: string
+  locale?: string
 }) {
   return {
     id: input.id,
@@ -266,8 +275,12 @@ function accountBody(input: {
     phone: input.phone,
     customer: input.customer,
     business: input.business,
+    turnstile: input.turnstile,
+    locale: input.locale,
   }
 }
+
+export type AuthNotice = { pending: string }
 
 export async function registerAccount(input: {
   role: Exclude<Role, "admin">
@@ -278,7 +291,9 @@ export async function registerAccount(input: {
   uploads: Upload[]
   customer?: Account["customer"]
   business?: Account["business"]
-}) {
+  turnstile?: string
+  locale?: string
+}): Promise<string | AuthNotice | null> {
   const email = normalizeEmail(input.email)
   const accounts = readAccounts() ?? []
   if (accounts.some((item) => sameEmail(item.email, email))) {
@@ -287,6 +302,9 @@ export async function registerAccount(input: {
   const remote = await postAccount("/api/kayit", accountBody({ ...input, email }))
   if (remote?.ok === false && remote.reason === "exists") return "Bu e-posta ile bir kayıt var. Giriş yap."
   if (remote?.ok === false && remote.reason === "invalid") return "Kayıt bilgisi kabul edilmedi."
+  if (remote?.ok === false && remote.reason === "challenge") return "Doğrulama tamamlanmadı. Yeniden dene."
+  if (remote?.ok === false && remote.reason === "limited") return "Çok fazla deneme. Bir süre sonra tekrar dene."
+  if (remote?.ok === false) return "Kayıt şu an tamamlanamadı."
   const id = remote?.ok ? remote.account.id : crypto.randomUUID()
   const documents = await storeFiles(id, input.uploads)
   const account: Account = {
@@ -300,8 +318,11 @@ export async function registerAccount(input: {
     documents,
     customer: input.customer,
     business: input.business,
+    emailVerified: remote?.ok ? remote.account.emailVerified !== false : true,
+    credentialVersion: remote?.ok ? remote.account.credentialVersion ?? 1 : 1,
   }
   writeAccounts(ensureAdmin([account, ...accounts]))
+  if (remote?.ok && remote.account.emailVerified === false) return { pending: email }
   enter(account)
   return null
 }
@@ -330,19 +351,27 @@ async function cacheRemote(account: RemoteAccount, password: string) {
     documents: prior?.documents ?? [],
     customer: account.customer,
     business: account.business,
+    emailVerified: account.emailVerified !== false,
+    credentialVersion: account.credentialVersion ?? 1,
   }
   const rest = (readAccounts() ?? []).filter((item) => item.id !== next.id && !sameEmail(item.email, email))
   writeAccounts(ensureAdmin([next, ...rest]))
   enter(next)
 }
 
-export async function login(email: string, password: string, door?: AuthDoor) {
-  const remote = await postAccount("/api/giris", { email, password })
+export async function login(email: string, password: string, door?: AuthDoor, extra?: { turnstile?: string; locale?: string }): Promise<string | AuthNotice | null> {
+  const remote = await postAccount("/api/giris", { email, password, turnstile: extra?.turnstile, locale: extra?.locale })
   if (remote?.ok) {
     const problem = door ? loginDoorProblem(door, remote.account.role) : null
     if (problem) return problem
     await cacheRemote(remote.account, password)
     return null
+  }
+  if (remote?.ok === false && remote.reason === "limited") return "Çok fazla deneme. Bir süre sonra tekrar dene."
+  if (remote?.ok === false && remote.reason === "unverified") {
+    const problem = door && remote.role ? loginDoorProblem(door, remote.role) : null
+    if (problem) return problem
+    return { pending: normalizeEmail(email) }
   }
   if (remote?.ok === false && remote.reason === "mismatch") return "E-posta veya şifre eşleşmedi."
   const local = await previewLogin(email, password)
@@ -350,7 +379,7 @@ export async function login(email: string, password: string, door?: AuthDoor) {
   const problem = door ? loginDoorProblem(door, local.role) : null
   if (problem) return problem
   if (remote?.ok === false && remote.reason === "unknown" && local.role !== "admin") {
-    await postAccount("/api/kayit", accountBody({
+    const created = await postAccount("/api/kayit", accountBody({
       id: local.id,
       role: local.role === "isletme" ? "isletme" : "musteri",
       email: local.email,
@@ -359,10 +388,27 @@ export async function login(email: string, password: string, door?: AuthDoor) {
       phone: local.phone,
       customer: local.customer,
       business: local.business,
+      turnstile: extra?.turnstile,
+      locale: extra?.locale,
     }))
+    if (created?.ok && created.account.emailVerified === false) return { pending: local.email }
   }
   enter(local)
   return null
+}
+
+export async function confirmSession() {
+  const account = getSnapshot().account
+  if (!account || account.role === "admin") return false
+  const remote = await postAccount("/api/oturum", { email: account.email, credentialVersion: account.credentialVersion ?? 1 })
+  if (!remote) return false
+  return remote.ok === false
+}
+
+export function retireLocal(email: string) {
+  const read = readAccounts()
+  if (!read) return
+  writeAccounts(read.map((item) => (sameEmail(item.email, email) ? { ...item, passwordHash: "" } : item)))
 }
 
 export function logout() {

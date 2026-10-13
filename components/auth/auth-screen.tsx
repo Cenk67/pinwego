@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth-context"
 import { type AuthDoor, type AuthMode } from "@/lib/auth-path"
+import { PendingMail } from "@/components/auth/pending-mail"
+import { TurnstileField } from "@/components/auth/turnstile-field"
 import { destinationFor, safeReturnPath, submittedField } from "@/lib/auth-session"
 import { ADMIN_EMAIL, getSnapshot } from "@/lib/auth-store"
 import { businesses } from "@/lib/catalog"
@@ -105,10 +107,12 @@ export function AuthScreen({
   initialMode = "choose",
   door = "musteri",
   embedded = false,
+  siteKey = "",
 }: {
   initialMode?: Mode
   door?: AuthDoor
   embedded?: boolean
+  siteKey?: string
 }) {
   const { login, registerAccount } = useAuth()
   const [claim] = useState<Business | null>(pendingClaim)
@@ -133,13 +137,14 @@ export function AuthScreen({
             initialEmail={mode === "admin" ? ADMIN_EMAIL : ""}
             door={mode === "admin" ? "yonetici" : door}
             claim={claim}
+            siteKey={siteKey}
           />
         ) : null}
         {mode === "musteri" ? (
-          <CustomerForm registerAccount={registerAccount} />
+          <CustomerForm registerAccount={registerAccount} siteKey={siteKey} />
         ) : null}
         {mode === "isletme" ? (
-          <BusinessForm registerAccount={registerAccount} claim={claim} />
+          <BusinessForm registerAccount={registerAccount} claim={claim} siteKey={siteKey} />
         ) : null}
       </main>
     </div>
@@ -225,18 +230,22 @@ function LoginForm({
   initialEmail = "",
   door,
   claim,
+  siteKey,
 }: {
-  login: (email: string, password: string, door?: AuthDoor) => Promise<string | null>
+  login: (email: string, password: string, door?: AuthDoor, extra?: { turnstile?: string; locale?: string }) => Promise<string | { pending: string } | null>
   initialEmail?: string
   door: AuthDoor
   claim: Business | null
+  siteKey: string
 }) {
   const router = useRouter()
   const params = useSearchParams()
   const { addListing } = useDirectory()
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
-  const { t } = useLocale()
+  const [token, setToken] = useState("")
+  const [hold, setHold] = useState<{ email: string; password: string } | null>(null)
+  const { t, locale } = useLocale()
   const title = door === "yonetici" ? t("auth.adminIn") : door === "isletme" ? t("auth.businessIn") : t("auth.customerIn")
   const copy =
     door === "yonetici" ? t("auth.adminCopy") : door === "isletme" ? t("auth.businessCopy") : t("auth.customerCopy")
@@ -248,7 +257,11 @@ function LoginForm({
     const typedPassword = submittedField(form, "password", "login-password", "")
     setPending(true)
     try {
-      const message = await login(typedEmail, typedPassword, door)
+      const message = await login(typedEmail, typedPassword, door, { turnstile: token, locale })
+      if (message && typeof message === "object") {
+        setHold({ email: message.pending, password: typedPassword })
+        return
+      }
       if (message) {
         setErrors([message])
         return
@@ -271,6 +284,8 @@ function LoginForm({
     }
   }
 
+  if (hold) return <PendingMail email={hold.email} password={hold.password} siteKey={siteKey} />
+
   return (
     <form onSubmit={submit} className="grid gap-4">
       <div>
@@ -292,8 +307,14 @@ function LoginForm({
         <Label htmlFor="login-password">{t("auth.password")}</Label>
         <Input id="login-password" name="password" type="password" autoComplete="current-password" className="h-11" />
       </div>
+      {door === "yonetici" ? null : (
+        <Link href="/sifre" className="text-sm text-primary">
+          {t("auth.forgot")}
+        </Link>
+      )}
+      <TurnstileField siteKey={door === "yonetici" ? "" : siteKey} onToken={setToken} />
       <ErrorList errors={errors} />
-      <Button type="submit" className="h-11 rounded-xl" disabled={pending}>
+      <Button type="submit" className="h-11 rounded-xl" disabled={pending || (door !== "yonetici" && Boolean(siteKey) && !token)}>
         {pending ? t("auth.checking") : t("auth.submit")}
       </Button>
       {door === "musteri" ? (
@@ -315,8 +336,10 @@ function LoginForm({
 
 function CustomerForm({
   registerAccount,
+  siteKey,
 }: {
   registerAccount: ReturnType<typeof useAuth>["registerAccount"]
+  siteKey: string
 }) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -328,6 +351,9 @@ function CustomerForm({
   const [document, setDocument] = useState<File | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
+  const [token, setToken] = useState("")
+  const [hold, setHold] = useState<{ email: string; password: string } | null>(null)
+  const { locale } = useLocale()
   const router = useRouter()
   const params = useSearchParams()
 
@@ -365,7 +391,13 @@ function CustomerForm({
         phone: typedPhone,
         customer: { nationalId: typedId.replace(/\D/g, ""), birthDate: typedBirth },
         uploads: [{ label: "Teyit belgesi", file: document }],
+        turnstile: token,
+        locale,
       })
+      if (message && typeof message === "object") {
+        setHold({ email: message.pending, password: typedPassword })
+        return
+      }
       if (message) {
         setErrors([message])
         return
@@ -377,6 +409,8 @@ function CustomerForm({
       setPending(false)
     }
   }
+
+  if (hold) return <PendingMail email={hold.email} password={hold.password} siteKey={siteKey} />
 
   return (
     <form onSubmit={submit} className="grid gap-4">
@@ -403,8 +437,9 @@ function CustomerForm({
         file={document}
         onChange={setDocument}
       />
+      <TurnstileField siteKey={siteKey} onToken={setToken} />
       <ErrorList errors={errors} />
-      <Button type="submit" className="h-11 rounded-xl" disabled={pending}>
+      <Button type="submit" className="h-11 rounded-xl" disabled={pending || (Boolean(siteKey) && !token)}>
         {pending ? "Belgeler kaydediliyor" : "Doğrula ve kaydı aç"}
       </Button>
       <Link href="/hesap?kayit=giris&kapi=musteri" className="text-center text-sm text-primary">
@@ -420,9 +455,11 @@ function CustomerForm({
 function BusinessForm({
   registerAccount,
   claim,
+  siteKey,
 }: {
   registerAccount: ReturnType<typeof useAuth>["registerAccount"]
   claim: Business | null
+  siteKey: string
 }) {
   const router = useRouter()
   const { addListing } = useDirectory()
@@ -444,6 +481,9 @@ function BusinessForm({
   const [kimlik, setKimlik] = useState<File | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
+  const [token, setToken] = useState("")
+  const [hold, setHold] = useState<{ email: string; password: string } | null>(null)
+  const { locale } = useLocale()
   const params = useSearchParams()
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -491,7 +531,13 @@ function BusinessForm({
           address: address.trim(),
         },
         uploads: uploads.map((item) => ({ label: item.label, file: item.file as File })),
+        turnstile: token,
+        locale,
       })
+      if (message && typeof message === "object") {
+        setHold({ email: message.pending, password: typedPassword })
+        return
+      }
       if (!message && claim) {
         const ownerId = getSnapshot().account?.id
         addListing(claimListing(claim, ownerId || ""))
@@ -511,6 +557,8 @@ function BusinessForm({
       setPending(false)
     }
   }
+
+  if (hold) return <PendingMail email={hold.email} password={hold.password} siteKey={siteKey} />
 
   return (
     <form onSubmit={submit} className="grid gap-4">
@@ -547,8 +595,9 @@ function BusinessForm({
       <DocField label="İmza sirküleri" hint="Noter onaylı imza sirküleri veya yetki belgesi." file={imza} onChange={setImza} />
       <DocField label="Ticaret sicil veya faaliyet belgesi" hint="Sicil gazetesi ya da faaliyet belgesi." file={sicil} onChange={setSicil} />
       <DocField label="Yetkili kimlik belgesi" hint="İşlemi yapan kişinin kimlik kartı veya ehliyeti." file={kimlik} onChange={setKimlik} />
+      <TurnstileField siteKey={siteKey} onToken={setToken} />
       <ErrorList errors={errors} />
-      <Button type="submit" className="h-11 rounded-xl" disabled={pending}>
+      <Button type="submit" className="h-11 rounded-xl" disabled={pending || (Boolean(siteKey) && !token)}>
         {pending ? "Belgeler kaydediliyor" : "Belgeleri yükle ve kaydı aç"}
       </Button>
       <Link href="/hesap?kayit=giris&kapi=isletme" className="text-center text-sm text-primary">

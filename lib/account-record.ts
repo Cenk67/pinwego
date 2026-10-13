@@ -1,5 +1,6 @@
 import { normalizeEmail } from "@/lib/auth-session"
 import { adultBirthDate, validEmail, validPassword, validPhone, validTckn, validVkn } from "@/lib/identity"
+import { newSecret, nextBucket, sha256Hex } from "@/lib/mail-policy"
 
 export type PublicAccount = {
   id: string
@@ -10,18 +11,38 @@ export type PublicAccount = {
   createdAt: string
   customer?: { nationalId: string; birthDate: string }
   business?: { owner: string; taxId: string; taxOffice: string; city: string; address: string }
+  emailVerified: boolean
+  credentialVersion: number
 }
 
-type StoredAccount = PublicAccount & { passwordSalt: string; passwordHash: string }
+type StoredAccount = Omit<PublicAccount, "emailVerified" | "credentialVersion"> & {
+  passwordSalt: string
+  passwordHash: string
+  emailVerified?: boolean
+  credentialVersion?: number
+  verifyHash?: string
+  verifyExp?: number
+  resetHash?: string
+  resetExp?: number
+}
 
 export type AccountStore = {
   get(key: string): Promise<string | null>
-  put(key: string, value: string): Promise<void>
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>
+  delete(key: string): Promise<void>
 }
 
 export type AccountResult =
   | { ok: true; account: PublicAccount }
-  | { ok: false; reason: "exists" | "invalid" | "mismatch" | "unknown" }
+  | { ok: false; reason: "exists" | "invalid" | "mismatch" | "unknown" | "unverified"; role?: "musteri" | "isletme" }
+
+export type TokenResult =
+  | { ok: true; token: string }
+  | { ok: false; reason: "unknown" | "verified" | "invalid" }
+
+export type ConsumeResult =
+  | { ok: true; account: PublicAccount }
+  | { ok: false; reason: "invalid" | "expired" | "used" | "weak" }
 
 const rounds = 1000
 
@@ -82,6 +103,8 @@ function publish(account: StoredAccount): PublicAccount {
     createdAt: account.createdAt,
     customer: account.customer,
     business: account.business,
+    emailVerified: account.emailVerified !== false,
+    credentialVersion: account.credentialVersion ?? 1,
   }
 }
 
@@ -107,7 +130,12 @@ function profile(body: Record<string, unknown>, role: "musteri" | "isletme") {
   return { business: { owner, taxId, taxOffice, city, address } }
 }
 
-export async function registerInStore(store: AccountStore, body: unknown, now = "2026-01-01T00:00:00.000Z"): Promise<AccountResult> {
+export async function registerInStore(
+  store: AccountStore,
+  body: unknown,
+  now = "2026-01-01T00:00:00.000Z",
+  options?: { emailVerified?: boolean },
+): Promise<AccountResult> {
   if (!body || typeof body !== "object") return { ok: false, reason: "invalid" }
   const row = body as Record<string, unknown>
   const email = normalizeEmail(clean(row.email, 180))
@@ -135,6 +163,8 @@ export async function registerInStore(store: AccountStore, body: unknown, now = 
     createdAt: now,
     passwordSalt,
     passwordHash,
+    credentialVersion: 1,
+    ...(options?.emailVerified === false ? { emailVerified: false } : {}),
     ...extra,
   }
   await store.put(key, JSON.stringify(stored))
@@ -152,5 +182,144 @@ export async function loginInStore(store: AccountStore, body: unknown): Promise<
   const hash = await hashPassword(password, salt)
   if (!stored) return { ok: false, reason: "unknown" }
   if (!sameHex(hash, stored.passwordHash)) return { ok: false, reason: "mismatch" }
+  if (stored.emailVerified === false) return { ok: false, reason: "unverified", role: stored.role }
   return { ok: true, account: publish(stored) }
+}
+
+const verifyTtl = 24 * 60 * 60 * 1000
+const resetTtl = 60 * 60 * 1000
+const failWindow = 15 * 60 * 1000
+const failLimit = 8
+
+function tokenKey(hash: string) {
+  return `tok:${hash}`
+}
+
+function usedKey(hash: string) {
+  return `used:${hash}`
+}
+
+function failKey(hash: string) {
+  return `fail:${hash}`
+}
+
+async function emailHash(email: string) {
+  return (await sha256Hex(normalizeEmail(email))).slice(0, 32)
+}
+
+export async function loginLimited(store: AccountStore, email: string, now: number) {
+  const raw = await store.get(failKey(await emailHash(email)))
+  if (!raw) return false
+  try {
+    const current = JSON.parse(raw) as { n?: number; start?: number }
+    return typeof current.n === "number" && typeof current.start === "number" && now - current.start < failWindow && current.n >= failLimit
+  } catch {
+    return false
+  }
+}
+
+export async function noteLogin(store: AccountStore, email: string, now: number, ok: boolean) {
+  const key = failKey(await emailHash(email))
+  if (ok) {
+    await store.delete(key)
+    return
+  }
+  const raw = await store.get(key)
+  let current: { n: number; start: number } | null = null
+  try {
+    current = raw ? (JSON.parse(raw) as { n: number; start: number }) : null
+  } catch {
+    current = null
+  }
+  const slot = nextBucket(current, now, failLimit, failWindow)
+  await store.put(key, JSON.stringify(slot.next), { expirationTtl: Math.ceil(failWindow / 1000) })
+}
+
+export async function takeEmailSlot(store: AccountStore, purpose: string, email: string, now: number, limit: number, windowMs: number) {
+  const key = `rl:${purpose}:${await emailHash(email)}`
+  const raw = await store.get(key)
+  let current: { n: number; start: number } | null = null
+  try {
+    current = raw ? (JSON.parse(raw) as { n: number; start: number }) : null
+  } catch {
+    current = null
+  }
+  const slot = nextBucket(current && typeof current.n === "number" ? current : null, now, limit, windowMs)
+  await store.put(key, JSON.stringify(slot.next), { expirationTtl: Math.max(60, Math.ceil(windowMs / 1000)) })
+  return slot.ok
+}
+
+export async function issueMailToken(store: AccountStore, email: string, purpose: "verify" | "reset", now: number): Promise<TokenResult> {
+  const stored = asStored(await store.get(accountKey(email)))
+  if (!stored) return { ok: false, reason: "unknown" }
+  if (purpose === "verify" && stored.emailVerified !== false) return { ok: false, reason: "verified" }
+  const token = newSecret()
+  const hash = await sha256Hex(token)
+  const ttl = purpose === "verify" ? verifyTtl : resetTtl
+  const exp = now + ttl
+  const next: StoredAccount = { ...stored, ...(purpose === "verify" ? { verifyHash: hash, verifyExp: exp } : { resetHash: hash, resetExp: exp }) }
+  await store.put(accountKey(stored.email), JSON.stringify(next))
+  await store.put(tokenKey(hash), JSON.stringify({ purpose, exp, email: stored.email }), { expirationTtl: Math.ceil(ttl / 1000) })
+  return { ok: true, token }
+}
+
+export async function consumeMailToken(store: AccountStore, token: string, purpose: "verify" | "reset", now: number, password = ""): Promise<ConsumeResult> {
+  const cleanToken = token.trim()
+  if (cleanToken.length < 20 || cleanToken.length > 200) return { ok: false, reason: "invalid" }
+  const hash = await sha256Hex(cleanToken)
+  if (await store.get(usedKey(hash))) return { ok: false, reason: "used" }
+  const raw = await store.get(tokenKey(hash))
+  if (!raw) return { ok: false, reason: "invalid" }
+  let marker: { purpose?: string; exp?: number; email?: string }
+  try {
+    marker = JSON.parse(raw) as { purpose?: string; exp?: number; email?: string }
+  } catch {
+    return { ok: false, reason: "invalid" }
+  }
+  if (marker.purpose !== purpose || typeof marker.email !== "string" || typeof marker.exp !== "number") return { ok: false, reason: "invalid" }
+  const stored = asStored(await store.get(accountKey(marker.email)))
+  const expected = purpose === "verify" ? stored?.verifyHash : stored?.resetHash
+  const expiry = purpose === "verify" ? stored?.verifyExp : stored?.resetExp
+  if (!stored || expected !== hash || expiry !== marker.exp) return { ok: false, reason: "invalid" }
+  if (marker.exp <= now) {
+    await clearToken(store, stored, purpose, hash)
+    return { ok: false, reason: "expired" }
+  }
+  if (purpose === "reset" && (!validPassword(password.trim()) || password.length > 200)) return { ok: false, reason: "weak" }
+  const next: StoredAccount = { ...stored }
+  if (purpose === "verify") {
+    next.emailVerified = true
+    delete next.verifyHash
+    delete next.verifyExp
+  } else {
+    next.passwordSalt = await newSalt()
+    next.passwordHash = await hashPassword(password, next.passwordSalt)
+    next.credentialVersion = (stored.credentialVersion ?? 1) + 1
+    delete next.resetHash
+    delete next.resetExp
+  }
+  await store.put(usedKey(hash), "1", { expirationTtl: 24 * 60 * 60 })
+  await store.delete(tokenKey(hash))
+  await store.put(accountKey(stored.email), JSON.stringify(next))
+  return { ok: true, account: publish(next) }
+}
+
+async function clearToken(store: AccountStore, stored: StoredAccount, purpose: "verify" | "reset", hash: string) {
+  const next: StoredAccount = { ...stored }
+  if (purpose === "verify") {
+    delete next.verifyHash
+    delete next.verifyExp
+  } else {
+    delete next.resetHash
+    delete next.resetExp
+  }
+  await store.put(usedKey(hash), "1", { expirationTtl: 24 * 60 * 60 })
+  await store.delete(tokenKey(hash))
+  await store.put(accountKey(stored.email), JSON.stringify(next))
+}
+
+export async function credentialStill(store: AccountStore, email: string, version: number) {
+  const stored = asStored(await store.get(accountKey(email)))
+  if (!stored) return true
+  return (stored.credentialVersion ?? 1) === version
 }

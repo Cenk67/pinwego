@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function Page() {
   return (
     <Suspense fallback={<div className="mx-auto max-w-xl px-4 py-16 text-sm text-muted-foreground">Hesap açılıyor</div>}>
-      <AccountScreen />
+      <AccountScreen siteKey={process.env.TURNSTILE_SITE_KEY ?? ""} />
     </Suspense>
   )
 }

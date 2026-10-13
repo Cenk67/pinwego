@@ -107,7 +107,7 @@ export function Shell({ children }: { children: ReactNode }) {
     const next = `https://pinwego.com${window.location.pathname}${window.location.search}${window.location.hash}`
     window.location.replace(next)
   }, [])
-  const indexable = pathname === "/blog" || pathname.startsWith("/blog/") || pathname.startsWith("/isletme/") || pathname.startsWith("/q/") || pathname.startsWith("/kesif")
+  const indexable = pathname === "/blog" || pathname.startsWith("/blog/") || pathname.startsWith("/isletme/") || pathname.startsWith("/q/") || pathname.startsWith("/kesif") || pathname.startsWith("/dogrula") || pathname.startsWith("/sifre") || pathname.startsWith("/onizleme")
   const card = pathname.startsWith("/q/")
   if (!ready && !indexable) {
     return (

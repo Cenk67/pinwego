@@ -1,13 +1,15 @@
 "use client"
 
-import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react"
 import {
+  confirmSession,
   getServerSnapshot,
   getSnapshot,
   login,
   logout,
   registerAccount,
   removeAccount,
+  retireLocal,
   subscribe,
 } from "@/lib/auth-store"
 
@@ -25,6 +27,19 @@ const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+  const sessionKey = snapshot.account ? `${snapshot.account.id}:${snapshot.account.credentialVersion ?? 1}` : ""
+  useEffect(() => {
+    if (!sessionKey || snapshot.account?.role === "admin") return
+    let cancel = false
+    void confirmSession().then((stale) => {
+      if (cancel || !stale || !snapshot.account) return
+      retireLocal(snapshot.account.email)
+      logout()
+    })
+    return () => {
+      cancel = true
+    }
+  }, [sessionKey, snapshot.account])
   const value = useMemo<AuthState>(
     () => ({
       ready: snapshot.ready,

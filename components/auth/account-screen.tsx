@@ -12,7 +12,7 @@ import { openDocument } from "@/lib/auth-store"
 import { CLAIM_KEY } from "@/lib/claim"
 import { maskId } from "@/lib/identity"
 
-export function AccountScreen() {
+export function AccountScreen({ siteKey = "" }: { siteKey?: string }) {
   const { account, ready, logout } = useAuth()
   const router = useRouter()
   const params = useSearchParams()
@@ -49,6 +49,7 @@ export function AccountScreen() {
         embedded
         initialMode={mode}
         door={authDoor(params.get("kapi"), mode)}
+        siteKey={siteKey}
       />
     )
   }
