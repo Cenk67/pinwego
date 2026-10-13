@@ -20,6 +20,10 @@ export function allowedOrigin(origin: string | null) {
   return hosts.has(hostOf(origin))
 }
 
+export function devPreviewPath(pathname: string) {
+  return pathname === "/onizleme" || pathname.startsWith("/onizleme/")
+}
+
 export function linkBase(origin: string | null) {
   const host = hostOf(origin)
   if ((host === "localhost" || host === "127.0.0.1") && origin) {

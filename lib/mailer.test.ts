@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { mailContent } from "./mail-copy"
 import { clearDevMail, deliverMail, readDevMail } from "./mailer"
-import { allowedOrigin, linkBase, nextBucket } from "./mail-policy"
+import { allowedOrigin, devPreviewPath, linkBase, nextBucket } from "./mail-policy"
 
 assert.equal(allowedOrigin(null), true)
 assert.equal(allowedOrigin("https://pinwego.com"), true)
@@ -9,6 +9,8 @@ assert.equal(allowedOrigin("https://evil.example"), false)
 assert.equal(linkBase("javascript:alert(1)"), "https://pinwego.com")
 assert.equal(linkBase("https://www.pinwego.com"), "https://www.pinwego.com")
 assert.equal(linkBase("http://127.0.0.1:43123"), "http://127.0.0.1:43123")
+assert.equal(devPreviewPath("/onizleme/posta"), true)
+assert.equal(devPreviewPath("/sifre"), false)
 
 const bucket = nextBucket(null, 1_000, 2, 100)
 assert.equal(bucket.ok, true)
