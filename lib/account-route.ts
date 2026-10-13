@@ -1,5 +1,6 @@
 import { takeEmailSlot, type AccountStore } from "@/lib/account-record"
-import { deliverMail, mailLog, type OutboundMail } from "@/lib/mailer"
+import { emailSender } from "@/lib/email-binding"
+import { deliverBound, deliverMail, mailLog, type OutboundMail } from "@/lib/mailer"
 import { allowedOrigin, mailIsConfigured, sha256Hex } from "@/lib/mail-policy"
 import { checkTurnstile } from "@/lib/turnstile"
 
@@ -50,7 +51,8 @@ export function mailEnv() {
   }
 }
 
-export function mailReady() {
+export async function mailReady() {
+  if (await emailSender()) return true
   return mailIsConfigured(mailEnv())
 }
 
@@ -59,7 +61,9 @@ export async function guardChallenge(body: Record<string, unknown>, request: Req
 }
 
 export async function sendLogged(store: AccountStore, mail: OutboundMail) {
-  const result = await deliverMail(mail, mailEnv())
+  const sender = await emailSender()
+  const env = mailEnv()
+  const result = sender ? await deliverBound(mail, sender, env.from) : await deliverMail(mail, env)
   const row = await mailLog({
     purpose: mail.purpose,
     status: result.ok ? "accepted" : result.reason,

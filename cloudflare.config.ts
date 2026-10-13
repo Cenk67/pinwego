@@ -15,6 +15,7 @@ export default defineConfig({
       VINEXT_KV_CACHE: bindings.kv({ id: "3828054babf4482e869f08265407ba98" }),
       BLOG_STATE: bindings.kv({ id: "2d3121e68fb047fca8cd1f2fd02847da" }),
       ACCOUNTS: bindings.kv({ id: "11e917adbae3436c99767c654aed446d" }),
+      EMAIL: bindings.sendEmail({ allowedSenderAddresses: ["hesap@pinwego.com"] }),
     },
   }),
 });

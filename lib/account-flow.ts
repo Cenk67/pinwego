@@ -16,7 +16,7 @@ export async function registerFlow(request: Request, now = Date.now()) {
   if (!(await emailSlot(store, "kayit", email, now, 8, 10 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
   const challenge = await guardChallenge(body, request)
   if (!challenge.ok) return jsonReply({ ok: false, reason: "challenge" }, 400)
-  const verify = mailReady()
+  const verify = await mailReady()
   const result = await registerInStore(store, body, new Date(now).toISOString(), { emailVerified: verify ? false : undefined })
   if (!result.ok) return jsonReply(result, result.reason === "exists" ? 409 : 400)
   if (!verify) return jsonReply({ ok: true, account: result.account, mail: "unconfigured" })
@@ -64,7 +64,7 @@ export async function resendFlow(request: Request, now = Date.now()) {
   if (!(await emailSlot(store, "yenile", email, now, 3, 60 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
   const challenge = await guardChallenge(body, request)
   if (!challenge.ok) return jsonReply({ ok: false, reason: "challenge" }, 400)
-  if (!mailReady()) return jsonReply({ ok: true, mail: "unconfigured" })
+  if (!(await mailReady())) return jsonReply({ ok: true, mail: "unconfigured" })
   const login = await loginInStore(store, body)
   if (!login.ok && login.reason === "unverified") {
     const issued = await issueMailToken(store, email, "verify", now)
@@ -86,9 +86,9 @@ export async function resetFlow(request: Request, now = Date.now()) {
   if (!(await takeIpSlot(requestIp(request), "sifre", now, 10, 10 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
   const challenge = await guardChallenge(body, request)
   if (!challenge.ok) return jsonReply({ ok: false, reason: "challenge" }, 400)
-  if (!validEmail(email)) return jsonReply({ ok: true, mail: mailReady() ? "sent" : "unconfigured" })
+  if (!validEmail(email)) return jsonReply({ ok: true, mail: (await mailReady()) ? "sent" : "unconfigured" })
   if (!(await emailSlot(store, "sifre", email, now, 3, 60 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
-  if (!mailReady()) return jsonReply({ ok: true, mail: "unconfigured" })
+  if (!(await mailReady())) return jsonReply({ ok: true, mail: "unconfigured" })
   const issued = await issueMailToken(store, email, "reset", now)
   if (issued.ok) {
     const url = `${linkBase(request.headers.get("origin"))}/sifre?token=${encodeURIComponent(issued.token)}`

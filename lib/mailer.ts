@@ -36,6 +36,51 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+const retryCodes = new Set(["E_RATE_LIMIT_EXCEEDED", "E_INTERNAL_SERVER_ERROR"])
+
+export type BoundSender = {
+  send(message: {
+    to: string
+    from: { email: string; name?: string }
+    replyTo: string
+    subject: string
+    html: string
+    text: string
+  }): Promise<{ messageId?: string }>
+}
+
+export function fromAddress(value?: string) {
+  const raw = (value || defaultFrom).trim()
+  const named = raw.match(/^(.*)<([^>]+)>$/)
+  if (!named) return { name: "Pinwego", email: raw }
+  return { name: named[1].trim() || "Pinwego", email: named[2].trim() }
+}
+
+export async function deliverBound(mail: OutboundMail, sender: BoundSender, fromValue?: string): Promise<SendResult> {
+  const from = fromAddress(fromValue)
+  let attempts = 0
+  for (const wait of [0, 250, 800]) {
+    if (wait) await delay(wait)
+    attempts += 1
+    try {
+      const result = await sender.send({
+        to: mail.to,
+        from,
+        replyTo: supportAddress,
+        subject: mail.subject,
+        html: mail.html,
+        text: mail.text,
+      })
+      return { ok: true, id: result?.messageId || "accepted", attempts }
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : ""
+      if (code && !retryCodes.has(code)) return { ok: false, reason: "failed", attempts }
+      if (attempts >= 3) return { ok: false, reason: "failed", attempts }
+    }
+  }
+  return { ok: false, reason: "failed", attempts }
+}
+
 export async function deliverMail(mail: OutboundMail, env: SendEnv, fetchImpl: typeof fetch = fetch): Promise<SendResult> {
   if (!mailIsConfigured(env)) return { ok: false, reason: "unconfigured", attempts: 0 }
   if (!env.apiKey) {

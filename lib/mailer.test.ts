@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { mailContent } from "./mail-copy"
-import { clearDevMail, deliverMail, readDevMail } from "./mailer"
+import { clearDevMail, deliverBound, deliverMail, readDevMail } from "./mailer"
 import { allowedOrigin, devPreviewPath, linkBase, nextBucket } from "./mail-policy"
 
 assert.equal(allowedOrigin(null), true)
@@ -62,5 +62,36 @@ const failed = await deliverMail(
 assert.equal(failed.ok, false)
 assert.equal(rejected, 1)
 assert.equal(JSON.stringify(failed).includes("re_test_secret"), false)
+
+const sample = { to: "ada@pinwego.test", subject: "Konu", html: "<p>gövde</p>", text: "gövde", purpose: "verify" as const }
+let boundCalls = 0
+const bound = await deliverBound(sample, {
+  async send(message) {
+    boundCalls += 1
+    assert.equal(message.from.email, "hesap@pinwego.com")
+    assert.equal(message.replyTo, "destek@pinwego.com")
+    if (boundCalls < 3) {
+      const error = new Error("busy") as Error & { code: string }
+      error.code = "E_INTERNAL_SERVER_ERROR"
+      throw error
+    }
+    return { messageId: "msg_1" }
+  },
+})
+assert.equal(bound.ok && bound.id, "msg_1")
+assert.equal(boundCalls, 3)
+
+let deniedCalls = 0
+const denied = await deliverBound(sample, {
+  async send() {
+    deniedCalls += 1
+    const error = new Error("sender secret") as Error & { code: string }
+    error.code = "E_SENDER_NOT_VERIFIED"
+    throw error
+  },
+})
+assert.equal(denied.ok, false)
+assert.equal(deniedCalls, 1)
+assert.equal(JSON.stringify(denied).includes("sender secret"), false)
 
 console.log("posta gönderimi tekrar dener, anahtarı dışarı yazmaz")
