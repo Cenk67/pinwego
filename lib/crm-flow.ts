@@ -29,6 +29,16 @@ async function deliverReminders(store: AccountStore, state: CrmState, now: numbe
   return markReminded(state, letter.ids, new Date(now).toISOString())
 }
 
+export async function crmRemindSweep(now = Date.now()) {
+  const store = await accountStore()
+  if (!store) return
+  const parsed = await readState(store)
+  if (!parsed) return
+  const before = JSON.stringify(parsed)
+  const state = await deliverReminders(store, sweep(structuredClone(parsed), now), now)
+  if (JSON.stringify(state) !== before) await store.put(key, JSON.stringify(state))
+}
+
 export async function crmGetFlow(request: Request, now = Date.now()) {
   const { store, open } = await gate(request)
   if (!store) return jsonReply({ ok: false, reason: "unavailable" }, 503)

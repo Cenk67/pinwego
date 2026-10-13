@@ -1,10 +1,11 @@
-import { bindings, defineConfig, defineWorker } from "cf/config";
+import { bindings, defineConfig, defineWorker, triggers } from "cf/config";
 
 export default defineConfig({
   accountId: "cd4d86ef6b265aba4aaf7fdd6946874c",
   worker: defineWorker({
     name: "pinwego",
-    entrypoint: "vinext/server/fetch-handler",
+    entrypoint: "worker/entry.js",
+    triggers: [triggers.scheduled({ schedule: "0 5,12 * * *" })],
     compatibilityDate: "2026-10-09",
     compatibilityFlags: ["nodejs_compat"],
     assets: { notFoundHandling: "none" },
