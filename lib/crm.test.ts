@@ -7,6 +7,8 @@ import {
   parseCrm,
   paymentStatus,
   quoteTotals,
+  markReminded,
+  reminderDigest,
   report,
   sweep,
   type Ticket,
@@ -112,5 +114,21 @@ assert.equal(istanbulDay("2026-10-13T00:30:00Z"), "2026-10-13")
 
 const sample: Ticket = state.tickets[0]
 assert.equal(sample.messages.length, 2)
+
+state.settings.mailOn = false
+const silent = reminderDigest(state)
+assert.equal(silent, null)
+state.settings.mailOn = true
+run({ op: "watch.save", watch: { workspace: "pinwego", kind: "kampanya", title: "Kahvaltı", detail: "Yokuştepe", endDate: "2026-10-15", mail: true } })
+run({ op: "watch.save", watch: { workspace: "personal", kind: "not", title: "Gizli not", endDate: "2026-10-15", mail: false } })
+run({ op: "task.save", task: { workspace: "personal", title: "Posta görevi", dueAt: "2026-10-14T09:00:00+03:00", reminderAt: "2026-10-13T08:00:00+03:00", mail: true } })
+const letter = reminderDigest(state)
+assert.equal(letter?.text.includes("Kahvaltı"), true)
+assert.equal(letter?.text.includes("Posta görevi"), true)
+assert.equal(letter?.text.includes("Gizli not"), false)
+const mailed = reminderDigest(markReminded(structuredClone(state), letter?.ids || [], "2026-10-13T09:00:00+03:00"))
+assert.equal(mailed, null)
+assert.equal(applyCrm(state, { op: "watch.save", watch: { workspace: "pinwego", kind: "kampanya", title: "Kahvaltı", endDate: "2026-10-15", mail: true } }, now).ok, true)
+assert.equal(state.watches.filter((item) => item.title === "Kahvaltı").length, 1)
 
 console.log("crm hesabı sabit")

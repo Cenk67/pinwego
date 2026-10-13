@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
 import { businesses } from "@/lib/catalog"
+import { seedCampaigns } from "@/lib/campaigns"
 import {
   customerTicket,
   istanbulDay,
@@ -414,7 +415,7 @@ function contactOptions(contacts: Contact[]) {
 function Agenda({ state, contacts, workspace, pending, now, todayStart, openContact, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; now: number; todayStart: boolean; openContact: (id: string) => void; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
   const [span, setSpan] = useState<"gun" | "hafta" | "ay">(todayStart ? "gun" : "ay")
   const [day, setDay] = useState(() => istanbulDay(now))
-  const [form, setForm] = useState({ title: "", start: "", end: "", eventType: "randevu", contactId: "", location: "" })
+  const [form, setForm] = useState({ title: "", start: "", end: "", eventType: "randevu", contactId: "", location: "", mail: false })
   const monthStart = `${day.slice(0, 7)}-01`
   const first = new Date(`${monthStart}T12:00:00Z`)
   const offset = (first.getUTCDay() + 6) % 7
@@ -472,7 +473,7 @@ function Agenda({ state, contacts, workspace, pending, now, todayStart, openCont
         ) : null}
         {span === "gun" ? <DayList day={day} events={events} tasks={tasks} contacts={contacts} pending={pending} openContact={openContact} send={send} /> : null}
       </div>
-      <form className="grid gap-2" onSubmit={(event) => { event.preventDefault(); void send({ op: "event.save", event: { workspace, title: form.title, eventType: form.eventType, contactId: form.contactId, location: form.location, startAt: new Date(form.start).toISOString(), endAt: new Date(form.end).toISOString() } }) }}>
+      <form className="grid gap-2" onSubmit={(event) => { event.preventDefault(); void send({ op: "event.save", event: { workspace, title: form.title, eventType: form.eventType, contactId: form.contactId, location: form.location, mail: form.mail, startAt: new Date(form.start).toISOString(), endAt: new Date(form.end).toISOString() } }) }}>
         <p className="font-heading text-xl">Yeni etkinlik</p>
         <input className={fieldClass} placeholder="Etkinlik" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
         <select className={fieldClass} aria-label="Etkinlik türü" value={form.eventType} onChange={(event) => setForm({ ...form, eventType: event.target.value })}>
@@ -482,8 +483,50 @@ function Agenda({ state, contacts, workspace, pending, now, todayStart, openCont
         <input className={fieldClass} type="datetime-local" aria-label="Başlangıç" value={form.start} onChange={(event) => setForm({ ...form, start: event.target.value })} required />
         <input className={fieldClass} type="datetime-local" aria-label="Bitiş" value={form.end} onChange={(event) => setForm({ ...form, end: event.target.value })} required />
         <input className={fieldClass} placeholder="Yer" value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} />
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.mail} onChange={(event) => setForm({ ...form, mail: event.target.checked })} /> Mail ile hatırlat</label>
         <Button type="submit" disabled={pending}>Ajandaya ekle</Button>
+        <Watches state={state} workspace={workspace} pending={pending} now={now} send={send} />
       </form>
+    </div>
+  )
+}
+
+const watchLabel: Record<string, string> = { kampanya: "Kampanya bitişi", uyelik: "Üyelik bitişi", not: "Önemli not" }
+
+function Watches({ state, workspace, pending, now, send }: { state: CrmState; workspace: Workspace; pending: boolean; now: number; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
+  const [form, setForm] = useState({ kind: "kampanya", title: "", detail: "", endDate: "", mail: true })
+  const today = istanbulDay(now)
+  const rows = (state.watches || []).filter((item) => item.workspace === workspace)
+  const campaigns = seedCampaigns.filter((item) => item.endDate >= today).slice(0, 6)
+  return (
+    <div className="mt-6 grid gap-3 rounded-3xl bg-card p-4 ring-1 ring-foreground/10">
+      <p className="font-heading text-xl">Üyelik, kampanya ve not</p>
+      <p className="text-xs text-muted-foreground">Bitince posta gitmesini istediğiniz tarihi buradan isteyin. Kampanya bu listede ayrıca durur; ilanın kendisi değişmez.</p>
+      <div className="flex flex-wrap gap-2">
+        {campaigns.map((item) => (
+          <button key={item.id} type="button" className="rounded-full bg-secondary px-3 py-1.5 text-left text-xs" disabled={pending} onClick={() => void send({ op: "watch.save", watch: { workspace, kind: "kampanya", title: item.title, detail: item.businessName, endDate: item.endDate, mail: true } })}>
+            {item.businessName} · {item.endDate}
+          </button>
+        ))}
+      </div>
+      <form className="grid gap-2" onSubmit={(event) => { event.preventDefault(); void send({ op: "watch.save", watch: { workspace, ...form } }).then((ok) => { if (ok) setForm({ ...form, title: "", detail: "", endDate: "" }) }) }}>
+        <select className={fieldClass} aria-label="Tarih türü" value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value })}>
+          <option value="kampanya">Kampanya bitişi</option>
+          <option value="uyelik">Üyelik bitişi</option>
+          <option value="not">Önemli not</option>
+        </select>
+        <input className={fieldClass} placeholder="Başlık" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
+        <input className={fieldClass} placeholder="Müşteri veya ayrıntı" value={form.detail} onChange={(event) => setForm({ ...form, detail: event.target.value })} />
+        <input className={fieldClass} type="date" aria-label="Bitiş" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} required />
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.mail} onChange={(event) => setForm({ ...form, mail: event.target.checked })} /> Bu tarihi mail ile hatırlat</label>
+        <Button type="submit" disabled={pending}>Tarihi izle</Button>
+      </form>
+      {rows.map((item) => (
+        <div key={item.id} className="flex items-center justify-between gap-2 text-sm">
+          <span>{watchLabel[item.kind]} · {item.title}{item.detail ? ` · ${item.detail}` : ""} · {item.endDate}{item.mail ? " · posta açık" : ""}</span>
+          <Button type="button" variant="ghost" disabled={pending} onClick={() => void send({ op: "watch.remove", id: item.id })}>Kaldır</Button>
+        </div>
+      ))}
     </div>
   )
 }
@@ -516,7 +559,7 @@ function EventRow({ item, pending, send }: { item: CalendarEvent; pending: boole
 }
 
 function Tasks({ state, contacts, deals, workspace, pending, now, lateStart, todayStart, send }: { state: CrmState; contacts: Contact[]; deals: Deal[]; workspace: Workspace; pending: boolean; now: number; lateStart: boolean; todayStart: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
-  const [form, setForm] = useState({ title: "", due: "", contactId: "", dealId: "", priority: "normal", status: "yapilacak", recurrence: "" })
+  const [form, setForm] = useState({ title: "", due: "", contactId: "", dealId: "", priority: "normal", status: "yapilacak", recurrence: "", mail: false })
   const [onlyLate, setOnlyLate] = useState(lateStart)
   const [onlyToday, setOnlyToday] = useState(todayStart)
   const [priority, setPriority] = useState("")
@@ -525,7 +568,7 @@ function Tasks({ state, contacts, deals, workspace, pending, now, lateStart, tod
   const rows = state.tasks.filter((item) => item.workspace === workspace && (!onlyLate || (item.dueAt && istanbulDay(item.dueAt) < today && item.status !== "tamamlandi" && item.status !== "iptal")) && (!onlyToday || (item.dueAt && istanbulDay(item.dueAt) === today)) && (!priority || item.priority === priority) && (!status || item.status === status))
   return (
     <div className="mt-4 grid gap-4">
-      <form className="grid gap-3 md:grid-cols-4" onSubmit={(event) => { event.preventDefault(); void send({ op: "task.save", task: { workspace, title: form.title, contactId: form.contactId, dealId: form.dealId, priority: form.priority, status: form.status, recurrence: form.recurrence, dueAt: new Date(form.due).toISOString() } }) }}>
+      <form className="grid gap-3 md:grid-cols-4" onSubmit={(event) => { event.preventDefault(); void send({ op: "task.save", task: { workspace, title: form.title, contactId: form.contactId, dealId: form.dealId, priority: form.priority, status: form.status, recurrence: form.recurrence, mail: form.mail, dueAt: new Date(form.due).toISOString() } }) }}>
         <input className={fieldClass} placeholder="Görev" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
         <input className={fieldClass} type="datetime-local" aria-label="Son tarih" value={form.due} onChange={(event) => setForm({ ...form, due: event.target.value })} required />
         <select className={fieldClass} aria-label="Müşteri" value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })}>{contactOptions(contacts)}</select>
@@ -538,6 +581,7 @@ function Tasks({ state, contacts, deals, workspace, pending, now, lateStart, tod
           <option value="hafta">Her hafta</option>
           <option value="ay">Her ay</option>
         </select>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.mail} onChange={(event) => setForm({ ...form, mail: event.target.checked })} /> Mail ile hatırlat</label>
         <Button type="submit" disabled={pending}>Görevi ekle</Button>
       </form>
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -550,7 +594,7 @@ function Tasks({ state, contacts, deals, workspace, pending, now, lateStart, tod
         <article key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-card px-3 py-3 text-sm ring-1 ring-foreground/10">
           <div>
             <p className="font-medium">{item.title}</p>
-            <p className="text-xs text-muted-foreground">{taskLabel[item.status]} · {priorityLabel[item.priority]} · {item.dueAt ? new Date(item.dueAt).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" }) : "tarih yok"}</p>
+            <p className="text-xs text-muted-foreground">{taskLabel[item.status]} · {priorityLabel[item.priority]} · {item.dueAt ? new Date(item.dueAt).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" }) : "tarih yok"}{item.mail ? " · posta açık" : ""}</p>
           </div>
           <div className="flex gap-2">
             <Button type="button" variant="outline" disabled={pending || item.status === "tamamlandi"} onClick={() => void send({ op: "task.status", id: item.id, status: "tamamlandi" })}>Tamamla</Button>
@@ -596,7 +640,7 @@ function Meetings({ state, contacts, pending, send }: { state: CrmState; contact
 
 function Quotes({ state, contacts, deals, workspace, pending, send }: { state: CrmState; contacts: Contact[]; deals: Deal[]; workspace: Workspace; pending: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
   const blank = { description: "", quantity: "1", amount: "", tax: String(state.settings.taxBps / 100) }
-  const [form, setForm] = useState({ contactId: "", dealId: "", currency: "TRY", validUntil: "" })
+  const [form, setForm] = useState({ contactId: "", dealId: "", currency: "TRY", validUntil: "", mail: false })
   const [lines, setLines] = useState([blank])
   const [printId, setPrintId] = useState("")
   const rows = state.quotes.filter((item) => item.workspace === workspace)
@@ -625,6 +669,7 @@ function Quotes({ state, contacts, deals, workspace, pending, send }: { state: C
           </div>
         ))}
         <div className="flex gap-2">
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.mail} onChange={(event) => setForm({ ...form, mail: event.target.checked })} /> Süresi dolmadan mail at</label>
           <Button type="button" variant="outline" onClick={() => setLines([...lines, blank])}>Kalem ekle</Button>
           <Button type="submit" disabled={pending}>Teklifi kaydet</Button>
         </div>
@@ -671,7 +716,7 @@ function Printable({ quote, contact }: { quote: Quote; contact?: Contact }) {
 }
 
 function Payments({ state, contacts, workspace, pending, now, dueStart, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; now: number; dueStart: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
-  const [form, setForm] = useState({ contactId: "", dealId: "", quoteId: "", amount: "", currency: "TRY", dueDate: "", reference: "" })
+  const [form, setForm] = useState({ contactId: "", dealId: "", quoteId: "", amount: "", currency: "TRY", dueDate: "", reference: "", mail: false })
   const [part, setPart] = useState<Record<string, string>>({})
   const [onlyDue, setOnlyDue] = useState(dueStart)
   const today = istanbulDay(now)
@@ -679,12 +724,13 @@ function Payments({ state, contacts, workspace, pending, now, dueStart, send }: 
   return (
     <div className="mt-4 grid gap-3">
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={onlyDue} onChange={(event) => setOnlyDue(event.target.checked)} /> Yalnızca vadesi gelenler</label>
-      <form className="grid gap-3 md:grid-cols-4" onSubmit={(event) => { event.preventDefault(); const amountCents = centsOf(form.amount); if (amountCents === null) return; void send({ op: "payment.save", clientKey: crypto.randomUUID(), payment: { contactId: form.contactId, dealId: form.dealId, quoteId: form.quoteId, currency: form.currency, dueDate: form.dueDate, reference: form.reference, amountCents } }) }}>
+      <form className="grid gap-3 md:grid-cols-4" onSubmit={(event) => { event.preventDefault(); const amountCents = centsOf(form.amount); if (amountCents === null) return; void send({ op: "payment.save", clientKey: crypto.randomUUID(), payment: { contactId: form.contactId, dealId: form.dealId, quoteId: form.quoteId, currency: form.currency, dueDate: form.dueDate, reference: form.reference, mail: form.mail, amountCents } }) }}>
         <select className={fieldClass} aria-label="Tahsilat müşterisi" value={form.contactId} onChange={(event) => setForm({ ...form, contactId: event.target.value })} required>{contactOptions(contacts)}</select>
         <select className={fieldClass} aria-label="Bağlı teklif" value={form.quoteId} onChange={(event) => setForm({ ...form, quoteId: event.target.value })}><option value="">Teklif yok</option>{state.quotes.filter((item) => item.workspace === workspace).map((item) => <option key={item.id} value={item.id}>{item.number}</option>)}</select>
         <input className={fieldClass} inputMode="decimal" placeholder="Tutar" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required />
         <input className={fieldClass} type="date" value={form.dueDate} onChange={(event) => setForm({ ...form, dueDate: event.target.value })} required />
         <input className={fieldClass} placeholder="Referans" value={form.reference} onChange={(event) => setForm({ ...form, reference: event.target.value })} />
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.mail} onChange={(event) => setForm({ ...form, mail: event.target.checked })} /> Vadeyi mail ile hatırlat</label>
         <Button type="submit" disabled={pending}>Vade aç</Button>
       </form>
       <p className="text-xs text-muted-foreground">İşaretlenen ödeme elle girilir. Banka hareketi doğrulanmış sayılmaz.</p>
@@ -712,7 +758,7 @@ function PaymentRow({ item, now, part, setPart, pending, send }: { item: Payment
 }
 
 function Subscriptions({ state, contacts, workspace, pending, now, soonStart, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; now: number; soonStart: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
-  const [form, setForm] = useState({ contactId: "", plan: "", amount: "", currency: "TRY", period: "aylik", startsAt: "", nextRenewal: "", status: "aktif" })
+  const [form, setForm] = useState({ contactId: "", plan: "", amount: "", currency: "TRY", period: "aylik", startsAt: "", nextRenewal: "", status: "aktif", mail: true })
   const [onlySoon, setOnlySoon] = useState(soonStart)
   const today = istanbulDay(now)
   const until = istanbulDay(now + 7 * 86400000)
@@ -728,12 +774,13 @@ function Subscriptions({ state, contacts, workspace, pending, now, soonStart, se
         <input className={fieldClass} type="date" value={form.startsAt} onChange={(event) => setForm({ ...form, startsAt: event.target.value })} required />
         <input className={fieldClass} type="date" value={form.nextRenewal} onChange={(event) => setForm({ ...form, nextRenewal: event.target.value })} required />
         <select className={fieldClass} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>{Object.entries(subLabel).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+        <label className="flex items-center gap-2 text-sm md:col-span-3"><input type="checkbox" checked={form.mail} onChange={(event) => setForm({ ...form, mail: event.target.checked })} /> Üyelik bitişini mail ile hatırlat</label>
         <Button type="submit" disabled={pending}>Aboneliği kaydet</Button>
       </form>
       {rows.map((item) => (
         <article key={item.id} className="rounded-2xl bg-card px-3 py-3 text-sm ring-1 ring-foreground/10">
           <p className="font-medium">{item.plan} · {subLabel[item.status]} · {money(item.amountCents, item.currency)}</p>
-          <p className="text-xs text-muted-foreground">Yenileme {item.nextRenewal || "yok"} · dönem {item.period}</p>
+          <p className="text-xs text-muted-foreground">Yenileme {item.nextRenewal || "yok"} · dönem {item.period}{item.mail ? " · posta açık" : ""}</p>
         </article>
       ))}
     </div>
@@ -741,7 +788,7 @@ function Subscriptions({ state, contacts, workspace, pending, now, soonStart, se
 }
 
 function Tickets({ state, contacts, workspace, pending, now, openStart, send }: { state: CrmState; contacts: Contact[]; workspace: Workspace; pending: boolean; now: number; openStart: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
-  const [form, setForm] = useState({ contactId: "", subject: "", description: "", priority: "normal", assignee: "", category: "" })
+  const [form, setForm] = useState({ contactId: "", subject: "", description: "", priority: "normal", assignee: "", category: "", mail: false })
   const [note, setNote] = useState<Record<string, string>>({})
   const [onlyOpen, setOnlyOpen] = useState(openStart)
   const [priority, setPriority] = useState("")
@@ -757,6 +804,7 @@ function Tickets({ state, contacts, workspace, pending, now, openStart, send }: 
         <input className={fieldClass} placeholder="Konu" value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} required />
         <input className={fieldClass} placeholder="Açıklama" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
         <select className={fieldClass} value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })}>{Object.entries(priorityLabel).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.mail} onChange={(event) => setForm({ ...form, mail: event.target.checked })} /> Gecikince mail at</label>
         <Button type="submit" disabled={pending}>Talep aç</Button>
       </form>
       {rows.map((item) => {
@@ -842,12 +890,14 @@ function Reports({ state, workspace, now }: { state: CrmState; workspace: Worksp
 function Settings({ state, pending, send }: { state: CrmState; pending: boolean; send: (action: Record<string, unknown>) => Promise<boolean | undefined> }) {
   const [tax, setTax] = useState(String(state.settings.taxBps / 100))
   const [days, setDays] = useState(String(state.settings.remindDays))
+  const [mailOn, setMailOn] = useState(state.settings.mailOn)
   return (
-    <form className="mt-4 grid max-w-md gap-3" onSubmit={(event) => { event.preventDefault(); void send({ op: "settings.save", taxBps: Math.round(Number(tax) * 100), remindDays: Number(days) }) }}>
+    <form className="mt-4 grid max-w-md gap-3" onSubmit={(event) => { event.preventDefault(); void send({ op: "settings.save", taxBps: Math.round(Number(tax) * 100), remindDays: Number(days), mailOn }) }}>
       <Field label="Varsayılan vergi yüzdesi"><input className={fieldClass} value={tax} onChange={(event) => setTax(event.target.value)} /></Field>
-      <Field label="Hatırlatma günü"><input className={fieldClass} value={days} onChange={(event) => setDays(event.target.value)} /></Field>
+      <Field label="Kaç gün önce hatırlatılsın"><input className={fieldClass} value={days} onChange={(event) => setDays(event.target.value)} /></Field>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={mailOn} onChange={(event) => setMailOn(event.target.checked)} /> İşaretlediğim hatırlatmalar yönetici postasına gitsin</label>
       <Button type="submit" disabled={pending}>Ayarları kaydet</Button>
-      <p className="text-xs text-muted-foreground">Vergi her kalemde ayrıca değişir. Hatırlatmalar sunucuda, aynı iş için bir kez üretilir. Erişim yönetici oturumundadır.</p>
+      <p className="text-xs text-muted-foreground">Posta, görev, ajanda, üyelik bitişi, kampanya bitişi, teklif, tahsilat ve destek için ayrı ayrı istenir. Aynı kayıt ikinci kez gönderilmez. Adres panelde görünmez.</p>
       <div className="mt-2 text-sm">
         <p className="font-medium">Son işlemler</p>
         {state.audits.slice(0, 8).map((item) => <p key={item.id} className="mt-1 text-muted-foreground">{item.action} · {item.entity} · {new Date(item.at).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}</p>)}

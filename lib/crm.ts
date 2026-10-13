@@ -75,6 +75,7 @@ export type Task = {
   dueAt: string
   reminderAt: string
   recurrence: "" | "gun" | "hafta" | "ay"
+  mail: boolean
   until: string
   seriesKey: string
   spawned: number
@@ -96,6 +97,7 @@ export type CalendarEvent = {
   endAt: string
   allDay: boolean
   location: string
+  mail: boolean
   status: "planli" | "tamamlandi" | "iptal"
   createdAt: string
   updatedAt: string
@@ -113,6 +115,7 @@ export type Quote = {
   items: QuoteItem[]
   validUntil: string
   notes: string
+  mail: boolean
   createdAt: string
   updatedAt: string
 }
@@ -132,6 +135,7 @@ export type Payment = {
   reference: string
   clientKey: string
   notes: string
+  mail: boolean
   cancelled: boolean
   marks: PaymentMark[]
   createdAt: string
@@ -152,6 +156,7 @@ export type Subscription = {
   periodEnd: string
   nextRenewal: string
   autoRenew: boolean
+  mail: boolean
   notes: string
   createdAt: string
   updatedAt: string
@@ -171,6 +176,7 @@ export type Ticket = {
   status: (typeof ticketStatuses)[number]
   assignee: string
   dueAt: string
+  mail: boolean
   resolvedAt: string | null
   messages: TicketMessage[]
   createdAt: string
@@ -178,11 +184,13 @@ export type Ticket = {
 }
 
 export type Audit = { id: string; actor: string; entity: string; entityId: string; action: string; at: string; meta: string }
-export type Notice = { id: string; key: string; title: string; message: string; entity: string; entityId: string; at: string; readAt: string | null; workspace?: Workspace }
+export type WatchKind = "kampanya" | "uyelik" | "not"
+export type Watch = { id: string; workspace: Workspace; kind: WatchKind; title: string; detail: string; endDate: string; mail: boolean; createdAt: string }
+export type Notice = { id: string; key: string; title: string; message: string; entity: string; entityId: string; at: string; readAt: string | null; workspace?: Workspace; mail?: boolean; mailedAt?: string | null }
 
 export type CrmState = {
   version: 1
-  settings: { taxBps: number; remindDays: number }
+  settings: { taxBps: number; remindDays: number; mailOn: boolean }
   seq: { quote: number; ticket: number }
   contacts: Contact[]
   interactions: Interaction[]
@@ -193,6 +201,7 @@ export type CrmState = {
   payments: Payment[]
   subscriptions: Subscription[]
   tickets: Ticket[]
+  watches: Watch[]
   audits: Audit[]
   notices: Notice[]
 }
@@ -202,7 +211,7 @@ export type CrmResult = { ok: true; state: CrmState; warning: string } | { ok: f
 export function emptyCrm(): CrmState {
   return {
     version: 1,
-    settings: { taxBps: 2000, remindDays: 3 },
+    settings: { taxBps: 2000, remindDays: 3, mailOn: false },
     seq: { quote: 0, ticket: 0 },
     contacts: [],
     interactions: [],
@@ -213,6 +222,7 @@ export function emptyCrm(): CrmState {
     payments: [],
     subscriptions: [],
     tickets: [],
+    watches: [],
     audits: [],
     notices: [],
   }
@@ -223,6 +233,9 @@ export function parseCrm(raw: string | null): CrmState | null {
   try {
     const data = JSON.parse(raw) as CrmState
     if (data?.version !== 1 || !Array.isArray(data.contacts) || !Array.isArray(data.payments)) return null
+    if (!data.settings) data.settings = { taxBps: 2000, remindDays: 3, mailOn: false }
+    if (typeof data.settings.mailOn !== "boolean") data.settings.mailOn = false
+    if (!Array.isArray(data.watches)) data.watches = []
     return data
   } catch {
     return null
@@ -304,11 +317,51 @@ function audit(state: CrmState, entity: string, entityId: string, action: string
   state.audits = state.audits.slice(0, 400)
 }
 
-function notice(state: CrmState, key: string, title: string, message: string, entity: string, entityId: string, at: string, workspace: Workspace) {
-  if (state.notices.some((item) => item.key === key)) return false
-  state.notices.unshift({ id: id(), key, title, message, entity, entityId, at, readAt: null, workspace })
+function notice(state: CrmState, key: string, title: string, message: string, entity: string, entityId: string, at: string, workspace: Workspace, mail = false) {
+  const prior = state.notices.find((item) => item.key === key)
+  if (prior) {
+    if (mail && !prior.mailedAt) prior.mail = true
+    return false
+  }
+  state.notices.unshift({ id: id(), key, title, message, entity, entityId, at, readAt: null, workspace, mail, mailedAt: null })
   state.notices = state.notices.slice(0, 200)
   return true
+}
+
+function escapeHtml(value: string) {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+}
+
+const remindLabel: Record<string, string> = {
+  task: "Görev",
+  event: "Ajanda",
+  quote: "Teklif",
+  payment: "Tahsilat",
+  subscription: "Üyelik",
+  ticket: "Destek",
+  watch: "Tarih",
+}
+
+export function reminderDigest(state: CrmState) {
+  if (!state.settings.mailOn) return null
+  const items = state.notices.filter((item) => item.mail && !item.mailedAt)
+  if (!items.length) return null
+  const lines = items.map((item) => `${remindLabel[item.entity] || "Kayıt"} · ${item.title} · ${item.message}`)
+  const text = ["Pinwego hatırlatması", "", ...lines, "", "Bu posta, mail ile işaretlediğiniz kayıtlar için bir kez gider."].join("\n")
+  const html = `<p>Pinwego hatırlatması</p><ul>${items.map((item) => `<li><strong>${escapeHtml(remindLabel[item.entity] || "Kayıt")}</strong> · ${escapeHtml(item.title)} · ${escapeHtml(item.message)}</li>`).join("")}</ul><p>Bu posta, mail ile işaretlediğiniz kayıtlar için bir kez gider.</p>`
+  return {
+    subject: items.length === 1 ? `Hatırlatma: ${items[0].title}`.slice(0, 140) : `Pinwego hatırlatması (${items.length})`,
+    text,
+    html,
+    ids: items.map((item) => item.id),
+  }
+}
+
+export function markReminded(state: CrmState, ids: string[], at: string) {
+  for (const item of state.notices) {
+    if (ids.includes(item.id)) item.mailedAt = at
+  }
+  return state
 }
 
 export function noticeWorkspace(state: CrmState, item: Notice): Workspace | "" {
@@ -334,22 +387,22 @@ export function sweep(state: CrmState, now: number) {
   for (const task of state.tasks) {
     if (task.status === "tamamlandi" || task.status === "iptal") continue
     if (task.reminderAt && new Date(task.reminderAt).getTime() <= now) {
-      notice(state, `task-remind:${task.id}:${task.reminderAt}`, "Görev hatırlatması", task.title, "task", task.id, at, task.workspace)
+      notice(state, `task-remind:${task.id}:${task.reminderAt}`, "Görev hatırlatması", task.title, "task", task.id, at, task.workspace, task.mail === true)
     }
     if (task.dueAt && new Date(task.dueAt).getTime() < now) {
-      notice(state, `task-late:${task.id}:${task.dueAt}`, "Görev gecikti", task.title, "task", task.id, at, task.workspace)
+      notice(state, `task-late:${task.id}:${task.dueAt}`, "Görev gecikti", task.title, "task", task.id, at, task.workspace, task.mail === true)
     }
   }
   for (const quote of state.quotes) {
     if (!quote.validUntil || quote.validUntil < today || quote.validUntil > leadDay) continue
     if (quote.status === "red" || quote.status === "kabul" || quote.status === "suresi") continue
-    notice(state, `quote:${quote.id}:${quote.validUntil}`, "Teklifin süresi yaklaşıyor", quote.number, "quote", quote.id, at, quote.workspace)
+    notice(state, `quote:${quote.id}:${quote.validUntil}`, "Teklifin süresi yaklaşıyor", quote.number, "quote", quote.id, at, quote.workspace, quote.mail === true)
   }
   for (const payment of state.payments) {
     const status = paymentStatus(payment, now)
     if (status === "odendi" || status === "iptal" || !payment.dueDate) continue
     if (payment.dueDate > leadDay) continue
-    notice(state, `pay:${payment.id}:${payment.dueDate}`, status === "gecikti" ? "Tahsilat gecikti" : "Tahsilat vadesi yaklaşıyor", money(payment.amountCents, payment.currency), "payment", payment.id, at, payment.workspace)
+    notice(state, `pay:${payment.id}:${payment.dueDate}`, status === "gecikti" ? "Tahsilat gecikti" : "Tahsilat vadesi yaklaşıyor", money(payment.amountCents, payment.currency), "payment", payment.id, at, payment.workspace, payment.mail === true)
   }
   for (const item of state.subscriptions) {
     if (item.status === "iptal" || item.status === "suresi" || !item.nextRenewal) continue
@@ -375,12 +428,23 @@ export function sweep(state: CrmState, now: number) {
       updatedAt: at,
       completedAt: null,
     })
-    notice(state, key, "Abonelik yenilemesi", item.plan, "subscription", item.id, at, item.workspace)
+    notice(state, key, "Üyelik bitişi", item.plan, "subscription", item.id, at, item.workspace, item.mail === true)
   }
   for (const ticket of state.tickets) {
     if (!ticket.dueAt || ticket.status === "cozuldu" || ticket.status === "kapali") continue
     if (new Date(ticket.dueAt).getTime() >= now) continue
-    notice(state, `ticket:${ticket.id}:${ticket.dueAt}`, "Destek talebi gecikti", ticket.subject, "ticket", ticket.id, at, ticket.workspace)
+    notice(state, `ticket:${ticket.id}:${ticket.dueAt}`, "Destek talebi gecikti", ticket.subject, "ticket", ticket.id, at, ticket.workspace, ticket.mail === true)
+  }
+  for (const event of state.events) {
+    if (event.status !== "planli") continue
+    const startDay = istanbulDay(event.startAt)
+    if (!startDay || startDay < today || startDay > leadDay) continue
+    notice(state, `event:${event.id}:${startDay}`, "Ajanda", event.title, "event", event.id, at, event.workspace, event.mail === true)
+  }
+  const watchLabel = { kampanya: "Kampanya bitişi", uyelik: "Üyelik bitişi", not: "Not" } as const
+  for (const item of state.watches) {
+    if (!item.endDate || item.endDate < today || item.endDate > leadDay) continue
+    notice(state, `watch:${item.id}:${item.endDate}`, watchLabel[item.kind], `${item.title}${item.detail ? ` · ${item.detail}` : ""}`, "watch", item.id, at, item.workspace, item.mail)
   }
   return state
 }
@@ -399,7 +463,7 @@ export function applyCrm(input: CrmState, action: Record<string, unknown>, now =
     const taxBps = cents(action.taxBps)
     const remindDays = cents(action.remindDays)
     if (taxBps === null || taxBps > 10_000 || remindDays === null || remindDays > 30) return { ok: false, error: "Ayar kabul edilmedi." }
-    state.settings = { taxBps, remindDays }
+    state.settings = { taxBps, remindDays, mailOn: action.mailOn === true }
     audit(state, "settings", "crm", "guncelle", at)
   } else if (op === "contact.save") {
     const body = bag(action.contact)
@@ -518,6 +582,7 @@ export function applyCrm(input: CrmState, action: Record<string, unknown>, now =
       dueAt: dueAt || "",
       reminderAt: reminderAt || "",
       recurrence: oneOf(body.recurrence, ["", "gun", "hafta", "ay"] as const, prior?.recurrence || ""),
+      mail: body.mail === undefined && prior ? prior.mail === true : body.mail === true,
       until: day(body.until) || prior?.until || "",
       seriesKey: prior?.seriesKey || "",
       spawned: prior?.spawned || 0,
@@ -581,6 +646,7 @@ export function applyCrm(input: CrmState, action: Record<string, unknown>, now =
         endAt,
         allDay: body.allDay === true,
         location: text(body.location, 160),
+        mail: body.mail === undefined && prior ? prior.mail === true : body.mail === true,
         status: oneOf(body.status, ["planli", "tamamlandi", "iptal"] as const, "planli"),
         createdAt: prior?.createdAt || at,
         updatedAt: at,
@@ -622,6 +688,7 @@ export function applyCrm(input: CrmState, action: Record<string, unknown>, now =
       items,
       validUntil: validUntil || "",
       notes: text(body.notes, 2000) || prior?.notes || "",
+      mail: body.mail === undefined && prior ? prior.mail === true : body.mail === true,
       createdAt: prior?.createdAt || at,
       updatedAt: at,
     }
@@ -668,6 +735,7 @@ export function applyCrm(input: CrmState, action: Record<string, unknown>, now =
         reference: text(body.reference, 80),
         clientKey,
         notes: text(body.notes, 1000),
+        mail: body.mail === true,
         cancelled: false,
         marks: [],
         createdAt: at,
@@ -701,6 +769,7 @@ export function applyCrm(input: CrmState, action: Record<string, unknown>, now =
       periodEnd,
       nextRenewal,
       autoRenew: body.autoRenew === true,
+      mail: body.mail === undefined && prior ? prior.mail === true : body.mail === true,
       notes: text(body.notes, 1000),
       createdAt: prior?.createdAt || at,
       updatedAt: at,
@@ -743,6 +812,7 @@ export function applyCrm(input: CrmState, action: Record<string, unknown>, now =
         status: oneOf(body.status, ticketStatuses, prior?.status || "yeni"),
         assignee: text(body.assignee, 80) || prior?.assignee || "",
         dueAt: dueAt || "",
+        mail: body.mail === undefined && prior ? prior.mail === true : body.mail === true,
         resolvedAt: prior?.resolvedAt || null,
         messages: prior?.messages || [],
         createdAt: prior?.createdAt || at,
@@ -751,6 +821,26 @@ export function applyCrm(input: CrmState, action: Record<string, unknown>, now =
       state.tickets = [next, ...state.tickets.filter((item) => item.id !== next.id)].slice(0, 400)
       audit(state, "ticket", next.id, next.status, at)
     }
+  } else if (op === "watch.save") {
+    const body = bag(action.watch)
+    const workspace = workspaceOf(body.workspace)
+    const kind = oneOf(body.kind, ["kampanya", "uyelik", "not"] as const, "not")
+    const title = text(body.title, 140)
+    const endDate = day(body.endDate)
+    if (!workspace || !title || !endDate) return { ok: false, error: "Tarih bilgisi eksik." }
+    const detail = text(body.detail, 180)
+    const exists = state.watches.some((item) => item.workspace === workspace && item.kind === kind && item.title === title && item.endDate === endDate)
+    if (exists) warning = "Bu tarih zaten izleniyor."
+    else {
+      state.watches.unshift({ id: id(), workspace, kind, title, detail, endDate, mail: body.mail === true, createdAt: at })
+      state.watches = state.watches.slice(0, 200)
+      audit(state, "watch", kind, "ekle", at, endDate)
+    }
+  } else if (op === "watch.remove") {
+    const current = text(action.id, 80)
+    if (!state.watches.some((item) => item.id === current)) return { ok: false, error: "Tarih bulunamadı." }
+    state.watches = state.watches.filter((item) => item.id !== current)
+    audit(state, "watch", current, "kaldir", at)
   } else if (op === "notice.read") {
     const item = state.notices.find((row) => row.id === text(action.id, 80))
     if (!item) return { ok: false, error: "Bildirim bulunamadı." }
