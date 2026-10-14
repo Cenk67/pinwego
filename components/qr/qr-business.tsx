@@ -11,7 +11,7 @@ export function BusinessQr({ businessId, name }: { businessId: string; name: str
   const hit = resolveQr(businessCode(businessId, "business"))
   if (!hit) return null
   return (
-    <div className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
+    <div className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10" data-kartvizit="">
       <h2 className="font-heading text-lg">{t("qr.kicker")}</h2>
       <Link href={qrPath(hit.code)} className="mt-3 flex justify-center">
         <QrMark text={qrUrl(hit.code)} label={name} />

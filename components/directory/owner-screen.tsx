@@ -7,6 +7,7 @@ import { QrOwner } from "@/components/qr/qr-center"
 import { ContactEditor } from "@/components/directory/contact-lines"
 import { ProfileEditor } from "@/components/directory/profile-editor"
 import { SocialLinkEditor } from "@/components/directory/social-links"
+import { ViewReport } from "@/components/directory/view-report"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
@@ -174,6 +175,8 @@ function OwnerCard({
   }
 
   return (
+    <div className="grid gap-3">
+    <ViewReport slug={business.slug} />
     <form
       className="grid gap-3 rounded-3xl bg-card p-5 ring-1 ring-foreground/10"
       onSubmit={(event) => {
@@ -284,5 +287,6 @@ function OwnerCard({
         Kaydet
       </Button>
     </form>
+    </div>
   )
 }

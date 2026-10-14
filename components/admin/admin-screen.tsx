@@ -8,6 +8,7 @@ import { CampaignAdmin } from "@/components/campaigns/campaign-manage"
 import { QrAdmin } from "@/components/qr/qr-center"
 import { DiscoverAdmin } from "@/components/discover/discover-admin"
 import { AnalyticsPanel } from "@/components/admin/analytics-panel"
+import { ViewAdmin } from "@/components/directory/view-report"
 import { InboxPanel } from "@/components/admin/inbox-panel"
 import { PagesPanel } from "@/components/admin/pages-panel"
 import { NotifyPanel } from "@/components/admin/notify-panel"
@@ -52,6 +53,7 @@ const tabs = [
   { id: "crm", label: "CRM" },
   { id: "bildirim", label: "Bildirim" },
   { id: "analitik", label: "Analitik" },
+  { id: "gorunum", label: "Görüntülenme" },
   { id: "icerik", label: "İçerik" },
   { id: "iletisim", label: "İletişim" },
 ] as const
@@ -139,6 +141,7 @@ export function AdminScreen() {
       {tab === "crm" ? <CrmPanel /> : null}
       {tab === "bildirim" ? <NotifyPanel /> : null}
       {tab === "analitik" ? <AnalyticsPanel /> : null}
+      {tab === "gorunum" ? <ViewAdmin /> : null}
       {tab === "icerik" ? <PagesPanel /> : null}
       {tab === "iletisim" ? <InboxPanel /> : null}
     </div>

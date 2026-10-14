@@ -458,7 +458,7 @@ Bu sayfa aydınlatma metninin yerine geçmez. Veri sorumlusunun kimliği ve hakl
 - İşletme ilanı: ad, semt, telefon, özet ve konum, ilanı açan hesabın kimliğiyle birlikte sunucuda durur.
 - Belge dosyası: kimlik, vergi levhası ve benzeri yüklemeler bu tarayıcıda kalır. Sunucuya belge dosyası yazılmaz.
 - Onay kaydı: hesap kimliği, metin sürümü, kabul veya ret ve zaman. E-posta bu kayda yazılmaz.
-- Teknik kayıt: hız sınırı için kısa süreli bellek sayacı. Ziyaret ölçümü ayrıca ve yalnızca onayla açılır.
+- Teknik kayıt: hız sınırı için kısa süreli bellek sayacı. Ziyaret ölçümü ayrıca ve yalnızca onayla açılır. İşletme sayfası görüntülenmesi, rastgele bir tarayıcı işaretiyle otuz dakikada bir sayılır; IP adresi bu sayaca yazılmaz.
 ## Amaç
 Kayıt, güvenlik, destek, ilanın yayını ve yasal ispat. Pazarlama ancak ayrı onay varsa ve gönderim gerçekten başlarsa kullanılır.
 ## Paylaşım
@@ -470,6 +470,7 @@ Zorunlu çerezler oturum içindir. Ziyaret çerezi reklam değildir ama zorunlu 
 - pinwego_acct: girişten sonra hesap oturumu. HttpOnly, SameSite=Lax, 14 gün.
 - pinwego_admin: yönetici oturumu. HttpOnly, SameSite=Lax, 12 saat.
 - pinwego_visit: anonim ziyaret sayımı. HttpOnly. Yalnızca ziyaret ölçümünü kabul ederseniz yazılır.
+- pinwego_gorunum: işletme sayfasında aynı tarayıcının otuz dakika içinde yeniden sayılmaması için rastgele işaret. HttpOnly, yaklaşık bir yıl. Ad, e-posta ve IP yazılmaz. Reklam çerezi değildir.
 Reklam çerezi, üçüncü taraf analitik çerezi ve profilleme çerezi kullanılmaz. Dil, rehber ve kampanya tercihleri çerez değil, bu tarayıcının yerel kaydıdır.
 ## Tercih
 Sayfanın altındaki çubukta ziyaret ölçümünü kabul edebilir veya yalnızca zorunlu çerezlerle devam edebilirsiniz. Seçim bu tarayıcıda durur ve aynı yerden değiştirilebilir.
@@ -527,11 +528,11 @@ export const seedFaqs: FaqItem[] = [
   { id: "dogrulama", category: "Doğrulama", question: "İşletme doğrulaması nasıl yapılır?", answer: "Doğrulama işareti yönetim panelinden açılır. Bu sürüm, yüklenen belgeleri sunucuda inceleyen resmi bir sicil teyidi değildir. Belgeler tarayıcıda kalır.", order: 70, status: "yayinda", related: "/nasil-calisir" },
   { id: "kampanya", category: "Kampanyalar", question: "Kampanya nasıl yayınlanır?", answer: "Paneldeki kampanya bu tarayıcıda saklanır. Örnek kampanyalar ürünün içindedir. Kartta yazan tarih ve koşul geçerlidir.", order: 80, status: "yayinda", related: "/kampanyalar" },
   { id: "sure", category: "Kampanyalar", question: "Süresi dolan kampanya ne olur?", answer: "Tarihi geçen kampanya güncel ilan gibi sunulmamalıdır. Karttaki süre esas alınır. Tarayıcıdaki panel kaydı, o tarayıcıdan silinene kadar yerelde durabilir.", order: 90, status: "yayinda", related: "/yasal-uyarilar" },
-  { id: "qr", category: "QR ve dijital kartvizit", question: "QR kod ne işe yarar?", answer: "Kod, işletmenin Pinwego sayfasını açar. Baskı dosyası bu tarayıcıda üretilir. Okutma sayacı da bu tarayıcıya aittir.", order: 100, status: "yayinda", related: "/nasil-calisir" },
-  { id: "paylas", category: "QR ve dijital kartvizit", question: "İşletme bilgileri nasıl paylaşılır?", answer: "Profil bağlantısı, QR kart ve profilde açık olan telefon veya site kullanılır. Misafir iletişim ayrıntısını görmez.", order: 110, status: "yayinda", related: "/nasil-calisir" },
+  { id: "qr", category: "QR ve dijital kartvizit", question: "QR kod ne işe yarar?", answer: "Kod, işletmenin Pinwego sayfasını açar. Baskı dosyası bu tarayıcıda üretilir. Okutma günlüğü bu tarayıcıda durur. Sayfa görüntülenmesi sunucuda, reklamsız ve IP’siz sayılır.", order: 100, status: "yayinda", related: "/nasil-calisir" },
+  { id: "paylas", category: "QR ve dijital kartvizit", question: "İşletme bilgileri nasıl paylaşılır?", answer: "Profildeki Paylaş, bağlantıyı WhatsApp, Instagram ve diğer kanallara götürür. Paylaşım sayısı görüntülenmeden ayrıdır. Misafir iletişim ayrıntısını görmez.", order: 110, status: "yayinda", related: "/nasil-calisir" },
   { id: "paket", category: "Ücretli paketler", question: "Paketler nelerdir?", answer: "Satışta olan bir paket yoktur. Öne çıkarma, yönetici işaretidir ve ücretli bir abonelik değildir.", order: 120, status: "yayinda", related: "/iade-cayma" },
   { id: "iptal", category: "Ücretli paketler", question: "Aboneliğimi nasıl yenilerim veya iptal ederim?", answer: "Yenilenecek bir abonelik yoktur. İleride satış açılırsa iptal ve cayma, ödeme adımında ve iade sayfasında ayrıca yazılır.", order: 130, status: "yayinda", related: "/iade-cayma" },
-  { id: "veri", category: "Gizlilik", question: "Verilerim nasıl işlenir?", answer: "Amaç, sebep ve aktarım KVKK aydınlatma metninde anlatılır. Pazarlama izni ayrıdır. Ziyaret çerezi onay verilmeden yazılmaz.", order: 140, status: "yayinda", related: "/kvkk-aydinlatma-metni" },
+  { id: "veri", category: "Gizlilik", question: "Verilerim nasıl işlenir?", answer: "Amaç, sebep ve aktarım KVKK aydınlatma metninde anlatılır. Pazarlama izni ayrıdır. Ziyaret çerezi onay verilmeden yazılmaz. İşletme sayfasındaki görüntülenme işareti sayaç şişmesin diye yazılır; reklam çerezi değildir.", order: 140, status: "yayinda", related: "/kvkk-aydinlatma-metni" },
   { id: "kapat", category: "Gizlilik", question: "Hesabımı nasıl kapatırım?", answer: "destek@pinwego.com adresine hesap e-postanızla yazın. Panelde görülen yerel silme, sunucudaki hesabı kendiliğinden kaldırmaz. Saklanması gereken onay kaydı tutulabilir.", order: 150, status: "yayinda", related: "/uyelik-sozlesmesi" },
   { id: "hata", category: "Destek", question: "Hatalı işletme bilgisi nasıl bildirilir?", answer: "İşletme adı, sayfa bağlantısı ve düzeltme notuyla destek@pinwego.com adresine yazın.", order: 160, status: "yayinda", related: "/yasal-uyarilar" },
   { id: "sikayet", category: "Destek", question: "Şikayetimi nereye iletebilirim?", answer: "Platformu ilgilendiren şikayet destek@pinwego.com adresinedir. Tüketici uyuşmazlığında kanunundaki başvuru yolları açıktır.", order: 170, status: "yayinda", related: "/uyelik-sozlesmesi" },

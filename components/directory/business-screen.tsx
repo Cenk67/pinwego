@@ -24,6 +24,7 @@ import { MiniMap } from "@/components/directory/mini-map"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
 import { ContactLines } from "@/components/directory/contact-lines"
 import { HoursStatus, HoursWeek } from "@/components/directory/hours-view"
+import { ViewMeter } from "@/components/directory/view-meter"
 import { SocialLinks } from "@/components/directory/social-links"
 import { Button } from "@/components/ui/button"
 import { useGuestGate } from "@/components/auth/guest-gate"
@@ -135,6 +136,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
               <span className="rounded-full bg-secondary px-3 py-1 text-xs">Google Haritalar kaydı</span>
             ) : null}
           </div>
+          <ViewMeter business={business} />
           <div className="mt-4 lg:hidden">
             <BusinessQr businessId={business.id} name={business.name} />
           </div>

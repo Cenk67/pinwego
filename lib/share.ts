@@ -1,7 +1,7 @@
 import type { Business } from "@/lib/types"
 
 export function businessShare(business: Business, origin = "") {
-  const url = `${origin}/isletme/${business.slug}`
+  const url = `${origin}/isletme/${business.slug}?kaynak=paylas`
   const title = `${business.name} · pinwego`
   const text = `${business.name} · ${business.subcategory} · ${business.district}, ${business.city}`
   return { url, title, text, message: `${text}\n${url}` }
