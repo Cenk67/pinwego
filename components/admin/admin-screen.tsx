@@ -8,6 +8,7 @@ import { CampaignAdmin } from "@/components/campaigns/campaign-manage"
 import { QrAdmin } from "@/components/qr/qr-center"
 import { DiscoverAdmin } from "@/components/discover/discover-admin"
 import { AnalyticsPanel } from "@/components/admin/analytics-panel"
+import { PagesPanel } from "@/components/admin/pages-panel"
 import { NotifyPanel } from "@/components/admin/notify-panel"
 import { CrmPanel } from "@/components/crm/crm-panel"
 import { SectorForm } from "@/components/directory/sector-form"
@@ -47,6 +48,7 @@ const tabs = [
   { id: "crm", label: "CRM" },
   { id: "bildirim", label: "Bildirim" },
   { id: "analitik", label: "Analitik" },
+  { id: "icerik", label: "İçerik" },
 ] as const
 
 type Tab = (typeof tabs)[number]["id"]
@@ -132,6 +134,7 @@ export function AdminScreen() {
       {tab === "crm" ? <CrmPanel /> : null}
       {tab === "bildirim" ? <NotifyPanel /> : null}
       {tab === "analitik" ? <AnalyticsPanel /> : null}
+      {tab === "icerik" ? <PagesPanel /> : null}
     </div>
   )
 }

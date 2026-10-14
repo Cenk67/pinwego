@@ -1,5 +1,6 @@
 import { consumeMailToken, issueMailToken, loginInStore, loginLimited, noteLogin, registerInStore } from "@/lib/account-record"
 import { noteMailFailed, noteRegistered, noteSignedIn, noteSuspicious, noteVerified } from "@/lib/notify-flow"
+import { noteConsents } from "@/lib/pages-flow"
 import { accountStore } from "@/lib/account-kv"
 import { emailSlot, guardChallenge, jsonReply, mailReady, readJson, requestIp, sendLogged, takeIpSlot } from "@/lib/account-route"
 import { mailContent } from "@/lib/mail-copy"
@@ -24,10 +25,16 @@ export async function registerFlow(request: Request, now = Date.now()) {
   }
   const challenge = await guardChallenge(body, request)
   if (!challenge.ok) return jsonReply({ ok: false, reason: "challenge" }, 400)
+  if (body.acceptTerms !== true) return jsonReply({ ok: false, reason: "sozlesme" }, 400)
   const verify = await mailReady()
   const result = await registerInStore(store, body, new Date(now).toISOString(), { emailVerified: verify ? false : undefined })
   if (!result.ok) return jsonReply(result, result.reason === "exists" ? 409 : 400)
   await noteRegistered(store, result.account, now, request.headers.get("origin"))
+  try {
+    await noteConsents(store, result.account.id, body.marketing === true, now)
+  } catch {
+    // Hesap açılmış kalır. Onay satırı yazılamazsa kayıt iptal edilmez.
+  }
   if (!verify) return jsonReply({ ok: true, account: result.account, mail: "unconfigured" })
   const issued = await issueMailToken(store, result.account.email, "verify", now)
   if (!issued.ok) return jsonReply({ ok: true, account: { ...result.account, emailVerified: false }, mail: "failed" })

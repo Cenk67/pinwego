@@ -7,7 +7,9 @@ import { Suspense, useEffect, useState, type ReactNode } from "react"
 import { VisitBeacon } from "@/components/admin/visit-beacon"
 import { GuestGateProvider } from "@/components/auth/guest-gate"
 import { Assistant } from "@/components/directory/assistant"
+import { CookieBanner } from "@/components/directory/cookie-banner"
 import { Footer } from "@/components/directory/footer"
+import { contentPaths } from "@/lib/site-pages"
 import { Header } from "@/components/directory/header"
 import { MessageToast } from "@/components/messages/message-toast"
 import { useAuth } from "@/lib/auth-context"
@@ -108,7 +110,7 @@ export function Shell({ children }: { children: ReactNode }) {
     const next = `https://pinwego.com${window.location.pathname}${window.location.search}${window.location.hash}`
     window.location.replace(next)
   }, [])
-  const indexable = pathname === "/blog" || pathname.startsWith("/blog/") || pathname.startsWith("/isletme/") || pathname.startsWith("/q/") || pathname.startsWith("/kesif") || pathname.startsWith("/dogrula") || pathname.startsWith("/sifre") || pathname.startsWith("/onizleme")
+  const indexable = pathname === "/blog" || pathname.startsWith("/blog/") || pathname.startsWith("/isletme/") || pathname.startsWith("/q/") || pathname.startsWith("/kesif") || pathname.startsWith("/dogrula") || pathname.startsWith("/sifre") || pathname.startsWith("/onizleme") || contentPaths.includes(pathname)
   const card = pathname.startsWith("/q/")
   if (!ready && !indexable) {
     return (
@@ -133,6 +135,7 @@ export function Shell({ children }: { children: ReactNode }) {
       )}
       {card ? null : <Assistant />}
       <VisitBeacon />
+      {card ? null : <CookieBanner />}
       <MessageToast />
     </GuestGateProvider>
   )

@@ -261,6 +261,8 @@ function accountBody(input: {
   business?: Account["business"]
   turnstile?: string
   locale?: string
+  acceptTerms?: boolean
+  marketing?: boolean
 }) {
   return {
     id: input.id,
@@ -273,6 +275,8 @@ function accountBody(input: {
     business: input.business,
     turnstile: input.turnstile,
     locale: input.locale,
+    acceptTerms: input.acceptTerms === true,
+    marketing: input.marketing === true,
   }
 }
 
@@ -289,6 +293,8 @@ export async function registerAccount(input: {
   business?: Account["business"]
   turnstile?: string
   locale?: string
+  acceptTerms?: boolean
+  marketing?: boolean
 }): Promise<string | AuthNotice | null> {
   const email = normalizeEmail(input.email)
   const accounts = readAccounts() ?? []
@@ -297,6 +303,7 @@ export async function registerAccount(input: {
   }
   const remote = await postAccount("/api/kayit", accountBody({ ...input, email }))
   if (remote?.ok === false && remote.reason === "exists") return "Bu e-posta ile bir kayıt var. Giriş yap."
+  if (remote?.ok === false && remote.reason === "sozlesme") return "Üyelik sözleşmesini onaylamadan kayıt açılmaz."
   if (remote?.ok === false && remote.reason === "invalid") return "Kayıt bilgisi kabul edilmedi."
   if (remote?.ok === false && remote.reason === "challenge") return "Doğrulama tamamlanmadı. Yeniden dene."
   if (remote?.ok === false && remote.reason === "limited") return "Çok fazla deneme. Bir süre sonra tekrar dene."
@@ -427,19 +434,8 @@ export async function login(email: string, password: string, door?: AuthDoor, ex
   const problem = door ? loginDoorProblem(door, local.role) : null
   if (problem) return problem
   if (remote?.ok === false && remote.reason === "unknown" && local.role !== "admin") {
-    const created = await postAccount("/api/kayit", accountBody({
-      id: local.id,
-      role: local.role === "isletme" ? "isletme" : "musteri",
-      email: local.email,
-      password,
-      name: local.name,
-      phone: local.phone,
-      customer: local.customer,
-      business: local.business,
-      turnstile: extra?.turnstile,
-      locale: extra?.locale,
-    }))
-    if (created?.ok && created.account.emailVerified === false) return { pending: local.email }
+    enter(local)
+    return null
   }
   enter(local)
   return null

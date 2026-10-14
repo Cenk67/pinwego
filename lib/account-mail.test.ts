@@ -14,6 +14,7 @@ const customer = {
   name: "Posta Musteri",
   phone: "05551234567",
   locale: "tr",
+  acceptTerms: true,
   customer: { nationalId: "10000000146", birthDate: "1990-05-05" },
 }
 

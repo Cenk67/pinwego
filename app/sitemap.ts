@@ -1,12 +1,20 @@
 import type { MetadataRoute } from "next"
 import { absoluteUrl, articlePath, categoryPath, subcategoryPath } from "@/lib/blog"
 import { publishedBlog } from "@/lib/blog-server"
+import { sitemapPages } from "@/lib/pages-flow"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const blog = await publishedBlog()
+  const pages = await sitemapPages()
   const now = new Date("2026-10-10")
   return [
     { url: absoluteUrl("/"), lastModified: now, changeFrequency: "weekly", priority: 1 },
+    ...pages.map((page) => ({
+      url: page.canonical,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: page.legal ? 0.4 : 0.6,
+    })),
     { url: absoluteUrl("/blog"), lastModified: now, changeFrequency: "weekly", priority: 0.8 },
     ...blog.categories.map((category) => ({
       url: absoluteUrl(categoryPath(category.slug)),

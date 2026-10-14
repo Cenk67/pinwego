@@ -66,6 +66,10 @@ export function HomeScreen() {
               {t("home.lead")}
             </p>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">{t("home.original")}</p>
+            <p className="mt-3 flex flex-wrap gap-4 text-sm">
+              <Link href="/hakkimizda" className="text-primary">{t("home.about")}</Link>
+              <Link href="/nasil-calisir" className="text-primary">{t("home.how")}</Link>
+            </p>
             <div className="mt-6">
               <SearchForm large />
             </div>

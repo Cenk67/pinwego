@@ -417,6 +417,8 @@ function CustomerForm({
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
   const [token, setToken] = useState("")
+  const [terms, setTerms] = useState(false)
+  const [marketing, setMarketing] = useState(false)
   const [hold, setHold] = useState<{ email: string; password: string } | null>(null)
   const { locale } = useLocale()
   const router = useRouter()
@@ -441,6 +443,7 @@ function CustomerForm({
       validPassword(typedPassword) ? null : "Şifre en az 8 karakter olmalı.",
       typedPassword === typedAgain ? null : "Şifre tekrarı eşleşmedi.",
       document ? fileProblem(document) : "Teyit belgesi yükle.",
+      terms ? null : "Üyelik sözleşmesini onaylamadan kayıt açılmaz.",
     ])
     if (errors.length || !document) {
       setErrors(errors)
@@ -458,6 +461,8 @@ function CustomerForm({
         uploads: [{ label: "Teyit belgesi", file: document }],
         turnstile: token,
         locale,
+        acceptTerms: terms,
+        marketing,
       })
       if (message && typeof message === "object") {
         setHold({ email: message.pending, password: typedPassword })
@@ -502,6 +507,7 @@ function CustomerForm({
         file={document}
         onChange={setDocument}
       />
+      <ConsentFields terms={terms} marketing={marketing} onTerms={setTerms} onMarketing={setMarketing} />
       <TurnstileField siteKey={siteKey} onToken={setToken} />
       <ErrorList errors={errors} />
       <Button type="submit" className="h-11 rounded-xl" disabled={pending || (Boolean(siteKey) && !token)}>
@@ -547,6 +553,8 @@ function BusinessForm({
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
   const [token, setToken] = useState("")
+  const [terms, setTerms] = useState(false)
+  const [marketing, setMarketing] = useState(false)
   const [hold, setHold] = useState<{ email: string; password: string } | null>(null)
   const { locale } = useLocale()
   const params = useSearchParams()
@@ -575,6 +583,7 @@ function BusinessForm({
       validPassword(typedPassword) ? null : "Şifre en az 8 karakter olmalı.",
       typedPassword === typedAgain ? null : "Şifre tekrarı eşleşmedi.",
       ...uploads.map((item) => (item.file ? fileProblem(item.file) && `${item.label}: ${fileProblem(item.file)}` : `${item.label} yükle.`)),
+      terms ? null : "Üyelik sözleşmesini onaylamadan kayıt açılmaz.",
     ])
     if (errors.length || uploads.some((item) => !item.file)) {
       setErrors(errors)
@@ -598,6 +607,8 @@ function BusinessForm({
         uploads: uploads.map((item) => ({ label: item.label, file: item.file as File })),
         turnstile: token,
         locale,
+        acceptTerms: terms,
+        marketing,
       })
       if (message && typeof message === "object") {
         setHold({ email: message.pending, password: typedPassword })
@@ -660,6 +671,7 @@ function BusinessForm({
       <DocField label="İmza sirküleri" hint="Noter onaylı imza sirküleri veya yetki belgesi." file={imza} onChange={setImza} />
       <DocField label="Ticaret sicil veya faaliyet belgesi" hint="Sicil gazetesi ya da faaliyet belgesi." file={sicil} onChange={setSicil} />
       <DocField label="Yetkili kimlik belgesi" hint="İşlemi yapan kişinin kimlik kartı veya ehliyeti." file={kimlik} onChange={setKimlik} />
+      <ConsentFields terms={terms} marketing={marketing} onTerms={setTerms} onMarketing={setMarketing} />
       <TurnstileField siteKey={siteKey} onToken={setToken} />
       <ErrorList errors={errors} />
       <Button type="submit" className="h-11 rounded-xl" disabled={pending || (Boolean(siteKey) && !token)}>
@@ -672,6 +684,35 @@ function BusinessForm({
         Tüm girişlere dön
       </Button>
     </form>
+  )
+}
+
+function ConsentFields({
+  terms,
+  marketing,
+  onTerms,
+  onMarketing,
+}: {
+  terms: boolean
+  marketing: boolean
+  onTerms: (value: boolean) => void
+  onMarketing: (value: boolean) => void
+}) {
+  return (
+    <div className="grid gap-3 text-sm leading-6">
+      <label className="flex items-start gap-2">
+        <input type="checkbox" checked={terms} onChange={(event) => onTerms(event.target.checked)} className="mt-1" />
+        <span>
+          <Link href="/uyelik-sozlesmesi" className="text-primary">Üyelik sözleşmesini</Link>,{" "}
+          <Link href="/kullanim-kosullari" className="text-primary">kullanım koşullarını</Link> ve{" "}
+          <Link href="/kvkk-aydinlatma-metni" className="text-primary">aydınlatma metnini</Link> okudum. Üyelik için sözleşmeyi kabul ediyorum.
+        </span>
+      </label>
+      <label className="flex items-start gap-2">
+        <input type="checkbox" checked={marketing} onChange={(event) => onMarketing(event.target.checked)} className="mt-1" />
+        <span>Kampanya ve duyuru e-postası almak istiyorum. Bu seçenek üyelik için zorunlu değildir ve önceden işaretli gelmez.</span>
+      </label>
+    </div>
   )
 }
 
