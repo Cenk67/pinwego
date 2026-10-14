@@ -1,6 +1,7 @@
 import { adminSessionOpen, readAdminCookie } from "@/lib/admin-gate"
 import { accountStore } from "@/lib/account-kv"
 import { jsonReply, readJson, requestIp, takeIpSlot } from "@/lib/account-route"
+import { applyManual, bookFromHours, hoursFromBook, istanbulParts, storedBook } from "@/lib/hours"
 import { acceptListing, applyFlags, emptyBook, listingsKey, parseBook, toBusiness, type ListingBook } from "@/lib/listings"
 import { memberEmail, publicAccount, readMemberCookie } from "@/lib/member-session"
 
@@ -23,7 +24,10 @@ function present(book: ListingBook, admin: boolean) {
   const rows = admin ? book.listings : book.listings.filter((item) => !item.hidden)
   return {
     ok: true,
-    listings: rows.map(toBusiness),
+    listings: rows.map((item) => {
+      const listing = toBusiness(item)
+      return admin ? { ...listing, hourLog: item.hourLog ?? [] } : listing
+    }),
     hiddenIds: admin ? book.listings.filter((item) => item.hidden).map((item) => item.id) : [],
   }
 }
@@ -55,9 +59,40 @@ export async function ilanPostFlow(request: Request, now = Date.now()) {
     await store.put(listingsKey, JSON.stringify(saved.book))
     return jsonReply({ ok: true, listing: toBusiness(saved.listing) })
   }
-  if (who.kind !== "admin") return jsonReply({ ok: false, reason: "yetki" }, 403)
   const id = typeof body.id === "string" ? body.id : ""
   const current = book.listings.find((item) => item.id === id || item.slug === id)
+  if (body.op === "saat" || body.op === "durum") {
+    if (!current) return jsonReply({ ok: false, reason: "yok" }, 404)
+    const allowed = who.kind === "admin" || (who.kind === "member" && who.account.role === "isletme" && who.account.id === current.ownerAccountId)
+    if (!allowed) return jsonReply({ ok: false, reason: "yetki" }, 403)
+    const base = current.hourBook ?? bookFromHours(current.hours)
+    const actor = who.kind === "admin" ? "yonetici" : who.account.id
+    let next = base
+    let action = "program"
+    if (body.op === "saat") {
+      const parsed = storedBook({ week: body.week, specials: body.specials ?? [], manual: base.manual })
+      if (!parsed) return jsonReply({ ok: false, reason: "invalid" }, 400)
+      next = parsed
+    } else {
+      const mode = body.mode === "open" || body.mode === "closed" || body.mode === "auto" ? body.mode : ""
+      const span = body.span === "today" || body.span === "until" || body.span === "2h" ? body.span : "2h"
+      if (!mode) return jsonReply({ ok: false, reason: "invalid" }, 400)
+      const applied = applyManual(base, { mode, span, until: typeof body.until === "string" ? body.until : "" }, now, actor)
+      if (!applied) {
+        const holiday = base.specials.some((item) => item.date === istanbulParts(now).date && item.closed)
+        return jsonReply({ ok: false, reason: holiday && mode === "open" ? "tatil" : "sure" }, 400)
+      }
+      next = applied
+      action = mode === "auto" ? "otomatik" : mode === "open" ? "manuel-acik" : "manuel-kapali"
+    }
+    const hourLog = [{ at: new Date(now).toISOString(), by: actor, action }, ...(current.hourLog ?? [])].slice(0, 8)
+    const listing = { ...current, hourBook: next, hours: hoursFromBook(next), hourLog }
+    const listings = book.listings.map((item) => (item.id === current.id ? listing : item))
+    await store.put(listingsKey, JSON.stringify({ listings }))
+    const shown = toBusiness(listing)
+    return jsonReply({ ok: true, listing: who.kind === "admin" ? { ...shown, hourLog } : shown })
+  }
+  if (who.kind !== "admin") return jsonReply({ ok: false, reason: "yetki" }, 403)
   if (!current) return jsonReply({ ok: false, reason: "yok" }, 404)
   if (body.op === "delete") {
     const listings = book.listings.filter((item) => item.id !== current.id)

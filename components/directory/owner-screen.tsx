@@ -11,14 +11,16 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
 import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
+import { applyManual, bookFromHours, hoursFromBook, weekError } from "@/lib/hours"
+import type { ManualAction } from "@/lib/hours"
 import { listingFields, normalizeProfile, resolveProfile } from "@/lib/profile"
-import type { BusinessContacts, BusinessProfile, DayHours } from "@/lib/types"
+import type { BusinessContacts, BusinessProfile, HourBook } from "@/lib/types"
 import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
 import type { Business } from "@/lib/types"
 
 export function OwnerScreen() {
   const { account, ready } = useAuth()
-  const { managedBusinesses, patchBusiness } = useDirectory()
+  const { managedBusinesses, patchBusiness, rememberListing } = useDirectory()
 
   if (!ready) return null
 
@@ -66,7 +68,15 @@ export function OwnerScreen() {
       {owned.length ? (
         <div className="mt-6 grid gap-4">
           {owned.map((business) => (
-            <OwnerCard key={business.id} business={business} onSave={(patch) => patchBusiness(business.id, patch)} />
+            <OwnerCard
+              key={business.id}
+              business={business}
+              onSave={(patch) => patchBusiness(business.id, patch)}
+              onListing={(listing) => {
+                patchBusiness(business.id, listing)
+                rememberListing(listing)
+              }}
+            />
           ))}
         </div>
       ) : (
@@ -102,6 +112,7 @@ function Gate({ title, body, href, action }: { title: string; body: string; href
 function OwnerCard({
   business,
   onSave,
+  onListing,
 }: {
   business: Business
   onSave: (patch: {
@@ -109,25 +120,64 @@ function OwnerCard({
     website: string
     contacts: BusinessContacts
     phone: string
-    hours: DayHours[]
+    hours: Business["hours"]
+    hourBook: HourBook
     summary: string
     about: string
     services: Business["services"]
     founded: number
     profile: BusinessProfile
   }) => void
+  onListing: (listing: Business) => void
 }) {
   const [links, setLinks] = useState<BusinessLinks>(() => draftLinks(business))
   const [contacts, setContacts] = useState<ContactDraft>(() => draftContacts(business))
   const [profile, setProfile] = useState<BusinessProfile>(() => resolveProfile(business))
-  const [hours, setHours] = useState<DayHours[]>(business.hours)
+  const { patchBusiness } = useDirectory()
+  const [book, setBook] = useState<HourBook>(() => business.hourBook ?? bookFromHours(business.hours))
   const [error, setError] = useState("")
   const [saved, setSaved] = useState(false)
+
+  async function postHours(body: Record<string, unknown>) {
+    const response = await fetch("/api/ilan", {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...body, id: business.id }),
+    })
+    const data = (await response.json().catch(() => null)) as { ok?: boolean; reason?: string; listing?: Business } | null
+    return { response, data }
+  }
+
+  async function onManual(action: ManualAction) {
+    const next = applyManual(book, action, Date.now())
+    if (!next) {
+      setSaved(false)
+      setError(action.mode === "open" ? "Tatil günü açık işaretlenemez." : "Süre geçersiz. En az bir dakika, en çok 14 gün.")
+      return
+    }
+    if (business.source === "senin") {
+      const { response, data } = await postHours({ op: "durum", mode: action.mode, span: action.span, until: action.until })
+      if (!response.ok || !data?.listing) {
+        setSaved(false)
+        setError(data?.reason === "tatil" ? "Tatil günü açık işaretlenemez." : "İşaret sunucuya yazılamadı.")
+        return
+      }
+      setBook(data.listing.hourBook ?? next)
+      onListing(data.listing)
+    } else {
+      setBook(next)
+      patchBusiness(business.id, { hours: hoursFromBook(next), hourBook: next })
+    }
+    setError("")
+    setSaved(true)
+  }
 
   return (
     <form
       className="grid gap-3 rounded-3xl bg-card p-5 ring-1 ring-foreground/10"
       onSubmit={(event) => {
+        void (async () => {
         event.preventDefault()
         const contact = savedContacts(contacts)
         if (contact.error) {
@@ -142,14 +192,32 @@ function OwnerCard({
           return
         }
         const clean = normalizeProfile(profile, resolveProfile(business))
+        const hoursProblem = weekError(book)
+        if (hoursProblem) {
+          setSaved(false)
+          setError(hoursProblem)
+          return
+        }
+        const hours = hoursFromBook(book)
         onSave({
           links: social.links,
           website: social.website,
           contacts: contact.contacts,
           phone: contact.phone,
           hours,
+          hourBook: book,
           ...listingFields(clean),
         })
+        if (business.source === "senin") {
+          const { response, data } = await postHours({ op: "saat", week: book.week, specials: book.specials })
+          if (!response.ok || !data?.listing) {
+            setSaved(false)
+            setError("Saatler sunucuya yazılamadı.")
+            return
+          }
+          if (data.listing.hourBook) setBook(data.listing.hourBook)
+          onListing(data.listing)
+        }
         setLinks(social.links)
         setContacts({
           landline: contact.contacts.landline ?? "",
@@ -158,6 +226,7 @@ function OwnerCard({
         })
         setError("")
         setSaved(true)
+        })()
       }}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -192,15 +261,25 @@ function OwnerCard({
           setSaved(false)
           setProfile(next)
         }}
-        hours={hours}
-        onHours={(next) => {
+        book={book}
+        onBook={(next) => {
           setSaved(false)
-          setHours(next)
+          setBook(next)
+        }}
+        onManual={(action) => {
+          setSaved(false)
+          void onManual(action)
         }}
         allowPublish={false}
       />
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {saved ? <p className="text-sm text-primary">Profil kaydedildi. Bu tarayıcıda görünür.</p> : null}
+      {saved ? (
+        <p className="text-sm text-primary">
+          {business.source === "senin"
+            ? "Çalışma saatleri kayda geçti. Diğer profil alanları bu tarayıcıda durur."
+            : "Profil kaydedildi. Bu tarayıcıda görünür."}
+        </p>
+      ) : null}
       <Button type="submit" className="h-11 rounded-xl">
         Kaydet
       </Button>

@@ -28,6 +28,8 @@ import { defaultFilters, parseQuery, searchDirectory } from "@/lib/match"
 import { applyPlace, placeLabel } from "@/lib/place"
 import { sectorCopy } from "@/lib/sector-copy"
 import type { CategoryId, SortKey } from "@/lib/types"
+import { useMinute } from "@/components/directory/hours-view"
+import { liveList } from "@/lib/hours"
 import { useLocale } from "@/lib/use-locale"
 
 export function SearchScreen() {
@@ -47,9 +49,10 @@ export function SearchScreen() {
   ]
   const [showMap, setShowMap] = useState(false)
   const [limit, setLimit] = useState(9)
+  const now = useMinute()
 
   const query = params.get("q") ?? ""
-  const catalog = visibleBusinesses
+  const catalog = useMemo(() => liveList(visibleBusinesses, now), [visibleBusinesses, now])
   const parsed = parseQuery(query, catalog)
   const namedCity = params.get("sehir") ?? parsed.city
   const sehir = place.nearMe ? "hepsi" : namedCity ?? "hepsi"

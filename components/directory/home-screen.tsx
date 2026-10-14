@@ -20,6 +20,8 @@ import { searchSuggestions } from "@/lib/i18n"
 import { sectorCopy } from "@/lib/sector-copy"
 import { useLocale } from "@/lib/use-locale"
 import { distanceFromPlace, placeLabel, applyPlace } from "@/lib/place"
+import { useMinute } from "@/components/directory/hours-view"
+import { liveList } from "@/lib/hours"
 import { getSectorClicks, getServerSectorClicks, rankSectors, subscribeSectorClicks } from "@/lib/sector-clicks"
 
 export function HomeScreen() {
@@ -30,7 +32,8 @@ export function HomeScreen() {
   const [sectorQuery, setSectorQuery] = useState("")
   const [sectorOpen, setSectorOpen] = useState(false)
   const sectorClicks = useSyncExternalStore(subscribeSectorClicks, getSectorClicks, getServerSectorClicks)
-  const catalog = visibleBusinesses
+  const now = useMinute()
+  const catalog = useMemo(() => liveList(visibleBusinesses, now), [visibleBusinesses, now])
   const catalogCount = catalog.length
   const visibleSectors = useMemo(() => {
     const needle = fold(sectorQuery)

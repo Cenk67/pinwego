@@ -19,6 +19,8 @@ function cardOf(business: Business): QrCardBusiness {
     website: business.website,
     photo: business.photo,
     openNow: business.openNow,
+    hours: business.hours,
+    hourBook: business.hourBook,
     lat: business.lat,
     lng: business.lng,
     verified: business.verified,

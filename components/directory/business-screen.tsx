@@ -23,6 +23,7 @@ import { MessageButton } from "@/components/messages/message-button"
 import { MiniMap } from "@/components/directory/mini-map"
 import { QuoteDialog } from "@/components/directory/quote-dialog"
 import { ContactLines } from "@/components/directory/contact-lines"
+import { HoursStatus, HoursWeek } from "@/components/directory/hours-view"
 import { SocialLinks } from "@/components/directory/social-links"
 import { Button } from "@/components/ui/button"
 import { useGuestGate } from "@/components/auth/guest-gate"
@@ -126,9 +127,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
             {business.premium ? (
               <span className="rounded-full bg-primary px-3 py-1 text-xs text-primary-foreground">Öne çıkan</span>
             ) : null}
-            <span className={business.openNow ? "rounded-full bg-emerald-700/10 px-3 py-1 text-xs text-emerald-800" : "rounded-full bg-secondary px-3 py-1 text-xs"}>
-              {business.openNow ? "Şu an açık" : "Şu an kapalı"}
-            </span>
+            <HoursStatus business={business} />
             {business.source === "senin" ? (
               <span className="rounded-full bg-secondary px-3 py-1 text-xs">Senin kaydın</span>
             ) : null}
@@ -249,14 +248,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
               ) : null}
             </div>
             <h2 className="mt-5 font-heading text-lg">Saatler</h2>
-            <ul className="mt-2 grid gap-1 text-sm">
-              {business.hours.map((day) => (
-                <li key={day.day} className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">{day.day}</span>
-                  <span>{day.hours}</span>
-                </li>
-              ))}
-            </ul>
+            <HoursWeek business={business} />
             <SocialLinks business={business} />
           </div>
           <MiniMap label={business.district} points={[business]} className="hidden lg:block" />

@@ -34,6 +34,27 @@ export type DayHours = {
   hours: string
 }
 
+export type TimeRange = { start: string; end: string }
+
+export type DayPlan = { closed: boolean; ranges: TimeRange[] }
+
+export type SpecialDay = { date: string; closed: boolean; ranges: TimeRange[]; note: string }
+
+export type ManualMark = { mode: "open" | "closed"; until: string; at: string; by?: string }
+
+export type HourBook = { week: DayPlan[]; specials: SpecialDay[]; manual: ManualMark | null }
+
+export type Presence = {
+  state: "open" | "closed" | "unknown"
+  source: "week" | "special" | "manual" | "unknown"
+  labelKey: "hours.open" | "hours.closed" | "hours.manualOpen" | "hours.manualClosed" | "hours.unknown"
+  detailKey: "" | "hours.nextOpen" | "hours.nextClose"
+  time: string
+  note: string
+  today: number
+  until: string
+}
+
 export type Fact = {
   label: string
   value: string
@@ -90,6 +111,8 @@ export type Business = {
   photoPosition: string
   booking: BookingKind
   hours: DayHours[]
+  hourBook?: HourBook
+  presence?: Presence
   facts: Fact[]
   source: "katalog" | "senin" | "google"
   website?: string
@@ -214,6 +237,7 @@ export type BusinessOverride = Partial<
     | "website"
     | "links"
     | "hours"
+    | "hourBook"
     | "services"
     | "founded"
     | "profile"

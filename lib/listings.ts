@@ -1,5 +1,6 @@
 import { slugifyKey } from "@/lib/format"
-import type { BookingKind, Business, DayHours } from "@/lib/types"
+import { hoursFromBook, liveBusiness, publicBook, storedBook } from "@/lib/hours"
+import type { BookingKind, Business, DayHours, HourBook } from "@/lib/types"
 
 export const listingsKey = "listings:v1"
 export const listingCap = 300
@@ -25,6 +26,8 @@ export type StoredListing = {
   photoPosition: string
   booking: BookingKind
   hours: DayHours[]
+  hourBook?: HourBook
+  hourLog?: { at: string; by: string; action: string }[]
   priceLevel: 2
   openNow: boolean
   premium: boolean
@@ -55,6 +58,18 @@ function defaultHours(): DayHours[] {
   return days.map((day) => ({ day, hours: day === "Pazar" ? "Kapalı" : "09:00–18:00" }))
 }
 
+function readHours(value: unknown): DayHours[] | null {
+  if (!Array.isArray(value) || value.length < 7) return null
+  const rows: DayHours[] = []
+  for (const item of value.slice(0, 7)) {
+    if (!item || typeof item !== "object") return null
+    const row = item as Partial<DayHours>
+    if (typeof row.day !== "string" || !row.day.trim()) return null
+    rows.push({ day: row.day.slice(0, 24), hours: typeof row.hours === "string" ? row.hours.slice(0, 80) : "" })
+  }
+  return rows
+}
+
 function asListing(value: unknown): StoredListing | null {
   if (!value || typeof value !== "object") return null
   const row = value as Partial<StoredListing>
@@ -62,6 +77,18 @@ function asListing(value: unknown): StoredListing | null {
   if (typeof row.ownerAccountId !== "string" || typeof row.city !== "string") return null
   if (typeof row.lat !== "number" || typeof row.lng !== "number") return null
   const booking = row.booking === "randevu" || row.booking === "rezervasyon" || row.booking === "teklif" ? row.booking : "teklif"
+  const hourBook = storedBook((row as { hourBook?: unknown }).hourBook) ?? undefined
+  const hours = hourBook ? hoursFromBook(hourBook) : readHours(row.hours) ?? defaultHours()
+  const hourLog = Array.isArray((row as { hourLog?: unknown }).hourLog)
+    ? (row as { hourLog: { at?: unknown; by?: unknown; action?: unknown }[] }).hourLog
+        .filter((item) => item && typeof item.at === "string" && typeof item.action === "string")
+        .slice(0, 8)
+        .map((item) => ({
+          at: item.at as string,
+          by: typeof item.by === "string" ? item.by.slice(0, 40) : "",
+          action: (item.action as string).slice(0, 40),
+        }))
+    : []
   return {
     id: row.id,
     slug: row.slug,
@@ -79,7 +106,9 @@ function asListing(value: unknown): StoredListing | null {
     photo: photoPath(row.photo) || "/photos/office.jpg",
     photoPosition: "center",
     booking,
-    hours: defaultHours(),
+    hours,
+    hourBook,
+    hourLog,
     priceLevel: 2,
     openNow: row.openNow !== false,
     premium: row.premium === true,
@@ -122,7 +151,7 @@ function uniqueSlug(base: string, listings: StoredListing[]) {
 }
 
 export function toBusiness(listing: StoredListing): Business {
-  return {
+  return liveBusiness({
     id: listing.id,
     slug: listing.slug,
     name: listing.name,
@@ -152,10 +181,11 @@ export function toBusiness(listing: StoredListing): Business {
     photoPosition: "center",
     booking: listing.booking,
     hours: listing.hours,
+    hourBook: listing.hourBook ? publicBook(listing.hourBook) : undefined,
     facts: [],
     source: "senin",
     ownerAccountId: listing.ownerAccountId,
-  }
+  }, Date.now())
 }
 
 export function acceptListing(
@@ -200,7 +230,9 @@ export function acceptListing(
     photo: photoPath(body.photo) || "/photos/office.jpg",
     photoPosition: "center",
     booking,
-    hours: defaultHours(),
+    hours: own?.hourBook ? hoursFromBook(own.hourBook) : own?.hours ?? defaultHours(),
+    hourBook: own?.hourBook,
+    hourLog: own?.hourLog ?? [],
     priceLevel: 2,
     openNow: true,
     premium: own ? own.premium : false,

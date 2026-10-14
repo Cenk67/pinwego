@@ -13,6 +13,8 @@ import { watchCopy } from "@/lib/guest"
 import { formatDistance, priceLabel, priceMarks, priceRange } from "@/lib/format"
 import { sectorCopy } from "@/lib/sector-copy"
 import type { Business } from "@/lib/types"
+import { useMinute } from "@/components/directory/hours-view"
+import { liveBusiness } from "@/lib/hours"
 import { useLocale } from "@/lib/use-locale"
 
 export function BusinessCard({
@@ -28,6 +30,9 @@ export function BusinessCard({
 }) {
   const { member } = useGuestGate()
   const { locale, t } = useLocale()
+  const now = useMinute()
+  const live = liveBusiness(business, now)
+  const presence = now ? live.presence : undefined
   const category = categoryById(business.category)
   const sector = sectorCopy(locale, category)
   const summary = member ? business.summary : watchCopy(business.summary)
@@ -53,12 +58,12 @@ export function BusinessCard({
           <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
             <span
               className={
-                business.openNow
+                live.openNow
                   ? "rounded-full bg-white/95 px-2 py-0.5 text-xs font-medium text-emerald-800"
-                  : "rounded-full bg-white/90 px-2 py-0.5 text-xs text-foreground/70"
+                  : "rounded-full bg-white/90 px-2 py-0.5 text-xs font-medium text-rose-800"
               }
             >
-              {business.openNow ? t("card.open") : t("card.closed")}
+              {presence ? t(presence.labelKey) : live.openNow ? t("card.open") : t("card.closed")}
             </span>
             {business.premium ? (
               <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
@@ -88,6 +93,7 @@ export function BusinessCard({
               {typeof distanceKm === "number" ? formatDistance(distanceKm) : business.city}
               {" · "}
               {priceMarks(business.priceLevel)} {priceLabel(business.priceLevel)}
+              {presence?.detailKey ? ` · ${t(presence.detailKey, { time: presence.time })}` : ""}
             </span>
             <span className="text-foreground">{priceRange(business)}</span>
           </div>

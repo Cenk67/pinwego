@@ -27,12 +27,15 @@ import { useDirectory } from "@/lib/directory-context"
 import { ContactEditor } from "@/components/directory/contact-lines"
 import { ProfileEditor } from "@/components/directory/profile-editor"
 import { SocialLinkEditor } from "@/components/directory/social-links"
+import { useMinute } from "@/components/directory/hours-view"
+import { applyManual, bookFromHours, hoursFromBook, weekError } from "@/lib/hours"
+import type { ManualAction } from "@/lib/hours"
 import { listingFields, normalizeProfile, resolveProfile } from "@/lib/profile"
 import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
 import { fold, slugify } from "@/lib/format"
 import { maskId } from "@/lib/identity"
 import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
-import type { BookingKind, Business, BusinessProfile, CategoryId, DayHours } from "@/lib/types"
+import type { BookingKind, Business, BusinessProfile, CategoryId, HourBook } from "@/lib/types"
 
 const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
 const tabs = [
@@ -177,7 +180,7 @@ async function postListing(body: Record<string, unknown>) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   })
-  const data = (await response.json().catch(() => null)) as { ok?: boolean; listing?: Business } | null
+  const data = (await response.json().catch(() => null)) as { ok?: boolean; reason?: string; listing?: Business } | null
   return { response, data }
 }
 
@@ -199,6 +202,7 @@ function BusinessAdmin() {
   const [editor, setEditor] = useState<Business | null>(null)
   const [profileTarget, setProfileTarget] = useState<Business | null>(null)
   const [creating, setCreating] = useState(false)
+  const now = useMinute()
 
   const filtered = useMemo(() => {
     const needle = fold(query)
@@ -322,21 +326,24 @@ function BusinessAdmin() {
                 </Label>
                 <Label className="gap-2">
                   <Checkbox
-                    checked={business.openNow}
+                    checked={Boolean(now && business.hourBook?.manual?.mode === "open" && Date.parse(business.hourBook.manual.until) > now)}
                     onCheckedChange={(checked) => {
-                      const openNow = checked === true
+                      const action: ManualAction = { mode: checked === true ? "open" : "auto", span: "today" }
+                      const base = business.hourBook ?? bookFromHours(business.hours)
                       if (business.source !== "senin") {
-                        patchBusiness(business.id, { openNow })
+                        const next = applyManual(base, action, Date.now())
+                        if (!next) return
+                        patchBusiness(business.id, { hourBook: next, hours: hoursFromBook(next) })
                         return
                       }
-                      void postListing({ op: "flags", id: business.id, openNow }).then(({ response, data }) => {
+                      void postListing({ op: "durum", id: business.id, mode: action.mode, span: action.span }).then(({ response, data }) => {
                         if (!response.ok || !data?.listing) return
-                        patchBusiness(business.id, { openNow: data.listing.openNow })
+                        patchBusiness(business.id, { hourBook: data.listing.hourBook, hours: data.listing.hours, openNow: data.listing.openNow })
                         rememberListing(data.listing)
                       })
                     }}
                   />
-                  Şu an açık
+                  Bugün açık işaretle
                 </Label>
               </div>
             </article>
@@ -396,10 +403,33 @@ function ProfileDialog({
 }: {
   business: Business
   onClose: () => void
-  onSave: (patch: ReturnType<typeof listingFields> & { hours: DayHours[] }) => void
+  onSave: (patch: ReturnType<typeof listingFields> & { hours: Business["hours"]; hourBook: HourBook }) => void
 }) {
   const [profile, setProfile] = useState<BusinessProfile>(() => resolveProfile(business))
-  const [hours, setHours] = useState<DayHours[]>(business.hours)
+  const { patchBusiness, rememberListing } = useDirectory()
+  const [book, setBook] = useState<HourBook>(() => business.hourBook ?? bookFromHours(business.hours))
+  const [error, setError] = useState("")
+  async function onManual(action: ManualAction) {
+    const next = applyManual(book, action, Date.now())
+    if (!next) {
+      setError(action.mode === "open" ? "Tatil günü açık işaretlenemez." : "Süre geçersiz.")
+      return
+    }
+    if (business.source === "senin") {
+      const { response, data } = await postListing({ op: "durum", id: business.id, mode: action.mode, span: action.span, until: action.until })
+      if (!response.ok || !data?.listing?.hourBook) {
+        setError(data?.reason === "tatil" ? "Tatil günü açık işaretlenemez." : "İşaret sunucuya yazılamadı.")
+        return
+      }
+      setBook(data.listing.hourBook)
+      patchBusiness(business.id, { hourBook: data.listing.hourBook, hours: data.listing.hours, openNow: data.listing.openNow })
+      rememberListing(data.listing)
+    } else {
+      setBook(next)
+      patchBusiness(business.id, { hourBook: next, hours: hoursFromBook(next) })
+    }
+    setError("")
+  }
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
@@ -410,18 +440,29 @@ function ProfileDialog({
           className="grid gap-4"
           onSubmit={(event) => {
             event.preventDefault()
+            const problem = weekError(book)
+            if (problem) {
+              setError(problem)
+              return
+            }
             const clean = normalizeProfile(profile, resolveProfile(business))
-            onSave({ ...listingFields(clean), hours })
+            const hours = hoursFromBook(book)
+            onSave({ ...listingFields(clean), hours, hourBook: book })
+            if (business.source === "senin") {
+              void postListing({ op: "saat", id: business.id, week: book.week, specials: book.specials })
+            }
           }}
         >
           <ProfileEditor
             business={business}
             value={profile}
             onChange={setProfile}
-            hours={hours}
-            onHours={setHours}
+            book={book}
+            onBook={setBook}
+            onManual={(action) => void onManual(action)}
             allowPublish
           />
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <div className="flex gap-2">
             <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={onClose}>
               Vazgeç

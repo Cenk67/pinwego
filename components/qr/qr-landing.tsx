@@ -13,12 +13,14 @@ import { categoryById } from "@/lib/catalog"
 import { sectorCopy } from "@/lib/sector-copy"
 import { recordQrEvent, rememberQrReturn } from "@/lib/qr-store"
 import { posterPath, profileUrl, qrUrl, vcardPath, type QrHit } from "@/lib/qr"
+import { useMinute } from "@/components/directory/hours-view"
+import { bookFromHours, hoursKnown, statusAt } from "@/lib/hours"
 import { useLocale } from "@/lib/use-locale"
 import type { Business } from "@/lib/types"
 
 export type QrCardBusiness = Pick<
   Business,
-  "id" | "slug" | "name" | "category" | "summary" | "phone" | "address" | "city" | "district" | "website" | "photo" | "openNow" | "lat" | "lng" | "verified"
+  "id" | "slug" | "name" | "category" | "summary" | "phone" | "address" | "city" | "district" | "website" | "photo" | "openNow" | "lat" | "lng" | "verified" | "hours" | "hourBook"
 >
 
 export function QrLanding({
@@ -31,6 +33,9 @@ export function QrLanding({
   campaign?: { id: string; slug: string; title: string; advantage: string; live: boolean } | null
 }) {
   const { locale, t } = useLocale()
+  const now = useMinute()
+  const presence = now && business.hours ? statusAt(business.hourBook ?? bookFromHours(business.hours), now, hoursKnown(business.hours, business.hourBook)) : undefined
+  const open = presence ? presence.state === "open" : business.openNow
   const { account } = useAuth()
   const [saved, setSaved] = useState(false)
   const sector = sectorCopy(locale, categoryById(business.category))
@@ -54,7 +59,7 @@ export function QrLanding({
           <p className="text-xs text-muted-foreground">{sector.label}</p>
           <h1 className="mt-1 font-heading text-4xl leading-tight">{business.name}</h1>
           <p className="mt-2 flex items-center gap-2 text-sm">
-            <span className={business.openNow ? "text-emerald-800" : "text-muted-foreground"}>{business.openNow ? t("qr.open") : t("qr.closed")}</span>
+            <span className={open ? "text-emerald-800" : "text-rose-800"}>{presence ? t(presence.labelKey) : open ? t("qr.open") : t("qr.closed")}</span>
             {business.verified ? <BadgeCheck className="size-4 text-primary" aria-label={t("campaign.verified")} /> : null}
           </p>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">{business.summary}</p>

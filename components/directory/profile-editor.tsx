@@ -16,7 +16,9 @@ import {
   suggestAiTags,
   tagKey,
 } from "@/lib/profile"
-import type { Business, BusinessProfile, DayHours, GalleryItem, ProfileChoice, ProfileService } from "@/lib/types"
+import { HoursEditor } from "@/components/directory/hours-editor"
+import type { ManualAction } from "@/lib/hours"
+import type { Business, BusinessProfile, GalleryItem, HourBook, ProfileChoice, ProfileService } from "@/lib/types"
 
 const PAYMENTS = ["Nakit", "Kart", "Havale", "Online"]
 
@@ -24,15 +26,17 @@ export function ProfileEditor({
   business,
   value,
   onChange,
-  hours,
-  onHours,
+  book,
+  onBook,
+  onManual,
   allowPublish,
 }: {
   business: Business
   value: BusinessProfile
   onChange: (next: BusinessProfile) => void
-  hours: DayHours[]
-  onHours: (next: DayHours[]) => void
+  book: HourBook
+  onBook: (book: HourBook) => void
+  onManual: (action: ManualAction) => void
   allowPublish: boolean
 }) {
   const [notice, setNotice] = useState("")
@@ -154,17 +158,7 @@ export function ProfileEditor({
           </label>
         ) : null}
       </fieldset>
-      <fieldset className="grid gap-3">
-        <legend className="font-heading text-xl">Çalışma saatleri</legend>
-        <div className="grid gap-2">
-          {hours.map((day, index) => (
-            <label key={day.day} className="grid grid-cols-[7rem_1fr] items-center gap-2 text-sm">
-              {day.day}
-              <Input value={day.hours} onChange={(event) => onHours(hours.map((item, itemIndex) => itemIndex === index ? { ...item, hours: event.target.value } : item))} />
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <HoursEditor book={book} onBook={onBook} onManual={onManual} />
       <ServiceEditor value={value} onChange={onChange} />
       <GalleryEditor businessName={business.name} value={value} onChange={onChange} />
     </div>
