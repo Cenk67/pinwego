@@ -1,17 +1,26 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { Logo } from "@/components/brand/logo"
 import { cookieChoiceKey } from "@/components/directory/cookie-banner"
 import { footerPages, seedPages, type PageGroup } from "@/lib/site-pages"
 import { useLocale } from "@/lib/use-locale"
 
+type SocialLink = { id: string; label: string; url: string }
+
+function useYear() {
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
+  return mounted ? new Date().getFullYear() : 0
+}
+
 type FooterLink = { slug: string; title: string; group: PageGroup; order: number }
 
 export function Footer() {
   const { t } = useLocale()
+  const year = useYear()
   const [links, setLinks] = useState<FooterLink[]>(() => footerPages(seedPages))
+  const [socials, setSocials] = useState<SocialLink[]>([])
   useEffect(() => {
     let live = true
     void fetch("/api/sayfa")
@@ -19,6 +28,13 @@ export function Footer() {
       .then((data: { links?: FooterLink[] } | null) => {
         if (!live || !data || !Array.isArray(data.links)) return
         setLinks(data.links)
+      })
+      .catch(() => undefined)
+    void fetch("/api/iletisim")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { settings?: { socials?: SocialLink[] } } | null) => {
+        if (!live || !Array.isArray(data?.settings?.socials)) return
+        setSocials(data.settings.socials)
       })
       .catch(() => undefined)
     return () => {
@@ -35,6 +51,15 @@ export function Footer() {
         <div>
           <Logo variant="stacked" />
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">{t("footer.pitch")}</p>
+          {socials.length ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {socials.map((item) => (
+                <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" aria-label={item.label} className="inline-flex h-9 items-center rounded-full bg-secondary px-3 text-xs">
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          ) : null}
         </div>
         <div className="text-sm">
           <p className="font-medium">{t("footer.browse")}</p>
@@ -52,6 +77,7 @@ export function Footer() {
         <div className="text-sm">
           <p className="font-medium">{t("footer.corporate")}</p>
           <div className="mt-3 grid gap-2 text-muted-foreground">
+            <Link href="/iletisim">{t("footer.contact")}</Link>
             {links.filter((item) => item.group === "kurumsal").map((item) => (
               <Link key={item.slug} href={`/${item.slug}`}>{item.title}</Link>
             ))}
@@ -71,6 +97,9 @@ export function Footer() {
           <p className="mt-3 leading-6 text-muted-foreground">{t("footer.note")}</p>
         </div>
       </div>
+      <p className="mx-auto max-w-6xl px-4 pb-8 text-sm text-muted-foreground">
+        {year ? `© ${year} Pinwego. ${t("footer.rights")}` : `© Pinwego. ${t("footer.rights")}`}
+      </p>
     </footer>
   )
 }

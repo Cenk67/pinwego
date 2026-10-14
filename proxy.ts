@@ -9,6 +9,7 @@ const appRoots = new Set([
   "/blog",
   "/dogrula",
   "/hesap",
+  "/iletisim",
   "/isletme",
   "/kampanyalar",
   "/kaydedilenler",
