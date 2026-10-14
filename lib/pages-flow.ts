@@ -276,6 +276,44 @@ export async function noteConsents(store: NonNullable<Awaited<ReturnType<typeof 
   await store.put(consentsKey, JSON.stringify({ items }))
 }
 
+export async function consentsFor(store: NonNullable<Awaited<ReturnType<typeof accountStore>>>, accountId: string) {
+  const items = parseConsents(await store.get(consentsKey)).filter((item) => item.accountId === accountId)
+  return items.slice(-40).map((item) => ({
+    pageId: item.pageId,
+    version: item.version,
+    kind: item.kind,
+    accepted: item.accepted,
+    at: item.at,
+    context: item.context,
+  }))
+}
+
+export async function latestMarketing(store: NonNullable<Awaited<ReturnType<typeof accountStore>>>, accountId: string) {
+  const items = parseConsents(await store.get(consentsKey)).filter((item) => item.accountId === accountId && item.kind === "pazarlama")
+  return items.at(-1)?.accepted === true
+}
+
+export async function setMarketingConsent(store: NonNullable<Awaited<ReturnType<typeof accountStore>>>, accountId: string, accepted: boolean, now = Date.now()) {
+  const book = await readBook(store)
+  if (!book) return false
+  const promo = book.pages.find((item) => item.id === "pazarlama-politikasi")
+  if (!promo) return false
+  const at = new Date(now).toISOString()
+  const row: Consent = {
+    id: `${accountId}:${promo.id}:${promo.version}:pazarlama:${now}`,
+    accountId,
+    pageId: promo.id,
+    version: promo.version,
+    kind: "pazarlama",
+    accepted,
+    at,
+    context: "hesap",
+  }
+  const current = parseConsents(await store.get(consentsKey))
+  await store.put(consentsKey, JSON.stringify({ items: [...current, row].slice(-500) }))
+  return true
+}
+
 export async function sitemapPages() {
   const store = await accountStore()
   const book = store ? await readBook(store) : seedBook()

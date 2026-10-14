@@ -23,12 +23,12 @@ import { useDirectory } from "@/lib/directory-context"
 import { useLocale } from "@/lib/use-locale"
 import type { Business } from "@/lib/types"
 import {
-  adultBirthDate,
   fileProblem,
+  validBirthDate,
   validEmail,
+  validGsm,
   validPassword,
   validPhone,
-  validTckn,
   validVkn,
 } from "@/lib/identity"
 
@@ -399,6 +399,8 @@ function LoginForm({
   )
 }
 
+type CustomerMiss = Partial<Record<"first" | "last" | "birth" | "job" | "phone" | "email" | "password" | "again" | "terms", string>>
+
 function CustomerForm({
   registerAccount,
   siteKey,
@@ -406,20 +408,21 @@ function CustomerForm({
   registerAccount: ReturnType<typeof useAuth>["registerAccount"]
   siteKey: string
 }) {
-  const [name, setName] = useState("")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
-  const [nationalId, setNationalId] = useState("")
+  const [occupation, setOccupation] = useState("")
   const [birthDate, setBirthDate] = useState("")
   const [password, setPassword] = useState("")
   const [again, setAgain] = useState("")
-  const [document, setDocument] = useState<File | null>(null)
+  const [miss, setMiss] = useState<CustomerMiss>({})
   const [errors, setErrors] = useState<string[]>([])
   const [pending, setPending] = useState(false)
   const [token, setToken] = useState("")
   const [terms, setTerms] = useState(false)
   const [marketing, setMarketing] = useState(false)
-  const [hold, setHold] = useState<{ email: string; password: string } | null>(null)
+  const [hold, setHold] = useState<{ email: string; password: string; failed: boolean } | null>(null)
   const { locale } = useLocale()
   const router = useRouter()
   const params = useSearchParams()
@@ -427,94 +430,93 @@ function CustomerForm({
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = event.currentTarget
-    const typedName = submittedField(form, "name", "cust-name", name)
-    const typedEmail = submittedField(form, "email", "cust-email", email)
-    const typedPhone = submittedField(form, "phone", "cust-phone", phone)
-    const typedId = submittedField(form, "national-id", "cust-id", nationalId)
+    const typedFirst = submittedField(form, "given-name", "cust-first", firstName).trim()
+    const typedLast = submittedField(form, "family-name", "cust-last", lastName).trim()
+    const typedEmail = submittedField(form, "email", "cust-email", email).trim()
+    const typedPhone = submittedField(form, "phone", "cust-phone", phone).trim()
+    const typedJob = submittedField(form, "occupation", "cust-job", occupation).trim()
     const typedBirth = submittedField(form, "birth", "cust-birth", birthDate)
     const typedPassword = submittedField(form, "password", "cust-pass", password)
     const typedAgain = submittedField(form, "password-again", "cust-again", again)
-    const errors = problemsOf([
-      typedName.trim().split(/\s+/).length < 2 ? "Ad ve soyadı birlikte yaz." : null,
-      validEmail(typedEmail) ? null : "Geçerli bir e-posta yaz.",
-      validPhone(typedPhone) ? null : "Telefon 5 ile başlayan bir cep numarası olmalı.",
-      validTckn(typedId.replace(/\D/g, "")) ? null : "T.C. kimlik numarası geçersiz.",
-      adultBirthDate(typedBirth) ? null : "Doğum tarihi 18 yaşından büyük bir gün olmalı.",
-      validPassword(typedPassword) ? null : "Şifre en az 8 karakter olmalı.",
-      typedPassword === typedAgain ? null : "Şifre tekrarı eşleşmedi.",
-      document ? fileProblem(document) : "Teyit belgesi yükle.",
-      terms ? null : "Üyelik sözleşmesini onaylamadan kayıt açılmaz.",
-    ])
-    if (errors.length || !document) {
-      setErrors(errors)
-      return
-    }
+    const next: CustomerMiss = {}
+    if (typedFirst.length < 2) next.first = "Adı yaz."
+    if (typedLast.length < 2) next.last = "Soyadı yaz."
+    if (!validBirthDate(typedBirth)) next.birth = "Doğum tarihi geçerli bir gün olmalı ve bugünden sonra olamaz."
+    if (typedJob.length < 2) next.job = "Mesleği yaz."
+    if (!validGsm(typedPhone)) next.phone = "Türkiye cep numarası ya da ülke kodlu uluslararası numara yaz."
+    if (!validEmail(typedEmail)) next.email = "Geçerli bir e-posta yaz."
+    if (!validPassword(typedPassword)) next.password = "Şifre en az 8 karakter olmalı ve harf ile rakam içermeli."
+    if (typedPassword !== typedAgain) next.again = "Şifre tekrarı eşleşmedi."
+    if (!terms) next.terms = "Üyelik sözleşmesini, kullanım koşullarını ve aydınlatma metnini onaylamadan kayıt açılmaz."
+    setMiss(next)
+    setErrors([])
+    if (Object.keys(next).length) return
     setPending(true)
     try {
       const message = await registerAccount({
         role: "musteri",
         email: typedEmail,
         password: typedPassword,
-        name: typedName,
+        name: `${typedFirst} ${typedLast}`,
         phone: typedPhone,
-        customer: { nationalId: typedId.replace(/\D/g, ""), birthDate: typedBirth },
-        uploads: [{ label: "Teyit belgesi", file: document }],
+        customer: { firstName: typedFirst, lastName: typedLast, birthDate: typedBirth, occupation: typedJob },
+        uploads: [],
         turnstile: token,
         locale,
         acceptTerms: terms,
         marketing,
       })
-      if (message && typeof message === "object") {
-        setHold({ email: message.pending, password: typedPassword })
+      if (message && typeof message === "object" && "pending" in message) {
+        setHold({ email: message.pending, password: typedPassword, failed: message.mail === "failed" })
         return
       }
-      if (message) {
+      if (typeof message === "string") {
         setErrors([message])
         return
       }
       router.push(destinationFor("musteri", null, safeReturnPath(params.get("donus"))))
     } catch (error) {
-      setErrors([error instanceof Error ? error.message : "Belge kaydedilemedi."])
+      setErrors([error instanceof Error ? error.message : "Kayıt tamamlanamadı."])
     } finally {
       setPending(false)
     }
   }
 
-  if (hold) return <PendingMail email={hold.email} password={hold.password} siteKey={siteKey} />
+  if (hold) return <PendingMail email={hold.email} password={hold.password} siteKey={siteKey} failed={hold.failed} />
 
   return (
     <form onSubmit={submit} className="grid gap-4">
       <div>
         <h1 className="font-heading text-4xl text-balance">Müşteri kaydı oluşturun</h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Kimlik bilgisi ve teyit belgesi tamamlanmadan iletişim bilgileri ve özellikler açılmaz. İzleme kayıtsız da
-          durur.
+          Ad, soyad, doğum tarihi, meslek ve iletişim bilgisiyle hesap açılır. Kimlik belgesi ve kimlik numarası istenmez.
+          E-posta doğrulanmadan hesap açılmaz.
         </p>
       </div>
-      <Field id="cust-name" name="name" label="Ad soyad" value={name} onChange={setName} autoComplete="name" />
-      <Field id="cust-email" name="email" label="E-posta" type="email" value={email} onChange={setEmail} autoComplete="email" />
-      <Field id="cust-phone" name="phone" label="Cep telefonu" value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" />
-      <Field id="cust-id" name="national-id" label="T.C. kimlik numarası" value={nationalId} onChange={setNationalId} inputMode="numeric" />
-      <div className="grid gap-1.5">
-        <Label htmlFor="cust-birth">Doğum tarihi</Label>
-        <Input id="cust-birth" name="birth" type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className="h-11" />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field id="cust-first" name="given-name" label="Adı" value={firstName} onChange={setFirstName} autoComplete="given-name" error={miss.first} />
+        <Field id="cust-last" name="family-name" label="Soyadı" value={lastName} onChange={setLastName} autoComplete="family-name" error={miss.last} />
       </div>
-      <Field id="cust-pass" name="password" label="Şifre" type="password" value={password} onChange={setPassword} autoComplete="new-password" />
-      <Field id="cust-again" name="password-again" label="Şifre tekrarı" type="password" value={again} onChange={setAgain} autoComplete="new-password" />
-      <DocField
-        label="Teyit belgesi"
-        hint="Nüfus cüzdanı, kimlik kartı, ehliyet veya yerleşim yeri belgesi. PDF, JPG, PNG veya WEBP. En fazla 4 MB."
-        file={document}
-        onChange={setDocument}
-      />
+      <div className="grid gap-1.5">
+        <Label htmlFor="cust-birth">Doğum Tarihi</Label>
+        <Input id="cust-birth" name="birth" type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} aria-invalid={Boolean(miss.birth)} className="h-11" />
+        {miss.birth ? <p className="text-sm text-destructive">{miss.birth}</p> : null}
+      </div>
+      <Field id="cust-job" name="occupation" label="Meslek" value={occupation} onChange={setOccupation} autoComplete="organization-title" error={miss.job} />
+      <Field id="cust-phone" name="phone" label="GSM" value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" error={miss.phone} />
+      <Field id="cust-email" name="email" label="E-posta" type="email" value={email} onChange={setEmail} autoComplete="email" error={miss.email} />
+      <Field id="cust-pass" name="password" label="Şifre" type="password" value={password} onChange={setPassword} autoComplete="new-password" error={miss.password} />
+      <p className="-mt-2 text-xs leading-5 text-muted-foreground">En az 8 karakter, bir harf ve bir rakam. Şifre tekrarı saklanmaz.</p>
+      <Field id="cust-again" name="password-again" label="Şifre Tekrarı" type="password" value={again} onChange={setAgain} autoComplete="new-password" error={miss.again} />
       <ConsentFields terms={terms} marketing={marketing} onTerms={setTerms} onMarketing={setMarketing} />
+      {miss.terms ? <p className="-mt-2 text-sm text-destructive">{miss.terms}</p> : null}
       <TurnstileField siteKey={siteKey} onToken={setToken} />
       <ErrorList errors={errors} />
       <Button type="submit" className="h-11 rounded-xl" disabled={pending || (Boolean(siteKey) && !token)}>
-        {pending ? "Belgeler kaydediliyor" : "Doğrula ve kaydı aç"}
+        {pending ? "Kayıt açılıyor" : "Doğrula ve Kaydı Aç"}
       </Button>
       <Link href="/hesap?kayit=giris&kapi=musteri" className="text-center text-sm text-primary">
-        Zaten müşteri hesabım var
+        Zaten Müşteri Hesabım Var
       </Link>
       <Button variant="ghost" className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap" />}>
         Tüm girişlere dön
@@ -555,7 +557,7 @@ function BusinessForm({
   const [token, setToken] = useState("")
   const [terms, setTerms] = useState(false)
   const [marketing, setMarketing] = useState(false)
-  const [hold, setHold] = useState<{ email: string; password: string } | null>(null)
+  const [hold, setHold] = useState<{ email: string; password: string; failed: boolean } | null>(null)
   const { locale } = useLocale()
   const params = useSearchParams()
 
@@ -580,7 +582,7 @@ function BusinessForm({
       taxOffice.trim().length < 2 ? "Vergi dairesini yaz." : null,
       place.country && Number.isFinite(place.lat) ? null : "Şehir ve konum seç.",
       address.trim().length < 8 ? "Açık adresi yaz." : null,
-      validPassword(typedPassword) ? null : "Şifre en az 8 karakter olmalı.",
+      validPassword(typedPassword) ? null : "Şifre en az 8 karakter olmalı ve harf ile rakam içermeli.",
       typedPassword === typedAgain ? null : "Şifre tekrarı eşleşmedi.",
       ...uploads.map((item) => (item.file ? fileProblem(item.file) && `${item.label}: ${fileProblem(item.file)}` : `${item.label} yükle.`)),
       terms ? null : "Üyelik sözleşmesini onaylamadan kayıt açılmaz.",
@@ -610,8 +612,12 @@ function BusinessForm({
         acceptTerms: terms,
         marketing,
       })
-      if (message && typeof message === "object") {
-        setHold({ email: message.pending, password: typedPassword })
+      if (message && typeof message === "object" && "pending" in message) {
+        setHold({ email: message.pending, password: typedPassword, failed: message.mail === "failed" })
+        return
+      }
+      if (typeof message === "string") {
+        setErrors([message])
         return
       }
       if (!message && claim) {
@@ -624,9 +630,7 @@ function BusinessForm({
       }
       if (!message) {
         router.push(destinationFor("isletme", null, safeReturnPath(params.get("donus"))))
-        return
       }
-      setErrors([message])
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Belgeler kaydedilemedi."])
     } finally {
@@ -634,7 +638,7 @@ function BusinessForm({
     }
   }
 
-  if (hold) return <PendingMail email={hold.email} password={hold.password} siteKey={siteKey} />
+  if (hold) return <PendingMail email={hold.email} password={hold.password} siteKey={siteKey} failed={hold.failed} />
 
   return (
     <form onSubmit={submit} className="grid gap-4">
@@ -725,6 +729,7 @@ function Field({
   type = "text",
   autoComplete,
   inputMode,
+  error,
 }: {
   id: string
   name?: string
@@ -734,6 +739,7 @@ function Field({
   type?: string
   autoComplete?: string
   inputMode?: "text" | "tel" | "numeric" | "email"
+  error?: string
 }) {
   return (
     <div className="grid gap-1.5">
@@ -745,9 +751,12 @@ function Field({
         value={value}
         autoComplete={autoComplete}
         inputMode={inputMode}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : undefined}
         onChange={(event) => onChange(event.target.value)}
         className="h-11"
       />
+      {error ? <p id={`${id}-error`} className="text-sm text-destructive">{error}</p> : null}
     </div>
   )
 }

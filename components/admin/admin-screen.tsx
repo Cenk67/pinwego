@@ -10,6 +10,7 @@ import { DiscoverAdmin } from "@/components/discover/discover-admin"
 import { AnalyticsPanel } from "@/components/admin/analytics-panel"
 import { ViewAdmin } from "@/components/directory/view-report"
 import { InboxPanel } from "@/components/admin/inbox-panel"
+import { CustomerPanel } from "@/components/admin/customer-panel"
 import { PagesPanel } from "@/components/admin/pages-panel"
 import { NotifyPanel } from "@/components/admin/notify-panel"
 import { CrmPanel } from "@/components/crm/crm-panel"
@@ -45,6 +46,7 @@ const tabs = [
   { id: "sektorler", label: "Sektörler" },
   { id: "talepler", label: "Talepler" },
   { id: "hesaplar", label: "Hesaplar" },
+  { id: "musteriler", label: "Müşteriler" },
   { id: "blog", label: "Blog" },
   { id: "ses", label: "Sesli arama" },
   { id: "kampanya", label: "Kampanyalar" },
@@ -133,6 +135,7 @@ export function AdminScreen() {
       {tab === "sektorler" ? <SectorAdmin /> : null}
       {tab === "talepler" ? <RequestAdmin /> : null}
       {tab === "hesaplar" ? <AccountAdmin /> : null}
+      {tab === "musteriler" ? <CustomerPanel /> : null}
       {tab === "blog" ? <BlogAdmin /> : null}
       {tab === "ses" ? <VoiceAdmin /> : null}
       {tab === "kampanya" ? <CampaignAdmin /> : null}
@@ -813,7 +816,7 @@ function AccountAdmin() {
               <p className="font-medium">{item.name}</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {item.email} · {item.role === "admin" ? "yönetici" : item.role === "isletme" ? "işletme" : "müşteri"}
-                {item.customer ? ` · TCKN ${maskId(item.customer.nationalId)}` : ""}
+                {item.customer?.nationalId ? ` · TCKN ${maskId(item.customer.nationalId)}` : ""}
                 {item.business ? ` · VKN ${maskId(item.business.taxId)}` : ""}
               </p>
             </div>

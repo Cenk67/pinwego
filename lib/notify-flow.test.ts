@@ -22,9 +22,13 @@ const account: PublicAccount = {
   name: "Gizli Kisi",
   phone: "05550000000",
   createdAt: "2026-10-13T05:00:00.000Z",
-  customer: { nationalId: "10000000146", birthDate: "1990-01-01" },
+  customer: { firstName: "Gizli", lastName: "Kisi", birthDate: "1990-01-01", occupation: "", legacyId: false },
   emailVerified: false,
   credentialVersion: 1,
+  status: "bekliyor",
+  verifiedAt: "",
+  updatedAt: "2026-10-13T05:00:00.000Z",
+  lastLoginAt: "",
 }
 
 function call(path: string, body?: unknown, cookie = "") {

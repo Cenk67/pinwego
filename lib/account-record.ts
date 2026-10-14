@@ -1,6 +1,16 @@
 import { normalizeEmail } from "@/lib/auth-session"
-import { adultBirthDate, validEmail, validPassword, validPhone, validTckn, validVkn } from "@/lib/identity"
+import { adultBirthDate, validBirthDate, validEmail, validGsm, validPassword, validPhone, validTckn, validVkn } from "@/lib/identity"
 import { newSecret, nextBucket, sha256Hex } from "@/lib/mail-policy"
+
+export type AccountStatus = "bekliyor" | "aktif" | "askida" | "silindi"
+
+export type CustomerRecord = {
+  firstName?: string
+  lastName?: string
+  birthDate: string
+  occupation?: string
+  nationalId?: string
+}
 
 export type PublicAccount = {
   id: string
@@ -9,17 +19,39 @@ export type PublicAccount = {
   name: string
   phone: string
   createdAt: string
-  customer?: { nationalId: string; birthDate: string }
+  customer?: {
+    firstName: string
+    lastName: string
+    birthDate: string
+    occupation: string
+    legacyId: boolean
+  }
   business?: { owner: string; taxId: string; taxOffice: string; city: string; address: string }
   emailVerified: boolean
   credentialVersion: number
+  status: AccountStatus
+  verifiedAt: string
+  updatedAt: string
+  lastLoginAt: string
 }
 
-type StoredAccount = Omit<PublicAccount, "emailVerified" | "credentialVersion"> & {
+type StoredAccount = {
+  id: string
+  role: "musteri" | "isletme"
+  email: string
+  name: string
+  phone: string
+  createdAt: string
+  customer?: CustomerRecord
+  business?: PublicAccount["business"]
   passwordSalt: string
   passwordHash: string
   emailVerified?: boolean
   credentialVersion?: number
+  status?: AccountStatus
+  verifiedAt?: string
+  updatedAt?: string
+  lastLoginAt?: string
   verifyHash?: string
   verifyExp?: number
   resetHash?: string
@@ -34,7 +66,7 @@ export type AccountStore = {
 
 export type AccountResult =
   | { ok: true; account: PublicAccount }
-  | { ok: false; reason: "exists" | "invalid" | "mismatch" | "unknown" | "unverified"; role?: "musteri" | "isletme" }
+  | { ok: false; reason: "exists" | "invalid" | "mismatch" | "unknown" | "unverified" | "askida" | "silindi"; role?: "musteri" | "isletme" }
 
 export type TokenResult =
   | { ok: true; token: string }
@@ -42,7 +74,7 @@ export type TokenResult =
 
 export type ConsumeResult =
   | { ok: true; account: PublicAccount }
-  | { ok: false; reason: "invalid" | "expired" | "used" | "weak" }
+  | { ok: false; reason: "invalid" | "expired" | "used" | "weak"; accountId?: string }
 
 const rounds = 1000
 
@@ -93,6 +125,22 @@ function asStored(value: string | null): StoredAccount | null {
   }
 }
 
+export function accountStatus(account: { status?: string; emailVerified?: boolean }): AccountStatus {
+  if (account.status === "bekliyor" || account.status === "aktif" || account.status === "askida" || account.status === "silindi") return account.status
+  return account.emailVerified === false ? "bekliyor" : "aktif"
+}
+
+function presentCustomer(customer: CustomerRecord | undefined): PublicAccount["customer"] {
+  if (!customer) return undefined
+  return {
+    firstName: customer.firstName ?? "",
+    lastName: customer.lastName ?? "",
+    birthDate: customer.birthDate ?? "",
+    occupation: customer.occupation ?? "",
+    legacyId: Boolean(customer.nationalId),
+  }
+}
+
 function publish(account: StoredAccount): PublicAccount {
   return {
     id: account.id,
@@ -101,11 +149,40 @@ function publish(account: StoredAccount): PublicAccount {
     name: account.name,
     phone: account.phone,
     createdAt: account.createdAt,
-    customer: account.customer,
+    customer: presentCustomer(account.customer),
     business: account.business,
     emailVerified: account.emailVerified !== false,
     credentialVersion: account.credentialVersion ?? 1,
+    status: accountStatus(account),
+    verifiedAt: account.verifiedAt ?? "",
+    updatedAt: account.updatedAt ?? account.createdAt,
+    lastLoginAt: account.lastLoginAt ?? "",
   }
+}
+
+export function presentAccount(value: unknown): PublicAccount | null {
+  if (!value || typeof value !== "object") return null
+  const data = value as Partial<StoredAccount>
+  if (data.role !== "musteri" && data.role !== "isletme") return null
+  if (typeof data.email !== "string" || typeof data.id !== "string" || typeof data.name !== "string") return null
+  return publish({
+    id: data.id,
+    role: data.role,
+    email: data.email,
+    name: data.name,
+    phone: typeof data.phone === "string" ? data.phone : "",
+    createdAt: typeof data.createdAt === "string" ? data.createdAt : "",
+    customer: data.customer,
+    business: data.business,
+    passwordSalt: "",
+    passwordHash: "",
+    emailVerified: data.emailVerified,
+    credentialVersion: data.credentialVersion,
+    status: data.status,
+    verifiedAt: data.verifiedAt,
+    updatedAt: data.updatedAt,
+    lastLoginAt: data.lastLoginAt,
+  })
 }
 
 function profile(body: Record<string, unknown>, role: "musteri" | "isletme") {
@@ -113,10 +190,17 @@ function profile(body: Record<string, unknown>, role: "musteri" | "isletme") {
     const customer = body.customer
     if (!customer || typeof customer !== "object") return null
     const row = customer as Record<string, unknown>
-    const nationalId = clean(row.nationalId, 11).replace(/\D/g, "")
+    const firstName = clean(row.firstName, 40)
+    const lastName = clean(row.lastName, 40)
     const birthDate = clean(row.birthDate, 10)
+    const occupation = clean(row.occupation, 80)
+    if (firstName || lastName || occupation) {
+      if (firstName.length < 2 || lastName.length < 2 || occupation.length < 2 || !validBirthDate(birthDate)) return null
+      return { kind: "customer-new" as const, customer: { firstName, lastName, birthDate, occupation }, displayName: `${firstName} ${lastName}` }
+    }
+    const nationalId = clean(row.nationalId, 11).replace(/\D/g, "")
     if (!validTckn(nationalId) || !adultBirthDate(birthDate)) return null
-    return { customer: { nationalId, birthDate } }
+    return { kind: "customer-legacy" as const, customer: { nationalId, birthDate } }
   }
   const business = body.business
   if (!business || typeof business !== "object") return null
@@ -127,7 +211,7 @@ function profile(body: Record<string, unknown>, role: "musteri" | "isletme") {
   const city = clean(row.city, 60)
   const address = clean(row.address, 180)
   if (owner.split(" ").length < 2 || !validVkn(taxId) || taxOffice.length < 2 || city.length < 2 || address.length < 8) return null
-  return { business: { owner, taxId, taxOffice, city, address } }
+  return { kind: "business" as const, business: { owner, taxId, taxOffice, city, address } }
 }
 
 export async function registerInStore(
@@ -141,31 +225,35 @@ export async function registerInStore(
   const email = normalizeEmail(clean(row.email, 180))
   const password = typeof row.password === "string" ? row.password : ""
   const role = row.role === "isletme" ? "isletme" : row.role === "musteri" ? "musteri" : ""
-  const name = clean(row.name, 80)
-  const phone = clean(row.phone, 20)
-  if (!role || !validEmail(email) || !validPassword(password.trim()) || password.length > 200 || name.length < 2 || !validPhone(phone)) {
+  const name = clean(row.name, 81)
+  const phone = clean(row.phone, 24)
+  const extra = role ? profile(row, role) : null
+  const phoneOk = extra?.kind === "customer-new" ? validGsm(phone) : validPhone(phone)
+  const displayName = extra && "displayName" in extra && typeof extra.displayName === "string" ? extra.displayName : name
+  if (!role || !extra || !validEmail(email) || !validPassword(password.trim()) || password.length > 200 || displayName.length < 2 || !phoneOk) {
     return { ok: false, reason: "invalid" }
   }
-  const extra = profile(row, role)
-  if (!extra) return { ok: false, reason: "invalid" }
   const key = accountKey(email)
   if (await store.get(key)) return { ok: false, reason: "exists" }
   const requested = clean(row.id, 36)
   const id = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requested) ? requested : crypto.randomUUID()
   const passwordSalt = await newSalt()
   const passwordHash = await hashPassword(password, passwordSalt)
+  const pendingMail = options?.emailVerified === false
   const stored: StoredAccount = {
     id,
     role,
     email,
-    name,
+    name: displayName,
     phone,
     createdAt: now,
     passwordSalt,
     passwordHash,
     credentialVersion: 1,
-    ...(options?.emailVerified === false ? { emailVerified: false } : {}),
-    ...extra,
+    status: pendingMail ? "bekliyor" : "aktif",
+    updatedAt: now,
+    ...(pendingMail ? { emailVerified: false } : { verifiedAt: now }),
+    ...(extra.kind === "business" ? { business: extra.business } : { customer: extra.customer }),
   }
   await store.put(key, JSON.stringify(stored))
   return { ok: true, account: publish(stored) }
@@ -182,8 +270,14 @@ export async function loginInStore(store: AccountStore, body: unknown): Promise<
   const hash = await hashPassword(password, salt)
   if (!stored) return { ok: false, reason: "unknown" }
   if (!sameHex(hash, stored.passwordHash)) return { ok: false, reason: "mismatch" }
+  const status = accountStatus(stored)
+  if (status === "silindi") return { ok: false, reason: "silindi" }
+  if (status === "askida") return { ok: false, reason: "askida" }
   if (stored.emailVerified === false) return { ok: false, reason: "unverified", role: stored.role }
-  return { ok: true, account: publish(stored) }
+  const stamp = new Date().toISOString()
+  const next: StoredAccount = { ...stored, lastLoginAt: stamp, updatedAt: stamp }
+  await store.put(accountKey(stored.email), JSON.stringify(next))
+  return { ok: true, account: publish(next) }
 }
 
 const verifyTtl = 24 * 60 * 60 * 1000
@@ -251,7 +345,7 @@ export async function takeEmailSlot(store: AccountStore, purpose: string, email:
 
 export async function issueMailToken(store: AccountStore, email: string, purpose: "verify" | "reset", now: number): Promise<TokenResult> {
   const stored = asStored(await store.get(accountKey(email)))
-  if (!stored) return { ok: false, reason: "unknown" }
+  if (!stored || accountStatus(stored) === "silindi") return { ok: false, reason: "unknown" }
   if (purpose === "verify" && stored.emailVerified !== false) return { ok: false, reason: "verified" }
   const token = newSecret()
   const hash = await sha256Hex(token)
@@ -283,12 +377,20 @@ export async function consumeMailToken(store: AccountStore, token: string, purpo
   if (!stored || expected !== hash || expiry !== marker.exp) return { ok: false, reason: "invalid" }
   if (marker.exp <= now) {
     await clearToken(store, stored, purpose, hash)
-    return { ok: false, reason: "expired" }
+    return { ok: false, reason: "expired", accountId: stored.id }
   }
   if (purpose === "reset" && (!validPassword(password.trim()) || password.length > 200)) return { ok: false, reason: "weak" }
   const next: StoredAccount = { ...stored }
+  const stamp = new Date(now).toISOString()
   if (purpose === "verify") {
+    if (accountStatus(stored) === "silindi") {
+      await clearToken(store, stored, purpose, hash)
+      return { ok: false, reason: "invalid" }
+    }
     next.emailVerified = true
+    next.verifiedAt = stored.verifiedAt || stamp
+    next.updatedAt = stamp
+    if (accountStatus(stored) !== "askida") next.status = "aktif"
     delete next.verifyHash
     delete next.verifyExp
   } else {
@@ -322,4 +424,49 @@ export async function credentialStill(store: AccountStore, email: string, versio
   const stored = asStored(await store.get(accountKey(email)))
   if (!stored) return true
   return (stored.credentialVersion ?? 1) === version
+}
+
+export async function setCustomerStatus(store: AccountStore, email: string, status: "aktif" | "askida" | "silindi", nowIso: string) {
+  const stored = asStored(await store.get(accountKey(email)))
+  if (!stored || stored.role !== "musteri") return null
+  if (status === "aktif" && (stored.emailVerified === false || accountStatus(stored) === "silindi")) return null
+  const next: StoredAccount = { ...stored, status, updatedAt: nowIso }
+  if (status === "silindi") {
+    next.name = "Silinen hesap"
+    next.phone = ""
+    next.customer = { firstName: "", lastName: "", birthDate: "", occupation: "" }
+  }
+  await store.put(accountKey(stored.email), JSON.stringify(next))
+  return publish(next)
+}
+
+export async function correctCustomerFields(
+  store: AccountStore,
+  email: string,
+  fields: { firstName: string; lastName: string; birthDate: string; occupation: string; phone: string },
+  nowIso: string,
+) {
+  const stored = asStored(await store.get(accountKey(email)))
+  if (!stored || stored.role !== "musteri" || accountStatus(stored) === "silindi") return null
+  const firstName = clean(fields.firstName, 40)
+  const lastName = clean(fields.lastName, 40)
+  const birthDate = clean(fields.birthDate, 10)
+  const occupation = clean(fields.occupation, 80)
+  const phone = clean(fields.phone, 24)
+  if (firstName.length < 2 || lastName.length < 2 || occupation.length < 2 || !validBirthDate(birthDate) || !validGsm(phone)) return "invalid" as const
+  const next: StoredAccount = {
+    ...stored,
+    name: `${firstName} ${lastName}`.slice(0, 81),
+    phone,
+    updatedAt: nowIso,
+    customer: {
+      firstName,
+      lastName,
+      birthDate,
+      occupation,
+      ...(stored.customer?.nationalId ? { nationalId: stored.customer.nationalId } : {}),
+    },
+  }
+  await store.put(accountKey(stored.email), JSON.stringify(next))
+  return publish(next)
 }

@@ -1,4 +1,4 @@
-import { accountKey, type AccountStore, type PublicAccount } from "@/lib/account-record"
+import { accountKey, presentAccount, type AccountStore, type PublicAccount } from "@/lib/account-record"
 import { normalizeEmail } from "@/lib/auth-session"
 import { newSecret, sha256Hex } from "@/lib/mail-policy"
 
@@ -27,21 +27,7 @@ export async function publicAccount(store: AccountStore, email: string): Promise
   const raw = await store.get(accountKey(email))
   if (!raw) return null
   try {
-    const data = JSON.parse(raw) as Partial<PublicAccount> & { passwordHash?: string }
-    if (data.role !== "musteri" && data.role !== "isletme") return null
-    if (typeof data.email !== "string" || typeof data.id !== "string" || typeof data.name !== "string") return null
-    return {
-      id: data.id,
-      role: data.role,
-      email: data.email,
-      name: data.name,
-      phone: typeof data.phone === "string" ? data.phone : "",
-      createdAt: typeof data.createdAt === "string" ? data.createdAt : "",
-      customer: data.customer,
-      business: data.business,
-      emailVerified: data.emailVerified !== false,
-      credentialVersion: data.credentialVersion ?? 1,
-    }
+    return presentAccount(JSON.parse(raw))
   } catch {
     return null
   }

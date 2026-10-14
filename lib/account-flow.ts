@@ -1,6 +1,7 @@
 import { consumeMailToken, issueMailToken, loginInStore, loginLimited, noteLogin, registerInStore } from "@/lib/account-record"
-import { noteMailFailed, noteRegistered, noteSignedIn, noteSuspicious, noteVerified } from "@/lib/notify-flow"
-import { noteConsents } from "@/lib/pages-flow"
+import { rememberCustomer } from "@/lib/customers"
+import { noteExpired, noteMailFailed, noteRegistered, noteSignedIn, noteSuspicious, noteVerified } from "@/lib/notify-flow"
+import { latestMarketing, noteConsents } from "@/lib/pages-flow"
 import { accountStore } from "@/lib/account-kv"
 import { emailSlot, guardChallenge, jsonReply, mailReady, readJson, requestIp, sendLogged, takeIpSlot } from "@/lib/account-route"
 import { mailContent } from "@/lib/mail-copy"
@@ -15,12 +16,12 @@ export async function registerFlow(request: Request, now = Date.now()) {
   const store = await accountStore()
   if (!store) return jsonReply({ ok: false, reason: "unavailable" }, 503)
   if (!(await takeIpSlot(requestIp(request), "kayit", now, 20, 60_000))) {
-    await noteSuspicious(store, now, request.headers.get("origin"))
+    await noteSuspicious(store, now, request.headers.get("origin"), "kayit")
     return jsonReply({ ok: false, reason: "limited" })
   }
   const email = typeof body.email === "string" ? body.email : ""
   if (!(await emailSlot(store, "kayit", email, now, 8, 10 * 60 * 1000))) {
-    await noteSuspicious(store, now, request.headers.get("origin"))
+    await noteSuspicious(store, now, request.headers.get("origin"), "kayit")
     return jsonReply({ ok: false, reason: "limited" })
   }
   const challenge = await guardChallenge(body, request)
@@ -35,11 +36,18 @@ export async function registerFlow(request: Request, now = Date.now()) {
   } catch {
     // Hesap açılmış kalır. Onay satırı yazılamazsa kayıt iptal edilmez.
   }
+  if (result.account.role === "musteri") {
+    try {
+      await rememberCustomer(store, result.account, body.marketing === true)
+    } catch {
+      // Liste yazılamazsa hesap yine durur.
+    }
+  }
   if (!verify) return jsonReply({ ok: true, account: result.account, mail: "unconfigured" })
   const issued = await issueMailToken(store, result.account.email, "verify", now)
   if (!issued.ok) return jsonReply({ ok: true, account: { ...result.account, emailVerified: false }, mail: "failed" })
   const url = `${linkBase(request.headers.get("origin"))}/dogrula?token=${encodeURIComponent(issued.token)}`
-  const content = mailContent({ locale: pickLocale(body.locale), kind: "verify", url, business: result.account.role === "isletme" })
+  const content = mailContent({ locale: pickLocale(body.locale), kind: "verify", url, business: result.account.role === "isletme", email: result.account.email })
   const sent = await sendLogged(store, { to: result.account.email, purpose: "verify", ...content })
   if (!sent.ok) await noteMailFailed(store, now, "dogrulama")
   return jsonReply({ ok: true, account: { ...result.account, emailVerified: false }, mail: sent.ok ? "sent" : "failed" })
@@ -56,8 +64,17 @@ export async function loginFlow(request: Request, now = Date.now()) {
   if (await loginLimited(store, email, now)) return jsonReply({ ok: false, reason: "limited" })
   const result = await loginInStore(store, body)
   if (!result.ok && result.reason === "invalid") return jsonReply(result, 400)
-  await noteLogin(store, email, now, result.ok || result.reason === "unverified")
-  if (result.ok) await noteSignedIn(store, result.account, now)
+  await noteLogin(store, email, now, result.ok || result.reason === "unverified" || result.reason === "askida" || result.reason === "silindi")
+  if (result.ok) {
+    await noteSignedIn(store, result.account, now)
+    if (result.account.role === "musteri") {
+      try {
+        await rememberCustomer(store, result.account, await latestMarketing(store, result.account.id))
+      } catch {
+        // Giriş tamam. Liste satırı sonraki girişte yenilenir.
+      }
+    }
+  }
   const response = jsonReply(result)
   if (result.ok) await attachMemberCookie(response, store, result.account.email, request)
   return response
@@ -68,10 +85,23 @@ export async function verifyFlow(request: Request, now = Date.now()) {
   if (!body || typeof body.token !== "string") return jsonReply({ ok: false, reason: "invalid" }, 400)
   const store = await accountStore()
   if (!store) return jsonReply({ ok: false, reason: "unavailable" }, 503)
-  if (!(await takeIpSlot(requestIp(request), "dogrula", now, 20, 10 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
+  if (!(await takeIpSlot(requestIp(request), "dogrula", now, 20, 10 * 60 * 1000))) {
+    await noteSuspicious(store, now, request.headers.get("origin"), "dogrula")
+    return jsonReply({ ok: false, reason: "limited" })
+  }
   const result = await consumeMailToken(store, body.token, "verify", now)
-  if (!result.ok) return jsonReply({ ok: false, reason: result.reason })
+  if (!result.ok) {
+    if (result.reason === "expired" && result.accountId) await noteExpired(store, result.accountId, now, request.headers.get("origin"))
+    return jsonReply({ ok: false, reason: result.reason })
+  }
   await noteVerified(store, result.account, now, request.headers.get("origin"))
+  if (result.account.role === "musteri") {
+    try {
+      await rememberCustomer(store, result.account, await latestMarketing(store, result.account.id))
+    } catch {
+      // Doğrulama tamam. Liste satırı sonraki girişte yenilenir.
+    }
+  }
   const response = jsonReply({ ok: true })
   await attachMemberCookie(response, store, result.account.email, request)
   return response
@@ -92,7 +122,10 @@ export async function resendFlow(request: Request, now = Date.now()) {
   const store = await accountStore()
   if (!store) return jsonReply({ ok: false, reason: "unavailable" }, 503)
   const email = typeof body.email === "string" ? body.email : ""
-  if (!(await takeIpSlot(requestIp(request), "yenile", now, 10, 10 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
+  if (!(await takeIpSlot(requestIp(request), "yenile", now, 10, 10 * 60 * 1000))) {
+    await noteSuspicious(store, now, request.headers.get("origin"), "dogrula")
+    return jsonReply({ ok: false, reason: "limited" })
+  }
   if (!(await emailSlot(store, "yenile", email, now, 3, 60 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
   const challenge = await guardChallenge(body, request)
   if (!challenge.ok) return jsonReply({ ok: false, reason: "challenge" }, 400)
@@ -100,13 +133,17 @@ export async function resendFlow(request: Request, now = Date.now()) {
   const login = await loginInStore(store, body)
   if (!login.ok && login.reason === "unverified") {
     const issued = await issueMailToken(store, email, "verify", now)
-    if (issued.ok) {
-      const url = `${linkBase(request.headers.get("origin"))}/dogrula?token=${encodeURIComponent(issued.token)}`
-      const content = mailContent({ locale: pickLocale(body.locale), kind: "verify", url, business: login.role === "isletme" })
-      await sendLogged(store, { to: email, purpose: "verify", ...content })
+    if (!issued.ok) return jsonReply({ ok: true, mail: "failed" })
+    const url = `${linkBase(request.headers.get("origin"))}/dogrula?token=${encodeURIComponent(issued.token)}`
+    const content = mailContent({ locale: pickLocale(body.locale), kind: "verify", url, business: login.role === "isletme", email: normalizeEmail(email) })
+    const sent = await sendLogged(store, { to: email, purpose: "verify", ...content })
+    if (!sent.ok) {
+      await noteMailFailed(store, now, "dogrulama")
+      return jsonReply({ ok: true, mail: "failed" })
     }
+    return jsonReply({ ok: true, mail: "sent" })
   }
-  return jsonReply({ ok: true, mail: "sent" })
+  return jsonReply({ ok: true, mail: "quiet" })
 }
 
 export async function resetFlow(request: Request, now = Date.now()) {

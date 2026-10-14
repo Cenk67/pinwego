@@ -98,20 +98,40 @@ const buttons: Record<Exclude<Kind, "changed">, string[]> = {
   reset: ["Yeni şifre belirle", "Choose a new password", "Neues Passwort", "Nouveau mot de passe", "Nueva contraseña", "Nova palavra-passe", "كلمة مرور جديدة", "Новый пароль", "设置新密码", "新しいパスワード", "새 비밀번호", "नया पासवर्ड"],
 }
 
+const verifyNotes = [
+  "Bu ileti {email} adresi içindir. Bağlantı açılmazsa hesap sayfasından yenisini iste. Bu kaydı sen istemediysen iletiyi yok say.",
+  "This message is for {email}. If the link does not open, ask for a new one on the account page. If you did not ask for this, ignore it.",
+  "Diese Nachricht ist für {email}. Öffnet sich der Link nicht, fordere auf der Kontoseite einen neuen an. Wenn du das nicht warst, ignoriere sie.",
+  "Ce message est pour {email}. Si le lien ne s’ouvre pas, demande-en un nouveau sur la page du compte. Si tu n’as rien demandé, ignore-le.",
+  "Este mensaje es para {email}. Si el enlace no abre, pide otro en la página de la cuenta. Si no lo pediste, ignóralo.",
+  "Esta mensagem é para {email}. Se a ligação não abrir, pede outra na página da conta. Se não pediste, ignora-a.",
+  "هذه الرسالة لـ {email}. إذا لم يفتح الرابط فاطلب جديداً من صفحة الحساب. إذا لم تطلب ذلك فتجاهل الرسالة.",
+  "Это письмо для {email}. Если ссылка не открывается, запросите новую на странице аккаунта. Если вы этого не просили, проигнорируйте письмо.",
+  "这封信是发给 {email} 的。链接打不开时，请在账户页再要一封。如果不是你本人申请，请忽略。",
+  "このメールは {email} 宛です。リンクが開かないときはアカウントページから再送を求めてください。心当たりがなければ無視してください。",
+  "이 메일은 {email} 주소용입니다. 링크가 열리지 않으면 계정 페이지에서 다시 요청하세요. 본인이 요청하지 않았다면 무시하세요.",
+  "यह संदेश {email} के लिए है। लिंक न खुले तो खाता पृष्ठ से नया माँगें। आपने नहीं माँगा तो इसे छोड़ दें।",
+]
+
 function at(values: string[], locale: LocaleId) {
   const index = localeIds.indexOf(locale)
   return values[index] ?? values[0]
 }
 
-export function mailContent(input: { locale: LocaleId; kind: Kind; url?: string; business?: boolean }) {
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[char] ?? char)
+}
+
+export function mailContent(input: { locale: LocaleId; kind: Kind; url?: string; business?: boolean; email?: string }) {
   const subject = at(subjects[input.kind], input.locale)
-  const body = at(bodies[input.kind], input.locale)
+  const note = input.kind === "verify" ? at(verifyNotes, input.locale).replaceAll("{email}", input.email || "bu adres") : ""
+  const body = [at(bodies[input.kind], input.locale), note].filter(Boolean).join(" ")
   const button = input.kind === "changed" ? "" : at(buttons[input.kind], input.locale)
   const sales = input.business ? ` ${salesAddress}` : ""
   const text = [subject, "", body, input.url ?? "", "", supportAddress + sales].filter(Boolean).join("\n")
   const action = input.url
-    ? `<p style="margin:24px 0"><a href="${input.url}" style="display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:12px;padding:12px 18px;font-weight:600">${button}</a></p><p style="word-break:break-all;color:#475569;font-size:13px">${input.url}</p>`
+    ? `<p style="margin:24px 0"><a href="${input.url}" style="display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:12px;padding:12px 18px;font-weight:600">${button}</a></p><p style="word-break:break-all;color:#475569;font-size:13px">${escapeHtml(input.url)}</p>`
     : ""
-  const html = `<!doctype html><html><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#0f172a"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" style="max-width:480px;background:#fff;border-radius:24px;padding:28px"><tr><td><p style="margin:0;font-weight:700;color:#1d4ed8">pinwego</p><h1 style="font-size:24px;line-height:1.3;margin:16px 0">${subject}</h1><p style="font-size:15px;line-height:1.6;margin:0">${body}</p>${action}<p style="margin:28px 0 0;font-size:12px;line-height:1.5;color:#64748b">${supportAddress}${sales ? `<br>${salesAddress}` : ""}</p></td></tr></table></td></tr></table></body></html>`
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#0f172a"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" style="max-width:480px;background:#fff;border-radius:24px;padding:28px"><tr><td><p style="margin:0;font-weight:700;color:#1d4ed8">pinwego</p><h1 style="font-size:24px;line-height:1.3;margin:16px 0">${subject}</h1><p style="font-size:15px;line-height:1.6;margin:0">${escapeHtml(body)}</p>${action}<p style="margin:28px 0 0;font-size:12px;line-height:1.5;color:#64748b">${supportAddress}${sales ? `<br>${salesAddress}` : ""}</p></td></tr></table></td></tr></table></body></html>`
   return { subject, text, html }
 }

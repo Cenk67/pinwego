@@ -17,6 +17,8 @@ export function AccountScreen({ siteKey = "" }: { siteKey?: string }) {
   const router = useRouter()
   const params = useSearchParams()
   const [message, setMessage] = useState("")
+  const [marketing, setMarketing] = useState(false)
+  const [prefNote, setPrefNote] = useState("")
   const redirected = useRef(false)
   const kayit = params.get("kayit")
   const mode = authMode(kayit)
@@ -28,6 +30,21 @@ export function AccountScreen({ siteKey = "" }: { siteKey?: string }) {
       (mode === "isletme" && account?.role === "isletme") ||
       (mode === "admin" && account?.role === "admin") ||
       (mode === "login" && account != null && !loginDoorProblem(door, account.role)))
+
+  useEffect(() => {
+    if (account?.role !== "musteri") return
+    let gone = false
+    void fetch("/api/musteri", { credentials: "include" })
+      .then((response) => response.json())
+      .then((data: unknown) => {
+        const row = data as { ok?: boolean; own?: { marketing?: boolean } }
+        if (!gone && row.ok && row.own) setMarketing(row.own.marketing === true)
+      })
+      .catch(() => undefined)
+    return () => {
+      gone = true
+    }
+  }, [account?.role, account?.id])
 
   useEffect(() => {
     if (!entering || !account || redirected.current) return
@@ -69,15 +86,41 @@ export function AccountScreen({ siteKey = "" }: { siteKey?: string }) {
     }
   }
 
+  async function saveMarketing(accepted: boolean) {
+    setPrefNote("")
+    setMarketing(accepted)
+    try {
+      const response = await fetch("/api/musteri", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op: "pazarlama", accepted }),
+      })
+      const data = (await response.json().catch(() => null)) as { ok?: boolean; marketing?: boolean } | null
+      if (!data?.ok) {
+        setMarketing(!accepted)
+        setPrefNote("Tercih kaydedilemedi. Hesaba yeniden girince dene.")
+        return
+      }
+      setMarketing(data.marketing === true)
+      setPrefNote(data.marketing ? "Kampanya postası açık." : "Kampanya postası kapalı. Eski onay kaydı durur.")
+    } catch {
+      setMarketing(!accepted)
+      setPrefNote("Tercih kaydedilemedi. Hesaba yeniden girince dene.")
+    }
+  }
+
   const rows =
     account.role === "musteri" && account.customer
       ? [
-          ["Ad soyad", account.name],
-          ["E-posta", account.email],
-          ["Telefon", account.phone],
-          ["T.C. kimlik numarası", maskId(account.customer.nationalId)],
+          ["Adı", account.customer.firstName || account.name],
+          ["Soyadı", account.customer.lastName || ""],
           ["Doğum tarihi", account.customer.birthDate],
-        ]
+          ["Meslek", account.customer.occupation || ""],
+          ["GSM", account.phone],
+          ["E-posta", account.email],
+          ...(account.customer.nationalId ? [["T.C. kimlik numarası", maskId(account.customer.nationalId)] as [string, string]] : []),
+        ].filter(([, value]) => value)
       : account.role === "admin"
         ? [
             ["Ad", account.name],
@@ -100,11 +143,13 @@ export function AccountScreen({ siteKey = "" }: { siteKey?: string }) {
     <div className="mx-auto max-w-xl px-4 py-8 md:py-12">
       <p className="text-sm font-medium text-primary">
         {account.role === "admin" ? "Yönetici hesabı" : account.role === "musteri" ? "Müşteri hesabı" : "İşletme hesabı"}
-        {account.role === "admin" ? " · Panel açık" : " · Belge kontrolü tamam"}
+        {account.role === "admin" ? " · Panel açık" : account.role === "musteri" ? " · E-posta hesabı" : " · Belge kontrolü tamam"}
       </p>
       <h1 className="mt-2 font-heading text-4xl text-balance">{account.name}</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        Hesap e-posta ve şifreyle yeniden açılır. Yüklenen belgeler bu tarayıcıda kalır.
+        {account.role === "musteri"
+          ? "Hesap e-posta doğrulandıktan sonra açılır. Kampanya postası bu ekrandan kapatılabilir."
+          : "Hesap e-posta ve şifreyle yeniden açılır. Yüklenen belgeler bu tarayıcıda kalır."}
       </p>
       <dl className="mt-6 grid gap-3">
         {rows.map(([label, value]) => (
@@ -114,6 +159,13 @@ export function AccountScreen({ siteKey = "" }: { siteKey?: string }) {
           </div>
         ))}
       </dl>
+      {account.role === "musteri" ? (
+        <label className="mt-6 flex items-start gap-2 text-sm leading-6">
+          <input type="checkbox" checked={marketing} onChange={(event) => void saveMarketing(event.target.checked)} className="mt-1" />
+          <span>Kampanya ve duyuru e-postası almak istiyorum. Bu kutu üyelik şartı değildir.</span>
+        </label>
+      ) : null}
+      {prefNote ? <p className="mt-2 text-sm text-muted-foreground">{prefNote}</p> : null}
       {account.documents.length ? <h2 className="mt-8 font-heading text-2xl">Yüklenen belgeler</h2> : null}
       <ul className="mt-3 grid gap-2">
         {account.documents.map((document) => (

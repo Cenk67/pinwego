@@ -25,8 +25,11 @@ export type Account = {
   phone: string
   documents: AccountDocument[]
   customer?: {
-    nationalId: string
+    nationalId?: string
     birthDate: string
+    firstName?: string
+    lastName?: string
+    occupation?: string
   }
   business?: {
     owner: string
@@ -280,7 +283,7 @@ function accountBody(input: {
   }
 }
 
-export type AuthNotice = { pending: string } | { code: string }
+export type AuthNotice = { pending: string; mail?: string } | { code: string }
 
 export async function registerAccount(input: {
   role: Exclude<Role, "admin">
@@ -298,11 +301,10 @@ export async function registerAccount(input: {
 }): Promise<string | AuthNotice | null> {
   const email = normalizeEmail(input.email)
   const accounts = readAccounts() ?? []
-  if (accounts.some((item) => sameEmail(item.email, email))) {
-    return "Bu e-posta ile bir kayıt var. Giriş yap."
-  }
+  const duplicate = input.role === "musteri" ? "Bu bilgilerle kayıt açılamadı. Giriş yapmayı dene." : "Bu e-posta ile bir kayıt var. Giriş yap."
+  if (accounts.some((item) => sameEmail(item.email, email))) return duplicate
   const remote = await postAccount("/api/kayit", accountBody({ ...input, email }))
-  if (remote?.ok === false && remote.reason === "exists") return "Bu e-posta ile bir kayıt var. Giriş yap."
+  if (remote?.ok === false && remote.reason === "exists") return duplicate
   if (remote?.ok === false && remote.reason === "sozlesme") return "Üyelik sözleşmesini onaylamadan kayıt açılmaz."
   if (remote?.ok === false && remote.reason === "invalid") return "Kayıt bilgisi kabul edilmedi."
   if (remote?.ok === false && remote.reason === "challenge") return "Doğrulama tamamlanmadı. Yeniden dene."
@@ -325,7 +327,7 @@ export async function registerAccount(input: {
     credentialVersion: remote?.ok ? remote.account.credentialVersion ?? 1 : 1,
   }
   writeAccounts(keptAccounts([account, ...accounts]))
-  if (remote?.ok && remote.account.emailVerified === false) return { pending: email }
+  if (remote?.ok && remote.account.emailVerified === false) return { pending: email, mail: remote.mail === "failed" ? "failed" : undefined }
   enter(account)
   return null
 }
@@ -423,6 +425,8 @@ export async function login(email: string, password: string, door?: AuthDoor, ex
     return null
   }
   if (remote?.ok === false && remote.reason === "limited") return "Çok fazla deneme. Bir süre sonra tekrar dene."
+  if (remote?.ok === false && remote.reason === "askida") return "Hesap askıya alındı. destek@pinwego.com adresine yaz."
+  if (remote?.ok === false && remote.reason === "silindi") return "Bu hesap kapatılmış."
   if (remote?.ok === false && remote.reason === "unverified") {
     const problem = door && remote.role ? loginDoorProblem(door, remote.role) : null
     if (problem) return problem

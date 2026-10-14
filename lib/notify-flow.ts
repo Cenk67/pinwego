@@ -160,17 +160,37 @@ export async function noteSignedIn(store: AccountStore, account: PublicAccount, 
   })
 }
 
-export async function noteSuspicious(store: AccountStore, now: number, origin: string | null) {
+export async function noteSuspicious(store: AccountStore, now: number, origin: string | null, scope = "kayit") {
+  const verify = scope === "dogrula"
   await safely(async () => {
     await deliver(
       store,
       {
-        key: `suphe:kayit:${reportDay(now)}:${reportHour(now)}`,
+        key: `suphe:${scope}:${reportDay(now)}:${reportHour(now)}`,
         kind: "suphe",
         level: "onemli",
-        title: "Kayıt denemesi sınırı aştı",
-        detail: `Tekrarlanan kayıt denemesi sınırlandı. Zaman: ${istanbulStamp(now)}. Adres ve parola bu kayda yazılmadı.`,
-        ref: "kayit-siniri",
+        title: verify ? "Doğrulama denemesi sınırı aştı" : "Kayıt denemesi sınırı aştı",
+        detail: `Tekrarlanan ${verify ? "doğrulama" : "kayıt"} denemesi sınırlandı. Zaman: ${istanbulStamp(now)}. Adres, parola ve bağlantı bu kayda yazılmadı.`,
+        ref: verify ? "dogrulama-siniri" : "kayit-siniri",
+      },
+      now,
+      origin,
+      false,
+    )
+  })
+}
+
+export async function noteExpired(store: AccountStore, accountId: string, now: number, origin: string | null) {
+  await safely(async () => {
+    await deliver(
+      store,
+      {
+        key: `sure:${accountId}:${reportDay(now)}`,
+        kind: "dogrulama",
+        level: "bilgi",
+        title: "Doğrulama bağlantısının süresi doldu",
+        detail: `Kayıt numarası ${accountId}. Zaman: ${istanbulStamp(now)}. Bağlantı bu kayda yazılmadı.`,
+        ref: accountId,
       },
       now,
       origin,

@@ -10,10 +10,12 @@ export function PendingMail({
   email,
   password,
   siteKey,
+  failed = false,
 }: {
   email: string
   password: string
   siteKey: string
+  failed?: boolean
 }) {
   const { t, locale } = useLocale()
   const [token, setToken] = useState("")
@@ -33,6 +35,7 @@ export function PendingMail({
       if (data.reason === "limited") setNote(t("auth.limited"))
       else if (data.reason === "challenge") setNote(t("auth.challenge"))
       else if (data.mail === "unconfigured") setNote(t("auth.forgotOff"))
+      else if (data.mail === "failed") setNote(t("auth.resendFailed"))
       else setNote(t("auth.resendSent"))
     } catch {
       setNote(t("auth.resendSent"))
@@ -45,7 +48,7 @@ export function PendingMail({
     <div className="grid gap-4">
       <div>
         <h1 className="font-heading text-4xl text-balance">{t("auth.verifyTitle")}</h1>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("auth.verifyPending", { email })}</p>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{failed ? t("auth.verifyHeld", { email }) : t("auth.verifyPending", { email })}</p>
       </div>
       <TurnstileField siteKey={siteKey} onToken={setToken} />
       {note ? <p className="rounded-2xl bg-card px-3 py-3 text-sm ring-1 ring-foreground/10" role="status">{note}</p> : null}

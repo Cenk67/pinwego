@@ -61,7 +61,7 @@ export type Consent = {
   kind: "uyelik" | "pazarlama"
   accepted: boolean
   at: string
-  context: "kayit"
+  context: "kayit" | "hesap"
 }
 
 export const pageStatuses: PageStatus[] = ["taslak", "incelemede", "yayinda", "arsiv"]
@@ -316,7 +316,7 @@ Bu sözleşme, pinwego.com işletmecisi ile hesap açan kişi arasındadır. İ�
 - Yönetici: Site işletmecisinin ayrıca doğruladığı yönetim oturumudur. Herkese açık bir üyelik değildir.
 ## Hesap açma
 Kayıt, bu sözleşmenin ve kullanım koşullarının onaylanmasıyla tamamlanır. Onay kutusu boş gelir. Pazarlama izni üyelik şartı değildir ve ayrı kutudadır.
-Müşteri kaydında ad, iletişim, kimlik numarası ve doğum tarihi istenir. İşletme kaydında yetkili, vergi kimliği, vergi dairesi, şehir ve adres istenir. Belge dosyası bu sürümde yalnızca tarayıcıda kalır.
+Müşteri kaydında ad, soyad, doğum tarihi, meslek ve iletişim istenir. Kimlik belgesi ve kimlik numarası istenmez. İşletme kaydında yetkili, vergi kimliği, vergi dairesi, şehir ve adres istenir. İşletme belge dosyası bu sürümde yalnızca tarayıcıda kalır.
 ## Güvenlik
 Şifre ve doğrulama kodu başkasıyla paylaşılmaz. Hesabın yetkisiz kullanıldığını düşünüyorsanız destek@pinwego.com adresine yazın ve şifreyi yenileyin. Şifre sıfırlama bağlantısı e-posta ile gelir.
 ## İşletme yetkisi
@@ -453,7 +453,7 @@ ${legalNote}
 Bu sayfa aydınlatma metninin yerine geçmez. Veri sorumlusunun kimliği ve haklar KVKK sayfasındadır. Burada veri türleri ve çerezler sade dille anlatılır.
 ## Tutulan veriler
 - Hesap: ad, e-posta, telefon, rol ve şifrenin tek yönlü özeti.
-- Müşteri kaydı: kimlik numarası ve doğum tarihi sunucuda durur.
+- Müşteri kaydı: ad, soyad, doğum tarihi, meslek ve telefon sunucuda durur. Yeni kayıtlarda kimlik numarası istenmez. Eski kayıtta kalmış bir kimlik numarası yönetici ekranında gösterilmez.
 - İşletme kaydı: yetkili, vergi kimliği, vergi dairesi, şehir ve adres sunucuda durur.
 - İşletme ilanı: ad, semt, telefon, özet ve konum, ilanı açan hesabın kimliğiyle birlikte sunucuda durur.
 - Belge dosyası: kimlik, vergi levhası ve benzeri yüklemeler bu tarayıcıda kalır. Sunucuya belge dosyası yazılmaz.
@@ -492,11 +492,11 @@ Bu metin 6698 sayılı Kanun'un aydınlatma yükümlülüğüne göre hazırlanm
 ## Veri sorumlusu
 Veri sorumlusu, pinwego.com sitesini işleten gerçek kişidir. Tüzel kişi unvanı, MERSİS, ticaret sicil numarası ve açık adres bu tarihte yoktur. Başvuru adresi destek@pinwego.com'dur.
 ## Kişisel veriler
-- Kimlik ve iletişim: ad, e-posta, telefon. Müşteri kaydında kimlik numarası ve doğum tarihi.
+- Kimlik ve iletişim: ad, soyad, e-posta, telefon, doğum tarihi ve meslek. Yeni müşteri kaydında kimlik numarası istenmez.
 - İşletme: yetkili adı, vergi kimliği, vergi dairesi, şehir ve adres.
 - İşlem: ilan içeriği, sözleşme sürümünün kabulü, pazarlama tercihi, destek yazışması.
 - Teknik: güvenlik için kısa süreli istek sayacı. Ziyaret ölçümü yalnızca ayrıca onaylanırsa.
-Belge görselleri sunucuya alınmaz. Özel nitelikli veri istenmez. Kimlik numarası, kimliği doğrulama amacıyla işlenir; pazarlama için kullanılmaz.
+Belge görselleri sunucuya alınmaz. Özel nitelikli veri istenmez. Doğum tarihi geçerli bir gün olarak tutulur. Eski kayıtta kalmış kimlik numarası yeni kayıtlarda istenmez ve pazarlama için kullanılmaz.
 ## Amaçlar
 Hesabın açılması ve sürdürülmesi, işletme ilanının yayınlanması, güvenliğin sağlanması, destek talebinin cevaplanması, onayın ispatı ve mevzuattan doğacak yükümlülükler.
 ## Hukuki sebepler
@@ -521,7 +521,7 @@ Yürürlük tarihi sayfanın başında durur. Metin değişince sürüm numaras�
 export const seedFaqs: FaqItem[] = [
   { id: "nedir", category: "Genel", question: "Pinwego nedir?", answer: "İşletme arayan kişi ile bulunmak isteyen işletmeyi aynı rehberde buluşturan bir keşif platformudur. Sipariş veya ödeme aracı değildir.", order: 10, status: "yayinda", related: "/hakkimizda" },
   { id: "ucretsiz", category: "Genel", question: "Pinwego ücretsiz mi?", answer: "Rehberi izlemek, müşteri hesabı ve işletme kaydı bu tarihte ücretsizdir. Ücretli paket satışı yoktur.", order: 20, status: "yayinda", related: "/iade-cayma" },
-  { id: "kayit", category: "Kullanıcı hesabı", question: "Nasıl kayıt olurum?", answer: "Hesap sayfasından müşteri veya işletme kaydını seçin. Üyelik sözleşmesi kutusu boş gelir. Onaylamadan kayıt açılmaz. Pazarlama kutusu ayrıca ve isteğe bağlıdır.", order: 30, status: "yayinda", related: "/uyelik-sozlesmesi" },
+  { id: "kayit", category: "Kullanıcı hesabı", question: "Nasıl kayıt olurum?", answer: "Hesap sayfasından müşteri veya işletme kaydını seçin. Müşteri kaydında ad, soyad, doğum tarihi, meslek, telefon ve e-posta ayrı istenir. Kimlik belgesi ve kimlik numarası istenmez. Üyelik sözleşmesi kutusu boş gelir. Onaylamadan kayıt açılmaz. Pazarlama kutusu ayrıca ve isteğe bağlıdır. E-posta doğrulanmadan müşteri hesabı açılmaz.", order: 30, status: "yayinda", related: "/uyelik-sozlesmesi" },
   { id: "sifre", category: "Kullanıcı hesabı", question: "Şifremi nasıl yenilerim?", answer: "Giriş ekranındaki şifre yenileme adımı e-posta adresinize tek kullanımlık bağlantı gönderir. Bağlantı süreyle sınırlıdır.", order: 40, status: "yayinda", related: "/hesap" },
   { id: "ekle", category: "İşletme kaydı", question: "İşletmemi nasıl eklerim?", answer: "Önce işletme hesabı açın ve e-postayı doğrulayın. Sonra İşletme ekle formunu doldurun. Kayıt sunucuya yazılır, aramada ve işletme sayfasında görünür. Eski oturumda form yeniden giriş isteyebilir.", order: 50, status: "yayinda", related: "/listele" },
   { id: "yonetim", category: "İşletme kaydı", question: "İşletmemi kim yönetebilir?", answer: "Hesabı açan yetkili yönetir. Yönetici, doğrulama ve öne çıkarma işaretini değiştirebilir. Yönetici bir kayıt açarsa bu, işletmenin reklam onayı verdiği anlamına gelmez.", order: 60, status: "yayinda", related: "/yasal-uyarilar" },
