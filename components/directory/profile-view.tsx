@@ -164,7 +164,7 @@ export function GalleryStrip({ business, profile }: { business: Business; profil
   return (
     <section
       id="galeri"
-      className="mt-8 scroll-mt-24"
+      className="mt-8 min-w-0 scroll-mt-24"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onPointerDown={() => setPaused(true)}
@@ -186,7 +186,7 @@ export function GalleryStrip({ business, profile }: { business: Business; profil
           </div>
         ) : null}
       </div>
-      <div ref={scroller} className="mt-3 flex snap-x gap-3 overflow-x-auto pb-2">
+      <div ref={scroller} className="mt-3 flex min-w-0 snap-x gap-3 overflow-x-auto pb-2">
         {items.map((item) => {
           const caption = galleryCaption(business, item)
           return (

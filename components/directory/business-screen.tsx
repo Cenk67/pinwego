@@ -89,8 +89,8 @@ export function BusinessScreen({ slug }: { slug: string }) {
       </Suspense>
       <ProfileJsonLd business={business} profile={profile} />
       <ProfileCrumbs business={business} />
-      <div className="mt-3 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div>
+      <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0">
           <div className="relative aspect-[16/9] overflow-hidden rounded-3xl">
             <Cover
               src={hero}
@@ -201,7 +201,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
           </section>
         </div>
 
-        <aside className="space-y-4">
+        <aside className="min-w-0 space-y-4">
           <div className="hidden lg:block">
             <BusinessQr businessId={business.id} name={business.name} />
           </div>
