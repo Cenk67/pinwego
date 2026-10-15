@@ -14,6 +14,7 @@ import {
   suggestMap,
   withImportNote,
 } from "@/lib/listings-import"
+import { listingGalleryKey, parseGalleryBook, storedCover, storedGallery } from "@/lib/listing-media"
 import { acceptListing, applyFlags, emptyBook, listingsKey, parseBook, toBusiness, type ListingBook, type StoredListing } from "@/lib/listings"
 import { memberEmail, publicAccount, readMemberCookie } from "@/lib/member-session"
 
@@ -54,6 +55,19 @@ export async function ilanGetFlow(request: Request) {
   if (!book) return jsonReply({ ok: false, reason: "bozuk" }, 500)
   const who = await actor(store, request)
   const admin = who?.kind === "admin"
+  const asked = new URL(request.url).searchParams.get("galeri")
+  if (asked) {
+    const current = book.listings.find((item) => item.id === asked || item.slug === asked)
+    if (!current) return jsonReply({ ok: false, reason: "yok" }, 404)
+    const owner = who?.kind === "member" && who.account.role === "isletme" && who.account.id === current.ownerAccountId
+    if (current.hidden && !admin && !owner) return jsonReply({ ok: false, reason: "yok" }, 404)
+    return jsonReply({
+      ok: true,
+      id: current.id,
+      photo: current.photo,
+      gallery: parseGalleryBook(await store.get(listingGalleryKey(current.id))),
+    })
+  }
   const imports = admin ? parseImportLog(await store.get(importLogKey)) : []
   return jsonReply(present(book, admin, imports))
 }
@@ -117,6 +131,23 @@ export async function ilanPostFlow(request: Request, now = Date.now()) {
   }
   const id = typeof body.id === "string" ? body.id : ""
   const current = book.listings.find((item) => item.id === id || item.slug === id)
+  if (body.op === "gorsel") {
+    if (!current) return jsonReply({ ok: false, reason: "yok" }, 404)
+    const allowed = who.kind === "admin" || (who.kind === "member" && who.account.role === "isletme" && who.account.id === current.ownerAccountId)
+    if (!allowed) return jsonReply({ ok: false, reason: "yetki" }, 403)
+    if (!(await takeIpSlot(requestIp(request), "ilan-gorsel", now, 30, 15 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
+    const photo = storedCover(body.photo)
+    if (!photo) return jsonReply({ ok: false, reason: "kapak" }, 400)
+    if (!Array.isArray(body.gallery)) return jsonReply({ ok: false, reason: "gorsel" }, 400)
+    const gallery = storedGallery(body.gallery)
+    if (body.gallery.length > 0 && gallery.length === 0) return jsonReply({ ok: false, reason: "gorsel" }, 400)
+    const listing = { ...current, photo }
+    const listings = book.listings.map((item) => (item.id === current.id ? listing : item))
+    await store.put(listingsKey, JSON.stringify({ listings }))
+    await store.put(listingGalleryKey(current.id), JSON.stringify({ gallery }))
+    const shown = toBusiness(listing)
+    return jsonReply({ ok: true, listing: who.kind === "admin" ? { ...shown, hourLog: listing.hourLog ?? [], review: listing.review } : shown, gallery })
+  }
   if (body.op === "saat" || body.op === "durum") {
     if (!current) return jsonReply({ ok: false, reason: "yok" }, 404)
     const allowed = who.kind === "admin" || (who.kind === "member" && who.account.role === "isletme" && who.account.id === current.ownerAccountId)
@@ -153,6 +184,7 @@ export async function ilanPostFlow(request: Request, now = Date.now()) {
   if (body.op === "delete") {
     const listings = book.listings.filter((item) => item.id !== current.id)
     await store.put(listingsKey, JSON.stringify({ listings }))
+    await store.delete(listingGalleryKey(current.id))
     return jsonReply({ ok: true })
   }
   if (body.op === "flags") {

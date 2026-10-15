@@ -6,6 +6,7 @@ import { CampaignOwner } from "@/components/campaigns/campaign-manage"
 import { QrOwner } from "@/components/qr/qr-center"
 import { ContactEditor } from "@/components/directory/contact-lines"
 import { ProfileEditor } from "@/components/directory/profile-editor"
+import { useListingGallery } from "@/components/directory/saved-media"
 import { SocialLinkEditor } from "@/components/directory/social-links"
 import { ViewReport } from "@/components/directory/view-report"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,7 @@ import { useDirectory } from "@/lib/directory-context"
 import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
 import { applyManual, bookFromHours, hoursFromBook, weekError } from "@/lib/hours"
 import type { ManualAction } from "@/lib/hours"
+import { mediaReason } from "@/lib/listing-media"
 import { listingFields, normalizeProfile, resolveProfile } from "@/lib/profile"
 import type { BusinessContacts, BusinessProfile, HourBook } from "@/lib/types"
 import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
@@ -127,14 +129,63 @@ function OwnerCard({
     about: string
     services: Business["services"]
     founded: number
-    profile: BusinessProfile
+    photo?: string
+    profile?: BusinessProfile
   }) => void
   onListing: (listing: Business) => void
 }) {
+  const media = useListingGallery(business.id, business.source === "senin")
+  if (business.source === "senin" && !media.ready) {
+    return (
+      <div className="rounded-3xl bg-card p-5 text-sm text-muted-foreground ring-1 ring-foreground/10">
+        {business.name} için kapak ve galeri yükleniyor.
+      </div>
+    )
+  }
+  const base = resolveProfile(business)
+  const initialProfile = media.gallery.length ? normalizeProfile({ ...base, gallery: media.gallery }, base) : base
+  return (
+    <OwnerForm
+      business={business}
+      onSave={onSave}
+      onListing={onListing}
+      initialCover={media.photo || business.photo}
+      initialProfile={initialProfile}
+    />
+  )
+}
+
+function OwnerForm({
+  business,
+  onSave,
+  onListing,
+  initialCover,
+  initialProfile,
+}: {
+  business: Business
+  onSave: (patch: {
+    links: BusinessLinks
+    website: string
+    contacts: BusinessContacts
+    phone: string
+    hours: Business["hours"]
+    hourBook: HourBook
+    summary: string
+    about: string
+    services: Business["services"]
+    founded: number
+    photo?: string
+    profile?: BusinessProfile
+  }) => void
+  onListing: (listing: Business) => void
+  initialCover: string
+  initialProfile: BusinessProfile
+}) {
   const [links, setLinks] = useState<BusinessLinks>(() => draftLinks(business))
   const [contacts, setContacts] = useState<ContactDraft>(() => draftContacts(business))
-  const [profile, setProfile] = useState<BusinessProfile>(() => resolveProfile(business))
-  const { patchBusiness } = useDirectory()
+  const [profile, setProfile] = useState<BusinessProfile>(initialProfile)
+  const [cover, setCover] = useState(initialCover)
+  const { patchBusiness, rememberListing } = useDirectory()
   const [book, setBook] = useState<HourBook>(() => business.hourBook ?? bookFromHours(business.hours))
   const [error, setError] = useState("")
   const [saved, setSaved] = useState(false)
@@ -202,6 +253,23 @@ function OwnerCard({
           return
         }
         const hours = hoursFromBook(book)
+        const fields = listingFields(clean)
+        let savedPhoto = cover
+        let hoursNote = ""
+        if (business.source === "senin") {
+          const visual = await postHours({ op: "gorsel", photo: cover, gallery: clean.gallery })
+          if (!visual.response.ok || !visual.data?.listing) {
+            setSaved(false)
+            setError(mediaReason(visual.data?.reason))
+            return
+          }
+          savedPhoto = visual.data.listing.photo || cover
+          const timed = await postHours({ op: "saat", week: book.week, specials: book.specials })
+          const base = timed.data?.listing ?? visual.data.listing
+          rememberListing({ ...base, photo: savedPhoto, profile: clean, hours, hourBook: book })
+          if (timed.data?.listing?.hourBook) setBook(timed.data.listing.hourBook)
+          if (!timed.response.ok || !timed.data?.listing) hoursNote = "Kapak ve galeri kayda geçti. Saatler yazılamadı."
+        }
         onSave({
           links: social.links,
           website: social.website,
@@ -209,17 +277,17 @@ function OwnerCard({
           phone: contact.phone,
           hours,
           hourBook: book,
-          ...listingFields(clean),
+          summary: fields.summary,
+          about: fields.about,
+          services: fields.services,
+          founded: fields.founded,
+          photo: savedPhoto,
+          ...(business.source === "senin" ? {} : { profile: fields.profile }),
         })
-        if (business.source === "senin") {
-          const { response, data } = await postHours({ op: "saat", week: book.week, specials: book.specials })
-          if (!response.ok || !data?.listing) {
-            setSaved(false)
-            setError("Saatler sunucuya yazılamadı.")
-            return
-          }
-          if (data.listing.hourBook) setBook(data.listing.hourBook)
-          onListing(data.listing)
+        if (hoursNote) {
+          setSaved(false)
+          setError(hoursNote)
+          return
         }
         setLinks(social.links)
         setContacts({
@@ -264,6 +332,11 @@ function OwnerCard({
           setSaved(false)
           setProfile(next)
         }}
+        cover={cover}
+        onCover={(next) => {
+          setSaved(false)
+          setCover(next)
+        }}
         book={book}
         onBook={(next) => {
           setSaved(false)
@@ -279,7 +352,7 @@ function OwnerCard({
       {saved ? (
         <p className="text-sm text-primary">
           {business.source === "senin"
-            ? "Çalışma saatleri kayda geçti. Diğer profil alanları bu tarayıcıda durur."
+            ? "Kapak ve galeri işletme sayfasına yazıldı."
             : "Profil kaydedildi. Bu tarayıcıda görünür."}
         </p>
       ) : null}

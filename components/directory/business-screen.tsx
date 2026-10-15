@@ -29,6 +29,8 @@ import { SocialLinks } from "@/components/directory/social-links"
 import { Button } from "@/components/ui/button"
 import { useGuestGate } from "@/components/auth/guest-gate"
 import { useDirectory } from "@/lib/directory-context"
+import { useListingGallery } from "@/components/directory/saved-media"
+import { coverImage, withListingMedia } from "@/lib/listing-media"
 import { resolveProfile } from "@/lib/profile"
 import { isContactFact, watchCopy } from "@/lib/guest"
 import {
@@ -44,7 +46,9 @@ import {
 export function BusinessScreen({ slug }: { slug: string }) {
   const { ready, remoteReady, place, visibleBusinesses } = useDirectory()
   const { member, allow } = useGuestGate()
-  const business = visibleBusinesses.find((item) => item.slug === slug)
+  const listed = visibleBusinesses.find((item) => item.slug === slug)
+  const media = useListingGallery(listed?.id, listed?.source === "senin")
+  const business = listed ? withListingMedia(listed, media.ready ? media : null) : undefined
   const [note, setNote] = useState("")
   const [open, setOpen] = useState(false)
   const [helpful, setHelpful] = useState<Record<string, number>>({})
@@ -71,6 +75,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
   }
 
   const profile = resolveProfile(business)
+  const hero = coverImage(business.photo, profile.gallery)
   const km = distanceKm(place, business)
   const maps = `https://www.google.com/maps/dir/?api=1&destination=${business.lat},${business.lng}`
   const about = member ? profile.aboutBody : watchCopy(profile.aboutBody)
@@ -88,7 +93,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
         <div>
           <div className="relative aspect-[16/9] overflow-hidden rounded-3xl">
             <Cover
-              src={business.photo}
+              src={hero}
               alt={`${business.name}, ${business.district}`}
               position={business.photoPosition}
               className="absolute inset-0 size-full"

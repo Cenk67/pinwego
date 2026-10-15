@@ -1,5 +1,6 @@
 import { slugifyKey } from "@/lib/format"
 import { hoursFromBook, liveBusiness, publicBook, storedBook } from "@/lib/hours"
+import { storedCover } from "@/lib/listing-media"
 import type { BookingKind, Business, DayHours, HourBook } from "@/lib/types"
 
 export const listingsKey = "listings:v1"
@@ -105,7 +106,7 @@ function asListing(value: unknown): StoredListing | null {
     phone: typeof row.phone === "string" ? row.phone : "",
     summary: typeof row.summary === "string" ? row.summary : "",
     about: typeof row.about === "string" ? row.about : "",
-    photo: photoPath(row.photo) || "/photos/office.jpg",
+    photo: storedCover(row.photo) || "/photos/office.jpg",
     photoPosition: "center",
     booking,
     hours,

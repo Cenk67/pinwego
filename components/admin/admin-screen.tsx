@@ -29,10 +29,12 @@ import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { ContactEditor } from "@/components/directory/contact-lines"
 import { ProfileEditor } from "@/components/directory/profile-editor"
+import { useListingGallery } from "@/components/directory/saved-media"
 import { SocialLinkEditor } from "@/components/directory/social-links"
 import { useMinute } from "@/components/directory/hours-view"
 import { applyManual, bookFromHours, hoursFromBook, weekError } from "@/lib/hours"
 import type { ManualAction } from "@/lib/hours"
+import { mediaReason } from "@/lib/listing-media"
 import { listingFields, normalizeProfile, resolveProfile } from "@/lib/profile"
 import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
 import { fold, slugify } from "@/lib/format"
@@ -428,9 +430,49 @@ function ProfileDialog({
 }: {
   business: Business
   onClose: () => void
-  onSave: (patch: ReturnType<typeof listingFields> & { hours: Business["hours"]; hourBook: HourBook }) => void
+  onSave: (patch: ReturnType<typeof listingFields> & { hours: Business["hours"]; hourBook: HourBook; photo?: string }) => void
 }) {
-  const [profile, setProfile] = useState<BusinessProfile>(() => resolveProfile(business))
+  const media = useListingGallery(business.id, business.source === "senin")
+  if (business.source === "senin" && !media.ready) {
+    return (
+      <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-2xl">{business.name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Kapak ve galeri yükleniyor.</p>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+  const base = resolveProfile(business)
+  const initialProfile = media.gallery.length ? normalizeProfile({ ...base, gallery: media.gallery }, base) : base
+  return (
+    <ProfileForm
+      business={business}
+      onClose={onClose}
+      onSave={onSave}
+      initialCover={media.photo || business.photo}
+      initialProfile={initialProfile}
+    />
+  )
+}
+
+function ProfileForm({
+  business,
+  onClose,
+  onSave,
+  initialCover,
+  initialProfile,
+}: {
+  business: Business
+  onClose: () => void
+  onSave: (patch: ReturnType<typeof listingFields> & { hours: Business["hours"]; hourBook: HourBook; photo?: string }) => void
+  initialCover: string
+  initialProfile: BusinessProfile
+}) {
+  const [profile, setProfile] = useState<BusinessProfile>(initialProfile)
+  const [cover, setCover] = useState(initialCover)
   const { patchBusiness, rememberListing } = useDirectory()
   const [book, setBook] = useState<HourBook>(() => business.hourBook ?? bookFromHours(business.hours))
   const [error, setError] = useState("")
@@ -465,23 +507,41 @@ function ProfileDialog({
           className="grid gap-4"
           onSubmit={(event) => {
             event.preventDefault()
-            const problem = weekError(book)
-            if (problem) {
-              setError(problem)
-              return
-            }
-            const clean = normalizeProfile(profile, resolveProfile(business))
-            const hours = hoursFromBook(book)
-            onSave({ ...listingFields(clean), hours, hourBook: book })
-            if (business.source === "senin") {
-              void postListing({ op: "saat", id: business.id, week: book.week, specials: book.specials })
-            }
+            void (async () => {
+              const problem = weekError(book)
+              if (problem) {
+                setError(problem)
+                return
+              }
+              const clean = normalizeProfile(profile, resolveProfile(business))
+              const hours = hoursFromBook(book)
+              const fields = listingFields(clean)
+              if (business.source === "senin") {
+                const visual = await postListing({ op: "gorsel", id: business.id, photo: cover, gallery: clean.gallery })
+                if (!visual.response.ok || !visual.data?.listing) {
+                  setError(mediaReason(visual.data?.reason))
+                  return
+                }
+                const timed = await postListing({ op: "saat", id: business.id, week: book.week, specials: book.specials })
+                const base = timed.data?.listing ?? visual.data.listing
+                rememberListing({ ...base, photo: visual.data.listing.photo, profile: clean, hours, hourBook: book })
+                if (!timed.response.ok) {
+                  setError("Kapak ve galeri kayda geçti. Saatler yazılamadı.")
+                  return
+                }
+                onSave({ ...fields, profile: clean, hours, hourBook: book, photo: visual.data.listing.photo })
+                return
+              }
+              onSave({ ...fields, hours, hourBook: book, photo: cover })
+            })()
           }}
         >
           <ProfileEditor
             business={business}
             value={profile}
             onChange={setProfile}
+            cover={cover}
+            onCover={setCover}
             book={book}
             onBook={setBook}
             onManual={(action) => void onManual(action)}

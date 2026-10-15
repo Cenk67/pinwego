@@ -240,6 +240,7 @@ export type BusinessOverride = Partial<
     | "hourBook"
     | "services"
     | "founded"
+    | "photo"
     | "profile"
   >
 >

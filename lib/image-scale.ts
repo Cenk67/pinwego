@@ -1,4 +1,5 @@
 import { coverFrame, GALLERY_HEIGHT, GALLERY_WIDTH } from "@/lib/gallery-mark"
+import { COVER_LIMIT, GALLERY_IMAGE_LIMIT } from "@/lib/listing-media"
 
 export const BLOG_IMAGE_MAX = 1600
 
@@ -35,28 +36,74 @@ export async function scaleImageFile(file: File, preferredMax = BLOG_IMAGE_MAX) 
 export async function scaleGalleryFile(file: File) {
   if (!file.type.startsWith("image/")) throw new Error("Yalnızca görsel yüklenir.")
   const source = await readImage(file)
-  const frame = coverFrame(source.naturalWidth, source.naturalHeight, GALLERY_WIDTH, GALLERY_HEIGHT)
-  const canvas = document.createElement("canvas")
-  canvas.width = frame.frameWidth
-  canvas.height = frame.frameHeight
-  const context = canvas.getContext("2d")
-  if (!context) throw new Error("Görsel ölçeklenemedi.")
-  context.fillStyle = "#ffffff"
-  context.fillRect(0, 0, frame.frameWidth, frame.frameHeight)
-  context.drawImage(source, frame.dx, frame.dy, frame.dw, frame.dh)
-  const webp = canvas.toDataURL("image/webp", 0.82)
-  let dataUrl = webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/jpeg", 0.82)
-  if (dataUrl.length > 700_000) {
-    const smaller = canvas.toDataURL("image/webp", 0.68)
-    dataUrl = smaller.startsWith("data:image/webp") ? smaller : canvas.toDataURL("image/jpeg", 0.68)
-  }
+  const fitted = fitFrame(source, GALLERY_WIDTH, GALLERY_HEIGHT, GALLERY_IMAGE_LIMIT)
   return {
-    dataUrl,
-    width: frame.frameWidth,
-    height: frame.frameHeight,
+    ...fitted,
     sourceWidth: source.naturalWidth,
     sourceHeight: source.naturalHeight,
   }
+}
+
+export async function scaleCoverFile(file: File) {
+  if (!file.type.startsWith("image/")) throw new Error("Yalnızca görsel yüklenir.")
+  const source = await readImage(file)
+  const fitted = fitFrame(source, 1280, 720, COVER_LIMIT)
+  return {
+    ...fitted,
+    sourceWidth: source.naturalWidth,
+    sourceHeight: source.naturalHeight,
+  }
+}
+
+export async function shrinkCover(src: string) {
+  if (!src.startsWith("data:") || src.length <= COVER_LIMIT) return src
+  const source = await loadImage(src)
+  return fitFrame(source, 1280, 720, COVER_LIMIT).dataUrl
+}
+
+function fitFrame(source: HTMLImageElement, width: number, height: number, limit: number) {
+  let frameWidth = width
+  let frameHeight = height
+  let dataUrl = ""
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const frame = coverFrame(source.naturalWidth, source.naturalHeight, frameWidth, frameHeight)
+    const canvas = document.createElement("canvas")
+    canvas.width = frame.frameWidth
+    canvas.height = frame.frameHeight
+    const context = canvas.getContext("2d")
+    if (!context) throw new Error("Görsel ölçeklenemedi.")
+    context.fillStyle = "#ffffff"
+    context.fillRect(0, 0, frame.frameWidth, frame.frameHeight)
+    context.drawImage(source, frame.dx, frame.dy, frame.dw, frame.dh)
+    dataUrl = encode(canvas, limit)
+    if (dataUrl.length <= limit) {
+      return { dataUrl, width: frame.frameWidth, height: frame.frameHeight }
+    }
+    frameWidth = Math.max(480, Math.round(frameWidth * 0.75))
+    frameHeight = Math.max(270, Math.round(frameHeight * 0.75))
+  }
+  return { dataUrl, width: frameWidth, height: frameHeight }
+}
+
+function encode(canvas: HTMLCanvasElement, limit: number) {
+  let best = canvas.toDataURL("image/jpeg", 0.82)
+  for (const quality of [0.82, 0.7, 0.58, 0.46]) {
+    const webp = canvas.toDataURL("image/webp", quality)
+    const jpeg = canvas.toDataURL("image/jpeg", quality)
+    const dataUrl = webp.startsWith("data:image/webp") && webp.length <= jpeg.length ? webp : jpeg
+    best = dataUrl
+    if (dataUrl.length <= limit) return dataUrl
+  }
+  return best
+}
+
+function loadImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error("Görsel okunamadı."))
+    image.src = src
+  })
 }
 
 function readImage(file: File) {

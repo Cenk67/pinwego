@@ -1,14 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { fieldClass } from "@/components/directory/bits"
+import { Cover, fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { MarkedPhoto } from "@/components/directory/marked-photo"
 import { GALLERY_HEIGHT, GALLERY_WIDTH } from "@/lib/gallery-mark"
-import { scaleGalleryFile, scaleImageFile } from "@/lib/image-scale"
+import { scaleCoverFile, scaleGalleryFile, scaleImageFile, shrinkCover } from "@/lib/image-scale"
+import { isStockPhoto } from "@/lib/listing-media"
 import {
   GALLERY_LIMIT,
   moveItem,
@@ -26,6 +27,8 @@ export function ProfileEditor({
   business,
   value,
   onChange,
+  cover,
+  onCover,
   book,
   onBook,
   onManual,
@@ -34,6 +37,8 @@ export function ProfileEditor({
   business: Business
   value: BusinessProfile
   onChange: (next: BusinessProfile) => void
+  cover: string
+  onCover: (next: string) => void
   book: HourBook
   onBook: (book: HourBook) => void
   onManual: (action: ManualAction) => void
@@ -160,7 +165,7 @@ export function ProfileEditor({
       </fieldset>
       <HoursEditor book={book} onBook={onBook} onManual={onManual} />
       <ServiceEditor value={value} onChange={onChange} />
-      <GalleryEditor businessName={business.name} value={value} onChange={onChange} />
+      <GalleryEditor businessName={business.name} value={value} onChange={onChange} cover={cover} onCover={onCover} />
     </div>
   )
 }
@@ -258,10 +263,14 @@ function GalleryEditor({
   businessName,
   value,
   onChange,
+  cover,
+  onCover,
 }: {
   businessName: string
   value: BusinessProfile
   onChange: (next: BusinessProfile) => void
+  cover: string
+  onCover: (next: string) => void
 }) {
   const [error, setError] = useState("")
   function update(index: number, patch: Partial<GalleryItem>) {
@@ -278,6 +287,7 @@ function GalleryEditor({
       return
     }
     const added: GalleryItem[] = []
+    const base = value.gallery.length === 1 && isStockPhoto(value.gallery[0].image) ? [] : value.gallery
     try {
       for (const file of files) {
         const scaled = await scaleGalleryFile(file)
@@ -290,20 +300,54 @@ function GalleryEditor({
           seoTags: [],
           aiTags: [],
           active: true,
-          order: value.gallery.length + added.length,
+          order: base.length + added.length,
         })
-        setError(`${scaled.sourceWidth}×${scaled.sourceHeight} görsel ${GALLERY_WIDTH}×${GALLERY_HEIGHT} ölçüsüne kırpıldı.`)
+        setError(`${scaled.sourceWidth}×${scaled.sourceHeight} görsel ${scaled.width}×${scaled.height} ölçüsüne kırpıldı.`)
       }
-      onChange({ ...value, gallery: [...value.gallery, ...added].slice(0, GALLERY_LIMIT) })
+      onChange({ ...value, gallery: [...base, ...added].slice(0, GALLERY_LIMIT) })
+      if (isStockPhoto(cover) && added[0]) onCover(await shrinkCover(added[0].image))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Görsel eklenemedi.")
     }
   }
   return (
     <fieldset className="grid gap-3">
-      <legend className="font-heading text-xl">Galeri</legend>
+      <legend className="font-heading text-xl">Kapak ve galeri</legend>
       <p className="text-sm leading-6 text-muted-foreground">
-        {value.gallery.length}/{GALLERY_LIMIT} görsel. Şerit sağdan sola kayar. Yüklenen görsel {GALLERY_WIDTH}×{GALLERY_HEIGHT}
+        Kapak, işletme sayfasının üstündeki büyük görseldir. Standart görseli buradan değiştirirsin. Galeriye eklenen görseller
+        kayıt sonrası aynı sayfada şerit olarak görünür.
+      </p>
+      <div className="grid max-w-sm gap-2">
+        <Cover src={cover} alt="Kapak görseli" className="aspect-video w-full rounded-2xl" />
+        <label className="text-sm">
+          Kapak görselini değiştir
+          <input
+            type="file"
+            accept="image/*"
+            className="mt-1 block w-full text-sm"
+            onChange={async (event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ""
+              if (!file) return
+              try {
+                const scaled = await scaleCoverFile(file)
+                onCover(scaled.dataUrl)
+                if (value.gallery.length === 1 && isStockPhoto(value.gallery[0].image)) {
+                  onChange({
+                    ...value,
+                    gallery: [{ ...value.gallery[0], id: `kapak-${Date.now()}`, image: scaled.dataUrl, title: businessName, alt: businessName }],
+                  })
+                }
+                setError("Kapak görseli işletme sayfasına yazılmak için hazır.")
+              } catch (cause) {
+                setError(cause instanceof Error ? cause.message : "Kapak görseli değiştirilemedi.")
+              }
+            }}
+          />
+        </label>
+      </div>
+      <p className="text-sm leading-6 text-muted-foreground">
+        {value.gallery.length}/{GALLERY_LIMIT} galeri görseli. Şerit sağdan sola kayar. Yüklenen görsel {GALLERY_WIDTH}×{GALLERY_HEIGHT}
         ölçüsüne kırpılır. Kartın altında işletme adı ve açıklama durur. Görselin üzerinde şeffaf “{businessName}” filigranı vardır.
       </p>
       {value.gallery.map((item, index) => (
@@ -325,12 +369,23 @@ function GalleryEditor({
               <Button type="button" variant="outline" className="h-8 rounded-lg" onClick={() => onChange({ ...value, gallery: moveItem(value.gallery, index, index - 1) })}>Yukarı</Button>
               <Button type="button" variant="outline" className="h-8 rounded-lg" onClick={() => onChange({ ...value, gallery: moveItem(value.gallery, index, index + 1) })}>Aşağı</Button>
               <Button type="button" variant="outline" className="h-8 rounded-lg" onClick={() => onChange({ ...value, gallery: value.gallery.filter((_, itemIndex) => itemIndex !== index) })}>Sil</Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 rounded-lg"
+                onClick={() => {
+                  void shrinkCover(item.image).then(onCover)
+                }}
+              >
+                {item.image === cover ? "Kapak bu" : "Kapak yap"}
+              </Button>
               <label className="inline-flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={item.active} onChange={(event) => update(index, { active: event.target.checked })} />
                 Aktif
               </label>
             </div>
             <p className="text-sm font-medium">{businessName}</p>
+            {isStockPhoto(item.image) ? <p className="text-xs text-muted-foreground">Standart görsel</p> : null}
             <Field label="Açıklama" value={item.description} onChange={(description) => update(index, { description })} />
             <Field label="Alt metin" value={item.alt} onChange={(alt) => update(index, { alt })} />
             <TagField label="SEO etiketleri" values={item.seoTags} onChange={(seoTags) => update(index, { seoTags })} />

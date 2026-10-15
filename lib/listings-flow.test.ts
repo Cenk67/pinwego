@@ -3,6 +3,7 @@ import { registerInStore } from "./account-record"
 import { accountStore } from "./account-kv"
 import { loginFlow } from "./account-flow"
 import { openAdminSession } from "./admin-gate"
+import { listingGalleryKey } from "./listing-media"
 import { ilanGetFlow, ilanPostFlow } from "./listings-flow"
 import { listingsKey } from "./listings"
 
@@ -109,12 +110,49 @@ const keptBody = (await kept.json()) as { listing?: { verified: boolean; premium
 assert.equal(keptBody.listing?.verified, true)
 assert.equal(keptBody.listing?.premium, true)
 
+const cover = `data:image/png;base64,${"B".repeat(40)}`
+const slide = `data:image/png;base64,${"C".repeat(40)}`
+const photoId = createdBody.listing?.slug ?? ""
+assert.equal((await ilanPostFlow(call("/api/ilan", { op: "gorsel", id: photoId, photo: cover, gallery: [] }, customerCookie))).status, 403)
+assert.equal((await ilanPostFlow(call("/api/ilan", { op: "gorsel", id: photoId, photo: cover, gallery: [] }))).status, 401)
+assert.equal((await ilanPostFlow(call("/api/ilan", { op: "gorsel", id: photoId, photo: "javascript:alert(1)", gallery: [] }, cookie))).status, 400)
+assert.equal((await ilanPostFlow(call("/api/ilan", { op: "gorsel", id: photoId, photo: "/photos/../secret.jpg", gallery: [] }, cookie))).status, 400)
+assert.equal((await ilanPostFlow(call("/api/ilan", { op: "gorsel", id: photoId, photo: cover, gallery: [{ image: "data:image/svg+xml;base64,AAAA" }] }, cookie))).status, 400)
+const pictured = await ilanPostFlow(call("/api/ilan", {
+  op: "gorsel",
+  id: photoId,
+  photo: cover,
+  gallery: [{ id: "ofis", image: slide, title: "Ofis", description: "İç mekan", alt: "Ofis", active: true }],
+}, cookie))
+const picturedBody = (await pictured.json()) as { ok?: boolean; listing?: { id: string; photo: string }; gallery?: { image: string }[] }
+assert.equal(pictured.status, 200)
+assert.equal(picturedBody.ok, true)
+assert.equal(picturedBody.listing?.photo, cover)
+assert.equal(picturedBody.gallery?.[0]?.image, slide)
+const listed = (await (await ilanGetFlow(call("/api/ilan"))).json()) as { listings: { slug: string; photo: string }[] }
+assert.equal(listed.listings.find((item) => item.slug === photoId)?.photo, cover)
+assert.equal(JSON.stringify(listed).includes(slide), false)
+const media = (await (await ilanGetFlow(call(`/api/ilan?galeri=${photoId}`))).json()) as { ok?: boolean; photo?: string; gallery?: { image: string; title: string }[] }
+assert.equal(media.ok, true)
+assert.equal(media.photo, cover)
+assert.equal(media.gallery?.[0]?.image, slide)
+assert.equal(media.gallery?.[0]?.title, "Ofis")
+const rawBook = (await store.get(listingsKey)) ?? ""
+assert.equal(rawBook.includes(cover), true)
+assert.equal(rawBook.includes(slide), false)
+const rawGallery = (await store.get(listingGalleryKey(picturedBody.listing?.id ?? photoId))) ?? ""
+assert.equal(rawGallery.includes(slide), true)
+const byAdmin = await ilanPostFlow(call("/api/ilan", { op: "gorsel", id: photoId, photo: "/photos/office.jpg", gallery: [] }, adminCookie))
+assert.equal(byAdmin.status, 200)
+
 await ilanPostFlow(call("/api/ilan", { op: "flags", id: createdBody.listing?.slug, hidden: true }, adminCookie))
 const hiddenPublic = (await (await ilanGetFlow(call("/api/ilan"))).json()) as { listings: { slug: string }[] }
 assert.equal(hiddenPublic.listings.some((item) => item.slug === createdBody.listing?.slug), false)
 const hiddenAdmin = (await (await ilanGetFlow(call("/api/ilan", undefined, adminCookie))).json()) as { listings: { slug: string }[]; hiddenIds: string[] }
 assert.equal(hiddenAdmin.listings.some((item) => item.slug === createdBody.listing?.slug), true)
 assert.equal(hiddenAdmin.hiddenIds.includes(createdBody.listing?.slug ?? ""), true)
+assert.equal((await ilanGetFlow(call(`/api/ilan?galeri=${photoId}`))).status, 404)
+assert.equal((await ilanGetFlow(call(`/api/ilan?galeri=${photoId}`, undefined, cookie))).status, 200)
 
 const before = await store.get(listingsKey)
 await store.put(listingsKey, "{")
