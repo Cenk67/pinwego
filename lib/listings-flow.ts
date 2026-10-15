@@ -2,8 +2,19 @@ import { adminSessionOpen, readAdminCookie } from "@/lib/admin-gate"
 import { accountStore } from "@/lib/account-kv"
 import { jsonReply, readJson, requestIp, takeIpSlot } from "@/lib/account-route"
 import { applyManual, bookFromHours, hoursFromBook, istanbulParts, storedBook } from "@/lib/hours"
-import { acceptSheet, parseListingSheet, sheetByteCap } from "@/lib/listings-import"
-import { acceptListing, applyFlags, emptyBook, listingsKey, parseBook, toBusiness, type ListingBook } from "@/lib/listings"
+import {
+  classifyGrid,
+  commitImport,
+  gridFromBody,
+  importLogKey,
+  numberList,
+  parseImportLog,
+  publishChoice,
+  readMap,
+  suggestMap,
+  withImportNote,
+} from "@/lib/listings-import"
+import { acceptListing, applyFlags, emptyBook, listingsKey, parseBook, toBusiness, type ListingBook, type StoredListing } from "@/lib/listings"
 import { memberEmail, publicAccount, readMemberCookie } from "@/lib/member-session"
 
 async function actor(store: NonNullable<Awaited<ReturnType<typeof accountStore>>>, request: Request) {
@@ -21,15 +32,18 @@ async function readBook(store: NonNullable<Awaited<ReturnType<typeof accountStor
   return parseBook(raw)
 }
 
-function present(book: ListingBook, admin: boolean) {
+function shownListing(item: StoredListing, admin: boolean) {
+  const listing = toBusiness(item)
+  return admin ? { ...listing, hourLog: item.hourLog ?? [], review: item.review } : listing
+}
+
+function present(book: ListingBook, admin: boolean, imports: ReturnType<typeof parseImportLog> = []) {
   const rows = admin ? book.listings : book.listings.filter((item) => !item.hidden)
   return {
     ok: true,
-    listings: rows.map((item) => {
-      const listing = toBusiness(item)
-      return admin ? { ...listing, hourLog: item.hourLog ?? [] } : listing
-    }),
+    listings: rows.map((item) => shownListing(item, admin)),
     hiddenIds: admin ? book.listings.filter((item) => item.hidden).map((item) => item.id) : [],
+    imports: admin ? imports : [],
   }
 }
 
@@ -39,11 +53,13 @@ export async function ilanGetFlow(request: Request) {
   const book = await readBook(store)
   if (!book) return jsonReply({ ok: false, reason: "bozuk" }, 500)
   const who = await actor(store, request)
-  return jsonReply(present(book, who?.kind === "admin"))
+  const admin = who?.kind === "admin"
+  const imports = admin ? parseImportLog(await store.get(importLogKey)) : []
+  return jsonReply(present(book, admin, imports))
 }
 
 export async function ilanPostFlow(request: Request, now = Date.now()) {
-  const body = await readJson(request, 180000)
+  const body = await readJson(request, 2200000)
   if (!body || typeof body.op !== "string") return jsonReply({ ok: false, reason: "invalid" }, 400)
   const store = await accountStore()
   if (!store) return jsonReply({ ok: false, reason: "unavailable" }, 503)
@@ -60,18 +76,44 @@ export async function ilanPostFlow(request: Request, now = Date.now()) {
     await store.put(listingsKey, JSON.stringify(saved.book))
     return jsonReply({ ok: true, listing: toBusiness(saved.listing) })
   }
-  if (body.op === "toplu") {
+  if (body.op === "onizle" || body.op === "toplu") {
     if (who.kind !== "admin") return jsonReply({ ok: false, reason: "yetki" }, 403)
-    if (!(await takeIpSlot(requestIp(request), "ilan-toplu", now, 8, 15 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
-    const text = typeof body.text === "string" ? body.text : ""
-    if (!text.trim() || text.length > sheetByteCap) return jsonReply({ ok: false, reason: "invalid" }, 400)
-    const parsed = parseListingSheet(text)
-    if (!parsed.rows.length) return jsonReply({ ok: false, reason: "invalid", faults: parsed.faults }, 400)
-    const saved = acceptSheet(parsed.rows, book, new Date(now).toISOString())
-    const faults = [...parsed.faults, ...saved.faults]
-    if (!saved.added && !saved.updated) return jsonReply({ ok: false, reason: "invalid", faults }, 400)
-    await store.put(listingsKey, JSON.stringify(saved.book))
-    return jsonReply({ ok: true, added: saved.added, updated: saved.updated, faults, listings: saved.listings.map((item) => toBusiness(item)) })
+    const started = Date.now()
+    const preview = body.op === "onizle"
+    if (!(await takeIpSlot(requestIp(request), preview ? "ilan-onizle" : "ilan-toplu", now, preview ? 60 : 30, 15 * 60 * 1000))) {
+      return jsonReply({ ok: false, reason: "limited" })
+    }
+    const loaded = await gridFromBody(body)
+    if ("error" in loaded) return jsonReply({ ok: false, reason: loaded.error }, 400)
+    const map = readMap(body.map, loaded.grid.headers.length) ?? suggestMap(loaded.grid.headers)
+    if (preview) return jsonReply({ ok: true, ...classifyGrid(loaded.grid, map, book) })
+    if (body.confirm !== true) return jsonReply({ ok: false, reason: "onay" }, 400)
+    const saved = commitImport(loaded.grid, map, book, new Date(now).toISOString(), {
+      updates: numberList(body.updates),
+      force: numberList(body.force),
+      publish: publishChoice(body.publish),
+    })
+    if (saved.added || saved.updated) await store.put(listingsKey, JSON.stringify(saved.book))
+    const note = {
+      id: `aktar-${now}`,
+      at: new Date(now).toISOString(),
+      total: saved.preview.total,
+      added: saved.added,
+      updated: saved.updated,
+      held: saved.held,
+      same: saved.preview.counts.zaten,
+      faults: saved.preview.counts.hata,
+      ms: Math.max(0, Date.now() - started),
+      actor: "yonetici",
+    }
+    await store.put(importLogKey, withImportNote(await store.get(importLogKey), note))
+    return jsonReply({
+      ok: true,
+      ...note,
+      listings: saved.listings.map((item) => shownListing(item, true)),
+      report: saved.preview.report,
+      counts: saved.preview.counts,
+    })
   }
   const id = typeof body.id === "string" ? body.id : ""
   const current = book.listings.find((item) => item.id === id || item.slug === id)

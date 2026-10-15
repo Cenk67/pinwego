@@ -237,6 +237,8 @@ function BusinessAdmin() {
               for (const listing of listings) {
                 addListing(listing)
                 rememberListing(listing)
+                const review = (listing as { review?: string }).review
+                if (review === "onay" || review === "taslak") rememberHidden(listing.id, true)
               }
             }}
           />
@@ -257,7 +259,13 @@ function BusinessAdmin() {
                   </Link>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {categoryById(business.category).label} · {business.district}, {business.city} · {sourceLabel(business.source)}
-                    {hidden ? " · gizli" : ""}
+                    {(business as { review?: string }).review === "onay"
+                      ? " · onay bekliyor"
+                      : (business as { review?: string }).review === "taslak"
+                        ? " · taslak"
+                        : hidden
+                          ? " · gizli"
+                          : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">

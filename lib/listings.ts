@@ -3,7 +3,7 @@ import { hoursFromBook, liveBusiness, publicBook, storedBook } from "@/lib/hours
 import type { BookingKind, Business, DayHours, HourBook } from "@/lib/types"
 
 export const listingsKey = "listings:v1"
-export const listingCap = 300
+export const listingCap = 1000
 const ownerCap = 30
 
 const days = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
@@ -38,6 +38,8 @@ export type StoredListing = {
   responseMinutes: number
   founded: number
   amenities: string[]
+  website?: string
+  review?: "taslak" | "onay"
 }
 
 export type ListingBook = { listings: StoredListing[] }
@@ -119,7 +121,16 @@ function asListing(value: unknown): StoredListing | null {
     responseMinutes: 180,
     founded: typeof row.founded === "number" ? row.founded : 2026,
     amenities: Array.isArray(row.amenities) ? row.amenities.filter((item) => typeof item === "string").slice(0, 8) : ["Yeni kayıt"],
+    website: readSite(row.website),
+    review: row.review === "taslak" || row.review === "onay" ? row.review : undefined,
   }
+}
+
+function readSite(value: unknown) {
+  if (typeof value !== "string") return undefined
+  const site = value.trim().slice(0, 160)
+  if (!/^https?:\/\/\S+$/i.test(site)) return undefined
+  return site
 }
 
 export function emptyBook(): ListingBook {
@@ -184,8 +195,66 @@ export function toBusiness(listing: StoredListing): Business {
     hourBook: listing.hourBook ? publicBook(listing.hourBook) : undefined,
     facts: [],
     source: "senin",
+    website: listing.website,
     ownerAccountId: listing.ownerAccountId,
   }, Date.now())
+}
+
+export type ImportedInput = {
+  name: string
+  category: string
+  subcategory: string
+  city: string
+  district: string
+  address: string
+  lat: number
+  lng: number
+  phone: string
+  summary: string
+  booking: BookingKind
+  verified: boolean
+  premium: boolean
+  hidden: boolean
+  review?: "taslak" | "onay"
+  website?: string
+}
+
+export function buildImportedListing(input: ImportedInput, nowIso: string, listings: StoredListing[]): StoredListing {
+  const base = listingSlug(input.name, "yonetici")
+  const slug = uniqueSlug(base, listings)
+  const year = Number(nowIso.slice(0, 4))
+  return {
+    id: slug,
+    slug,
+    name: input.name,
+    category: input.category,
+    subcategory: input.subcategory,
+    city: input.city,
+    district: input.district,
+    address: input.address,
+    lat: input.lat,
+    lng: input.lng,
+    phone: input.phone,
+    summary: input.summary,
+    about: input.summary,
+    photo: "/photos/office.jpg",
+    photoPosition: "center",
+    booking: input.booking,
+    hours: defaultHours(),
+    hourLog: [],
+    priceLevel: 2,
+    openNow: true,
+    premium: input.premium,
+    verified: input.verified,
+    hidden: input.hidden,
+    ownerAccountId: "yonetici",
+    createdAt: nowIso,
+    responseMinutes: 180,
+    founded: Number.isFinite(year) ? year : 2026,
+    amenities: ["Yönetim kaydı"],
+    website: input.website,
+    review: input.review,
+  }
 }
 
 export function acceptListing(

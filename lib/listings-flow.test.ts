@@ -140,27 +140,40 @@ const denied = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: sheet }
 assert.equal(denied.status, 403)
 const guest = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: sheet }))
 assert.equal(guest.status, 401)
-const imported = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: sheet }, adminCookie))
+const blocked = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: sheet }, adminCookie))
+assert.equal(blocked.status, 400)
+const looked = await ilanPostFlow(call("/api/ilan", { op: "onizle", text: sheet }, adminCookie))
+const lookedBody = (await looked.json()) as { ok?: boolean; counts?: { yeni: number; hata: number } }
+assert.equal(lookedBody.ok, true)
+assert.equal(lookedBody.counts?.yeni, 2)
+assert.equal(lookedBody.counts?.hata, 1)
+const imported = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: sheet, confirm: true, publish: "yayinda" }, adminCookie))
 const importedBody = (await imported.json()) as {
   ok?: boolean
   added?: number
   updated?: number
-  faults?: { reason: string }[]
+  actor?: string
   listings?: { name: string; premium: boolean; verified: boolean; lat: number }[]
 }
 assert.equal(importedBody.ok, true)
 assert.equal(importedBody.added, 2)
 assert.equal(importedBody.updated, 0)
-assert.equal(importedBody.faults?.some((item) => item.reason === "kategori"), true)
+assert.equal(importedBody.actor, "yonetici")
 assert.equal(importedBody.listings?.find((item) => item.name === "Papatya Lokanta")?.premium, true)
 assert.equal(importedBody.listings?.find((item) => item.name === "Papatya Lokanta")?.verified, true)
 assert.equal(importedBody.listings?.find((item) => item.name === "Mavi Oda")?.lat, 41.453)
 const afterImport = JSON.parse((await store.get(listingsKey)) ?? "{}") as { listings: { name: string }[] }
 assert.equal(afterImport.listings.length, 3)
 const againSheet = sheet.replace("Merkezde ev yemeği ve ızgara.", "Merkezde güncellenmiş ev yemeği servisi.")
-const refreshed = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: againSheet }, adminCookie))
+const refreshed = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: againSheet, confirm: true, publish: "yayinda" }, adminCookie))
 const refreshedBody = (await refreshed.json()) as { added?: number; updated?: number }
 assert.equal(refreshedBody.added, 0)
-assert.equal(refreshedBody.updated, 2)
-const afterRefresh = JSON.parse((await store.get(listingsKey)) ?? "{}") as { listings: unknown[] }
+assert.equal(refreshedBody.updated, 0)
+const afterRefresh = JSON.parse((await store.get(listingsKey)) ?? "{}") as { listings: { name: string; summary: string }[] }
 assert.equal(afterRefresh.listings.length, 3)
+assert.equal(afterRefresh.listings.some((item) => item.summary === "Merkezde ev yemeği ve ızgara."), true)
+const revised = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: againSheet, confirm: true, publish: "yayinda", updates: [2] }, adminCookie))
+const revisedBody = (await revised.json()) as { updated?: number }
+assert.equal(revisedBody.updated, 1)
+const afterApproved = JSON.parse((await store.get(listingsKey)) ?? "{}") as { listings: { summary: string }[] }
+assert.equal(afterApproved.listings.some((item) => item.summary === "Merkezde güncellenmiş ev yemeği servisi."), true)
