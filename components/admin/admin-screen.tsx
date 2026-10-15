@@ -10,6 +10,7 @@ import { DiscoverAdmin } from "@/components/discover/discover-admin"
 import { AnalyticsPanel } from "@/components/admin/analytics-panel"
 import { ViewAdmin } from "@/components/directory/view-report"
 import { InboxPanel } from "@/components/admin/inbox-panel"
+import { BulkUpload } from "@/components/admin/bulk-upload"
 import { CustomerPanel } from "@/components/admin/customer-panel"
 import { PagesPanel } from "@/components/admin/pages-panel"
 import { NotifyPanel } from "@/components/admin/notify-panel"
@@ -230,9 +231,19 @@ function BusinessAdmin() {
           placeholder="İşletme, semt, telefon ara"
           className="h-11 sm:max-w-72"
         />
-        <Button type="button" className="h-11 rounded-xl" onClick={() => setCreating(true)}>
-          İşletme ekle
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <BulkUpload
+            onImported={(listings) => {
+              for (const listing of listings) {
+                addListing(listing)
+                rememberListing(listing)
+              }
+            }}
+          />
+          <Button type="button" className="h-11 rounded-xl" onClick={() => setCreating(true)}>
+            İşletme ekle
+          </Button>
+        </div>
       </div>
       <div className="mt-4 grid gap-3">
         {filtered.slice(0, limit).map((business) => {

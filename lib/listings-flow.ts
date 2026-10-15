@@ -2,6 +2,7 @@ import { adminSessionOpen, readAdminCookie } from "@/lib/admin-gate"
 import { accountStore } from "@/lib/account-kv"
 import { jsonReply, readJson, requestIp, takeIpSlot } from "@/lib/account-route"
 import { applyManual, bookFromHours, hoursFromBook, istanbulParts, storedBook } from "@/lib/hours"
+import { acceptSheet, parseListingSheet, sheetByteCap } from "@/lib/listings-import"
 import { acceptListing, applyFlags, emptyBook, listingsKey, parseBook, toBusiness, type ListingBook } from "@/lib/listings"
 import { memberEmail, publicAccount, readMemberCookie } from "@/lib/member-session"
 
@@ -42,7 +43,7 @@ export async function ilanGetFlow(request: Request) {
 }
 
 export async function ilanPostFlow(request: Request, now = Date.now()) {
-  const body = await readJson(request, 12000)
+  const body = await readJson(request, 180000)
   if (!body || typeof body.op !== "string") return jsonReply({ ok: false, reason: "invalid" }, 400)
   const store = await accountStore()
   if (!store) return jsonReply({ ok: false, reason: "unavailable" }, 503)
@@ -58,6 +59,19 @@ export async function ilanPostFlow(request: Request, now = Date.now()) {
     if (!saved.ok) return jsonReply({ ok: false, reason: saved.reason })
     await store.put(listingsKey, JSON.stringify(saved.book))
     return jsonReply({ ok: true, listing: toBusiness(saved.listing) })
+  }
+  if (body.op === "toplu") {
+    if (who.kind !== "admin") return jsonReply({ ok: false, reason: "yetki" }, 403)
+    if (!(await takeIpSlot(requestIp(request), "ilan-toplu", now, 8, 15 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
+    const text = typeof body.text === "string" ? body.text : ""
+    if (!text.trim() || text.length > sheetByteCap) return jsonReply({ ok: false, reason: "invalid" }, 400)
+    const parsed = parseListingSheet(text)
+    if (!parsed.rows.length) return jsonReply({ ok: false, reason: "invalid", faults: parsed.faults }, 400)
+    const saved = acceptSheet(parsed.rows, book, new Date(now).toISOString())
+    const faults = [...parsed.faults, ...saved.faults]
+    if (!saved.added && !saved.updated) return jsonReply({ ok: false, reason: "invalid", faults }, 400)
+    await store.put(listingsKey, JSON.stringify(saved.book))
+    return jsonReply({ ok: true, added: saved.added, updated: saved.updated, faults, listings: saved.listings.map((item) => toBusiness(item)) })
   }
   const id = typeof body.id === "string" ? body.id : ""
   const current = book.listings.find((item) => item.id === id || item.slug === id)

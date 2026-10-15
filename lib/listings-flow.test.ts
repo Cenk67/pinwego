@@ -129,3 +129,38 @@ const foreign = await ilanPostFlow(new Request("http://127.0.0.1:43123/api/ilan"
   body: JSON.stringify(draft),
 }))
 assert.equal(foreign.status, 400)
+
+const sheet = [
+  "ad;kategori;sehir;semt;telefon;ozet;one cikan",
+  "Papatya Lokanta;Yeme-İçme;Zonguldak;Merkez;03720000011;Merkezde ev yemeği ve ızgara.;evet",
+  "Kırık Satır;yokboyle;Zonguldak;Merkez;03720000012;Bu kategori yok ve satır atlanır.",
+  "Mavi Oda;konaklama;Zonguldak;Kozlu;03720000013;Kozlu'da sakin bir konaklama.",
+].join("\n")
+const denied = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: sheet }, cookie))
+assert.equal(denied.status, 403)
+const guest = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: sheet }))
+assert.equal(guest.status, 401)
+const imported = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: sheet }, adminCookie))
+const importedBody = (await imported.json()) as {
+  ok?: boolean
+  added?: number
+  updated?: number
+  faults?: { reason: string }[]
+  listings?: { name: string; premium: boolean; verified: boolean; lat: number }[]
+}
+assert.equal(importedBody.ok, true)
+assert.equal(importedBody.added, 2)
+assert.equal(importedBody.updated, 0)
+assert.equal(importedBody.faults?.some((item) => item.reason === "kategori"), true)
+assert.equal(importedBody.listings?.find((item) => item.name === "Papatya Lokanta")?.premium, true)
+assert.equal(importedBody.listings?.find((item) => item.name === "Papatya Lokanta")?.verified, true)
+assert.equal(importedBody.listings?.find((item) => item.name === "Mavi Oda")?.lat, 41.453)
+const afterImport = JSON.parse((await store.get(listingsKey)) ?? "{}") as { listings: { name: string }[] }
+assert.equal(afterImport.listings.length, 3)
+const againSheet = sheet.replace("Merkezde ev yemeği ve ızgara.", "Merkezde güncellenmiş ev yemeği servisi.")
+const refreshed = await ilanPostFlow(call("/api/ilan", { op: "toplu", text: againSheet }, adminCookie))
+const refreshedBody = (await refreshed.json()) as { added?: number; updated?: number }
+assert.equal(refreshedBody.added, 0)
+assert.equal(refreshedBody.updated, 2)
+const afterRefresh = JSON.parse((await store.get(listingsKey)) ?? "{}") as { listings: unknown[] }
+assert.equal(afterRefresh.listings.length, 3)

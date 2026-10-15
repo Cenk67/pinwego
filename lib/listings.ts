@@ -235,7 +235,7 @@ export function acceptListing(
     hourLog: own?.hourLog ?? [],
     priceLevel: 2,
     openNow: true,
-    premium: own ? own.premium : false,
+    premium: own ? own.premium : admin && body.premium === true,
     verified: own ? own.verified : admin && body.verified === true,
     hidden: own ? own.hidden : false,
     ownerAccountId: ownerId,
@@ -244,7 +244,7 @@ export function acceptListing(
     founded: Number.isFinite(year) ? year : 2026,
     amenities: [admin ? "Yönetim kaydı" : "Yeni kayıt"],
   }
-  if (!own && book.listings.filter((item) => item.ownerAccountId === ownerId).length >= ownerCap) return { ok: false, reason: "dolu" }
+  if (!own && !admin && book.listings.filter((item) => item.ownerAccountId === ownerId).length >= ownerCap) return { ok: false, reason: "dolu" }
   if (!own && book.listings.length >= listingCap) return { ok: false, reason: "dolu" }
   const listings = own
     ? book.listings.map((item) => (item.id === own.id ? draft : item))
