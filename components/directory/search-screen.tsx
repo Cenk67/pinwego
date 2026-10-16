@@ -423,7 +423,7 @@ export function SearchScreen() {
               {alternatives}
               {intent === "bilgi" ? null : guideList}
               {discoverOffer}
-              <NeedFeedback query={query} category={needCategory} city={needCity} />
+              <NeedFeedback key={query} query={query} category={needCategory} city={needCity} />
             </>
           ) : null}
         </div>

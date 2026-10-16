@@ -87,3 +87,9 @@ assert.equal(sponsored[0]?.business.slug, "hizli-tesisat")
 assert.ok(sponsored.every((item) => item.business.category === "usta"))
 
 console.log("tüm örnek aramalar beklenen kaydı seçti")
+
+// A sentence with no readable signal is a real zero result, not the whole catalog by rating.
+assert.equal(searchDirectory(businesses, "lorem ipsum dolor sit", { ...defaultFilters, sehir: "hepsi" }).length, 0)
+assert.equal(searchDirectory(businesses, "xqzv plorf", { ...defaultFilters, sehir: "hepsi" }).length, 0)
+assert.equal(searchDirectory(businesses, "Hızlı Tesisat", { ...defaultFilters, sehir: "hepsi" })[0]?.business.slug, "hizli-tesisat")
+assert.ok(searchDirectory(businesses, "", { ...defaultFilters, sehir: "hepsi" }).length > 100, "empty query still lists the catalog")

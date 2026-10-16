@@ -383,6 +383,12 @@ function termHit(hay: string, term: string) {
   })
 }
 
+/** Stricter than termHit: short words such as "sit" or "bir" must not keep a listing alive on their own. */
+function strongHit(hay: string, term: string) {
+  if (term.length < 4) return false
+  return hay.split(" ").some((token) => token === term || token.startsWith(term))
+}
+
 function explain(business: Business, parsed: ParsedQuery, km: number) {
   const parts: string[] = []
   if (parsed.district && fold(business.district) === fold(parsed.district)) {
@@ -422,6 +428,15 @@ export function searchDirectory(
 ): RankedBusiness[] {
   const parsed = parseQuery(query, list)
   const distanceOrigin = parsed.city ? cityCenter(parsed.city) : origin
+  const unstructured =
+    Boolean(query.trim()) &&
+    !parsed.categories.length &&
+    !parsed.city &&
+    !parsed.district &&
+    !parsed.tags.length &&
+    !parsed.minRating &&
+    !parsed.openNow &&
+    parsed.terms.length > 0
   const filtered = list.filter((business) => {
     if (filters.sehir !== "hepsi" && fold(business.city) !== fold(filters.sehir)) return false
     if (filters.kategori !== "hepsi" && business.category !== filters.kategori) return false
@@ -431,6 +446,11 @@ export function searchDirectory(
     if (filters.verified && !business.verified) return false
     if (filters.premium && !business.premium) return false
     if (filters.kategori === "hepsi" && parsed.categories.length && !parsed.categories.includes(business.category)) {
+      return false
+    }
+    // A sentence the engine could not read at all (no category, place, tag or filter) only keeps
+    // listings whose own text mentions one of its words; otherwise it is a genuine zero result.
+    if (unstructured && filters.kategori === "hepsi" && !parsed.terms.some((term) => strongHit(haystack(business), term))) {
       return false
     }
     return true
