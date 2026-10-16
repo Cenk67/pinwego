@@ -38,6 +38,7 @@ Açılmazsa:
 
 - Sektörler: yeme-içme, konaklama, sağlık, temizlik, usta, otomotiv, hukuk, turizm, inşaat ve diğer ticari alanlar dahil 80 civarı hazır sektör. Ana sayfada ara, işletme kaydında seç. Listede yoksa “Sektör ekle” ile yeni sektör yazılır; arama sözcükleri, simge ve kapak seçilir. Özel sektörler bu tarayıcıda kalır.
 - Doğal dille arama: semt, bütçe, aciliyet ve kategori aynı cümleden okunur.
+- Akıllı ihtiyaç bulucu: “Evimin su tesisatı patladı”, “Kışın evim sıcak olmuyor” gibi cümleler yazım düzeltmesi, eş anlamlı ve ihtiyaç sözlüğüyle kategoriye bağlanır; sonuç sayfası anlaşılan ihtiyacı özetler, gerekirse şehir / aciliyet / bütçe sorar, yakın kategorileri önerir, Pinwego’da kayıt yoksa Google, YouTube ve Haritalar bağlantısı verir. Sponsorlu kayıt alakasız aramada öne geçmez. Yönetim → İhtiyaç araması sekmesi sıfır sonuç dönen cümleleri, eşleşme oranını, dış kaynağa geçişi ve iletişim dönüşümünü gösterir. Ayrıntı: `docs/akilli-ihtiyac/`.
 - İşletme profili: fotoğraf, puan, yorum, saat, hizmet fiyatı, doğrulama ve öne çıkan rozeti.
 - Harita: pinler işletmenin enlem ve boylamına göre Google Haritalar üzerinde durur; yakınlık semte göre ayarlanır. Yol tarifi Google Haritalar’ı açar.
 - Konum: Eşleştir yanındaki düğme ülke, bölge, il, ilçe ve semti birbirine bağlı seçer. Seçilen nokta Google Haritalar’da durur. Yakınımdakiler tarayıcı konumunu kullanır. Örnek katalog İstanbul, Ankara, İzmir, Antalya ve Bursa kayıtlarındadır; başka bir yer haritada görünür, liste boş kalabilir.
