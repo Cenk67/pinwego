@@ -135,9 +135,37 @@ export function setCustomSectors(list: Sector[]) {
   extras = list.filter((item) => item.custom && item.id && item.label)
 }
 
+type TreeSector = Sector & { parentId: string | null }
+
+let tree: TreeSector[] | null = null
+
+/**
+ * Installs the server-managed sector tree (active nodes only). Until it arrives, the code seeds
+ * stand in, so every consumer keeps working offline and during the first render.
+ */
+export function setSectorTree(nodes: TreeSector[] | null) {
+  tree = nodes && nodes.length ? nodes : null
+}
+
+export function sectorTreeReady() {
+  return tree !== null
+}
+
+/** Every visible sector node — roots and sub-sectors — for id lookups and vocabulary. */
 export function allSectors(): Sector[] {
+  if (tree) return tree
   const seen = new Set(seedSectors.map((item) => item.id))
   return [...seedSectors, ...extras.filter((item) => !seen.has(item.id))]
+}
+
+/** Top-level sectors only: the list behind the home strip, filters and query parsing. */
+export function rootSectors(): Sector[] {
+  if (tree) return tree.filter((item) => !item.parentId)
+  return allSectors()
+}
+
+export function sectorParentId(id: string): string | null {
+  return tree?.find((item) => item.id === id)?.parentId ?? null
 }
 
 export function isSector(value: unknown): value is Sector {

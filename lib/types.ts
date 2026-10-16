@@ -2,6 +2,12 @@ export type CategoryId = string
 
 export type BookingKind = "randevu" | "rezervasyon" | "teklif"
 
+/** Who runs the record: a public body or a private party. Kept apart from the sector tree. */
+export type OrgKind = "kamu" | "ozel"
+
+/** Under which structure the service is offered; also independent of the sector tree. */
+export type ProviderKind = "kurum" | "isletme" | "usta" | "ulasim" | "icerik" | "serbest" | "diger"
+
 export type Sector = {
   id: CategoryId
   label: string
@@ -86,6 +92,12 @@ export type Business = {
   name: string
   category: CategoryId
   subcategory: string
+  /** Further sector or sub-sector ids beyond the primary `category`. */
+  categories?: CategoryId[]
+  orgKind?: OrgKind
+  /** Public status is a claim until an admin confirms it. */
+  orgVerified?: boolean
+  providerKind?: ProviderKind
   city: string
   district: string
   address: string
@@ -229,6 +241,10 @@ export type BusinessOverride = Partial<
     | "premium"
     | "openNow"
     | "category"
+    | "categories"
+    | "orgKind"
+    | "orgVerified"
+    | "providerKind"
     | "city"
     | "district"
     | "address"
