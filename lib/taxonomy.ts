@@ -554,6 +554,13 @@ export function applyRemap<T extends Pick<Business, "category" | "categories">>(
   return { ...business, category: category ?? business.category, categories: categories ? [...new Set(categories)] : business.categories }
 }
 
+/** Loose label key: folded, "&"/"ve"/"and" and punctuation dropped, no spaces. */
+export function labelKey(value: string) {
+  return fold(value.replace(/&/g, " "))
+    .replace(/\b(ve|and|ile)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, "")
+}
+
 /** Finds a node for free text: id, alias, label, or a "root > child" / "root / child" path. */
 export function matchNodeByText(nodes: TaxonomyNode[], text: string): TaxonomyNode | null {
   const raw = text.trim()
@@ -562,19 +569,19 @@ export function matchNodeByText(nodes: TaxonomyNode[], text: string): TaxonomyNo
   if (parts.length > 1) {
     const parent = matchNodeByText(nodes, parts.slice(0, -1).join(" > "))
     if (!parent) return null
-    const leaf = fold(parts[parts.length - 1])
-    return childrenOf(nodes, parent.id).find((item) => fold(item.label) === leaf || fold(item.label).replace(/\s/g, "") === leaf.replace(/\s/g, "")) ?? null
+    const leaf = labelKey(parts[parts.length - 1])
+    return childrenOf(nodes, parent.id).find((item) => labelKey(item.label) === leaf) ?? null
   }
-  const needle = fold(raw)
-  const tight = needle.replace(/\s/g, "")
+  const key = labelKey(raw)
+  if (!key) return null
   const index = indexOf(nodes)
   const direct = index.byId.get(raw.toLowerCase()) ?? index.byId.get(slugifyKey(raw))
   if (direct) return direct
   const alias = index.aliasOf.get(slugifyKey(raw))
   if (alias) return index.byId.get(alias) ?? null
-  const roots = rootsOf(nodes).find((item) => fold(item.label) === needle || fold(item.label).replace(/\s/g, "") === tight)
+  const roots = rootsOf(nodes).find((item) => labelKey(item.label) === key)
   if (roots) return roots
-  const hits = nodes.filter((item) => item.parentId && (fold(item.label) === needle || fold(item.label).replace(/\s/g, "") === tight))
+  const hits = nodes.filter((item) => item.parentId && labelKey(item.label) === key)
   return hits.length === 1 ? hits[0] : null
 }
 
