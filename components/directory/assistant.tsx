@@ -1,12 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { Sparkles, X } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { Mic, Sparkles, X } from "lucide-react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { GuideList } from "@/components/blog/guide-list"
 import { useBlog } from "@/components/blog/blog-context"
+import { VoiceMic, VoicePanel, VoiceSearchRoot, type VoiceHandle } from "@/components/directory/voice-search"
 import { publicArticles, searchGuides, type GuideHit } from "@/lib/blog"
 import { suggestions } from "@/lib/catalog"
 import { mapsSearchUrl, videoSearchUrl, webSearchUrl, type DiscoverEventType } from "@/lib/discover"
@@ -18,11 +19,16 @@ import { formatRating } from "@/lib/format"
 import { concierge, type RankedBusiness } from "@/lib/match"
 import { useNeedScope } from "@/lib/need-scope"
 import { useLocale } from "@/lib/use-locale"
+import { recordVoice } from "@/lib/voice/analytics"
+import { getServerVoiceSettings, getVoiceSettings, subscribeVoice } from "@/lib/voice/settings"
+import { clearVoiceTrail, consumeVoicePending } from "@/lib/voice/trail"
+import { cn } from "cn"
 
 type Message = {
   id: string
   role: "user" | "assistant"
   text: string
+  voice?: boolean
   results?: RankedBusiness[]
   guides?: GuideHit[]
   outsideQuery?: string
@@ -34,6 +40,8 @@ export function Assistant() {
   const scope = useNeedScope()
   const blog = useBlog()
   const chips = locale === "tr" ? suggestions : searchSuggestions[locale]
+  const voiceSettings = useSyncExternalStore(subscribeVoice, getVoiceSettings, getServerVoiceSettings)
+  const voiceRef = useRef<VoiceHandle>(null)
   const [draft, setDraft] = useState("")
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -48,13 +56,13 @@ export function Assistant() {
     endRef.current?.scrollIntoView({ block: "end" })
   }, [messages, assistantOpen])
 
-  function ask(text: string) {
+  function ask(text: string, voice = false) {
     const query = text.trim()
-    if (!query) return
+    if (!query) return 0
     const answer = concierge(query, visibleBusinesses, city)
     setMessages((current) => [
       ...current,
-      { id: crypto.randomUUID(), role: "user", text: query },
+      { id: crypto.randomUUID(), role: "user", text: query, voice },
       {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -65,6 +73,22 @@ export function Assistant() {
       },
     ])
     setDraft("")
+    return answer.results.length
+  }
+
+  function askByVoice(text: string) {
+    const count = ask(text, true)
+    // The voice root stages a search trail; the assistant answers in place, so
+    // close that trail here instead of letting the next search screen pick it up.
+    const pending = consumeVoicePending()
+    if (pending) {
+      recordVoice("voice_search_completed", {
+        language: pending.language,
+        queryLength: pending.queryLength,
+        resultCount: count,
+      })
+    }
+    clearVoiceTrail()
   }
 
   if (!assistantOpen) {
@@ -109,7 +133,10 @@ export function Assistant() {
                   : "max-w-[95%] text-sm leading-6"
               }
             >
-              <p>{message.id === "hello" ? t("assist.hello") : message.text}</p>
+              <p className={message.voice ? "flex items-start gap-1.5" : undefined}>
+                {message.voice ? <Mic className="mt-1 size-3.5 shrink-0 opacity-80" aria-label={t("assist.voiceAsked")} /> : null}
+                <span>{message.id === "hello" ? t("assist.hello") : message.text}</span>
+              </p>
               {message.results?.length ? (
                 <div className="mt-2 grid gap-2">
                   {message.results.map((item) => (
@@ -155,26 +182,38 @@ export function Assistant() {
         ) : null}
         <div ref={endRef} />
       </div>
-      <form
-        className="flex gap-2 border-t border-foreground/10 p-3"
-        onSubmit={(event) => {
-          event.preventDefault()
-          ask(draft)
-        }}
-      >
-        <label className="flex-1">
-          <span className="sr-only">{t("assist.open")}</span>
-          <Input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder={t("search.placeholder")}
-            className="h-11"
-          />
-        </label>
-        <Button type="submit" className="h-11 rounded-xl px-4">
-          Sor
-        </Button>
-      </form>
+      <VoiceSearchRoot value={draft} onTranscript={setDraft} onCommit={askByVoice} handleRef={voiceRef}>
+        <form
+          className="flex flex-col gap-2 border-t border-foreground/10 p-3"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (voiceRef.current?.listening) {
+              voiceRef.current.stop()
+              return
+            }
+            ask(draft)
+          }}
+        >
+          <VoicePanel stopLabel={t("assist.voiceStop")} />
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <label>
+                <span className="sr-only">{t("assist.open")}</span>
+                <Input
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder={t("search.placeholder")}
+                  className={cn("h-11", voiceSettings.enabled && "pe-12")}
+                />
+              </label>
+              <VoiceMic label={t("assist.voice")} className="size-9" />
+            </div>
+            <Button type="submit" className="h-11 rounded-xl px-4">
+              Sor
+            </Button>
+          </div>
+        </form>
+      </VoiceSearchRoot>
     </section>
   )
 }
