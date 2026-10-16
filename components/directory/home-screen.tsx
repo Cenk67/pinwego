@@ -7,6 +7,7 @@ import { useGuestGate } from "@/components/auth/guest-gate"
 import { BusinessCard } from "@/components/directory/business-card"
 import { fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
+import { NeedMemoryChips } from "@/components/directory/need-memory-chips"
 import { SearchForm } from "@/components/directory/search-form"
 import { SectorForm } from "@/components/directory/sector-form"
 import { HomeCampaigns } from "@/components/campaigns/home-campaigns"
@@ -63,10 +64,10 @@ export function HomeScreen() {
               {t("home.kicker", { count: catalogCount, sectors: sectors.length })}
             </p>
             <h1 className="mt-3 max-w-full font-heading text-4xl leading-[1.05] text-balance md:max-w-xl md:text-6xl">
-              {t("home.title")}
+              {t("need.hint")}
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
-              {t("home.lead")}
+              {t("need.lead")} {t("home.lead")}
             </p>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">{t("home.original")}</p>
             <p className="mt-3 flex flex-wrap gap-4 text-sm">
@@ -87,6 +88,7 @@ export function HomeScreen() {
                 </Link>
               ))}
             </div>
+            <NeedMemoryChips className="mt-3" />
           </div>
           <MiniMap
             label={place.nearMe ? t("search.near") : `${placeLabel(place)}`}

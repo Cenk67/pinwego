@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { useGuestGate } from "@/components/auth/guest-gate"
 import { contactKinds, visibleContacts, type ContactDraft, type ContactKind } from "@/lib/contacts"
 import type { MessageKey } from "@/lib/messages"
+import { trackNeedContact } from "@/lib/need-client"
 import type { Business } from "@/lib/types"
 import { useLocale } from "@/lib/use-locale"
 
@@ -62,6 +63,7 @@ export function ContactLines({
                 href={item.href}
                 target={item.id === "whatsapp" ? "_blank" : undefined}
                 rel={item.id === "whatsapp" ? "noreferrer" : undefined}
+                onClick={() => trackNeedContact(item.id === "whatsapp" ? "whatsapp" : "telefon")}
               />
             }
           >

@@ -34,7 +34,7 @@ export function SearchForm({
   const router = useRouter()
   const { t } = useLocale()
   const settings = useSyncExternalStore(subscribeVoice, getVoiceSettings, getServerVoiceSettings)
-  const hint = placeholder ?? t("search.placeholder")
+  const hint = placeholder ?? t("need.placeholder")
   const scope = useNeedScope()
   const [value, setValue] = useState(initial)
   const voiceRef = useRef<VoiceHandle>(null)
@@ -96,13 +96,13 @@ export function SearchForm({
           <div className="flex gap-2">
             <PlaceButton className="min-w-0 flex-1 sm:flex-none" />
             <Button type="submit" className="h-12 flex-1 rounded-2xl px-5 sm:flex-none">
-              {t("search.submit")}
+              {t("need.submit")}
             </Button>
           </div>
         </div>
         <VoicePanel />
         <div className="grid gap-2 px-1 pb-1">
-          {large ? <p className="text-sm font-medium">{t("need.hint")}</p> : null}
+          {large ? null : <p className="text-xs text-muted-foreground">{t("need.lead")}</p>}
           <div className="flex flex-wrap gap-2" role="group" aria-label={t("need.scope")}>
             {needScopes.map((item) => (
               <button

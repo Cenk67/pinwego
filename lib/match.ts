@@ -105,7 +105,7 @@ const STOPWORDS = new Set([
   "den",
 ])
 
-const CITIES = ["İstanbul", "Ankara", "İzmir", "Antalya", "Bursa", "Zonguldak"]
+export const CITIES = ["İstanbul", "Ankara", "İzmir", "Antalya", "Bursa", "Zonguldak"]
 
 export type ParsedQuery = {
   raw: string
@@ -469,7 +469,8 @@ export function searchDirectory(
       score -= Math.min(km, 40) * 0.04
     }
 
-    if (business.premium) score += 0.35
+    // A sponsored listing only gets its nudge inside its own category; it never climbs over an unrelated organic match.
+    if (business.premium && (!hasIntent || !parsed.category || parsed.category === business.category)) score += 0.35
     if (business.verified) score += 0.15
     score += Math.min(business.reviewCount, 400) / 400
 

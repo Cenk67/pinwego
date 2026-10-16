@@ -67,7 +67,7 @@ export function BusinessCard({
             </span>
             {business.premium ? (
               <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
-                {t("card.featured")}
+                {t("card.sponsored")}
               </span>
             ) : null}
           </div>

@@ -3,12 +3,13 @@
 import Link from "next/link"
 import { SlidersHorizontal } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { GuideList } from "@/components/blog/guide-list"
 import { useBlog } from "@/components/blog/blog-context"
 import { publicArticles, searchGuides } from "@/lib/blog"
 import { BusinessCard } from "@/components/directory/business-card"
 import { MiniMap } from "@/components/directory/mini-map"
+import { NeedAlternatives, NeedBrief, NeedFeedback } from "@/components/directory/need-brief"
 import { SearchForm } from "@/components/directory/search-form"
 import { VoiceTrail } from "@/components/directory/voice-search"
 import { DiscoverOffer } from "@/components/discover/discover-offer"
@@ -27,6 +28,9 @@ import { cityCenter } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { discoverQuery, showDiscover } from "@/lib/discover"
 import { useDiscoverSettings } from "@/lib/discover-store"
+import { needIntent } from "@/lib/need"
+import { rememberNeedContext, trackNeed } from "@/lib/need-client"
+import { rememberNeed } from "@/lib/need-memory"
 import { useNeedScope } from "@/lib/need-scope"
 import { defaultFilters, parseQuery, searchDirectory } from "@/lib/match"
 import { applyPlace, placeLabel } from "@/lib/place"
@@ -35,6 +39,7 @@ import type { CategoryId, SortKey } from "@/lib/types"
 import { useMinute } from "@/components/directory/hours-view"
 import { liveList } from "@/lib/hours"
 import { useLocale } from "@/lib/use-locale"
+import { getVoiceTrail, voiceQueryMark } from "@/lib/voice/trail"
 
 export function SearchScreen() {
   const params = useSearchParams()
@@ -138,6 +143,24 @@ export function SearchScreen() {
 
   const activeCount = [kategori !== "hepsi", minRating > 0, maxPrice < 4, openNow, verified, premium].filter(Boolean).length
   const visible = results.slice(0, limit)
+  const hasPlace = Boolean(parsed.city || parsed.district || params.get("sehir")) || place.nearMe
+  const intent = query ? needIntent(parsed.text) : "isletme"
+  const needCity = namedCity && namedCity !== "hepsi" ? namedCity : place.nearMe ? "" : place.province
+  const needCategory = parsed.category ?? ""
+  const stage = !results.length ? "zero" : parsed.changes.length ? "corrected" : scoped.widened ? "nearby" : "direct"
+
+  useEffect(() => {
+    if (!query.trim()) return
+    const voice = getVoiceTrail()?.mark === voiceQueryMark(query)
+    rememberNeedContext(query, needCategory, needCity)
+    rememberNeed(query)
+    trackNeed(
+      { kind: "search", q: query, category: needCategory, city: needCity, count: results.length, voice, stage, intent },
+      `search.${query}.${needCity}`,
+    )
+    // Only a new sentence or city should count as a new search; result churn from filters should not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, needCity])
 
   const filters = (
     <div className="grid gap-4">
@@ -240,8 +263,20 @@ export function SearchScreen() {
   const safeQuery = discoverQuery(query)
   const thin = showDiscover(results.length, discoverSettings, Boolean(safeQuery))
   const showOutside = Boolean(safeQuery) && discoverSettings.enabled && scope !== "pinwego" && (thin || scope === "rehber")
-  const guideHits = Boolean(safeQuery) && (thin || scope === "rehber") ? searchGuides(publicArticles(blog.document), query) : []
-  const guideList = guideHits.length ? <GuideList hits={guideHits} /> : null
+  const guideHits = Boolean(safeQuery) && (thin || scope === "rehber" || intent === "bilgi") ? searchGuides(publicArticles(blog.document), query) : []
+  const guideList = guideHits.length ? (
+    <GuideList hits={guideHits} onOpen={() => trackNeed({ kind: "guide", q: query, category: needCategory, city: needCity })} />
+  ) : null
+  const alternatives = query && results.length < 3 ? (
+    <NeedAlternatives
+      parsed={parsed}
+      sectors={sectors}
+      catalog={catalog}
+      city={sehir}
+      active={kategori}
+      onPick={(id) => update({ kategori: id })}
+    />
+  ) : null
   const discoverOffer = showOutside ? (
     <DiscoverOffer
       query={safeQuery}
@@ -272,6 +307,7 @@ export function SearchScreen() {
             update({ q: value || null, sehir: null, kategori: null })
           }}
         />
+        <NeedBrief parsed={parsed} sectors={sectors} count={results.length} widened={scoped.widened} hasPlace={hasPlace} onPatch={update} />
       </div>
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -335,6 +371,7 @@ export function SearchScreen() {
               <MiniMap label={t("search.resultsLabel")} points={results.slice(0, 30).map((item) => item.business)} focus={place} />
             </div>
           ) : null}
+          {intent === "bilgi" && visible.length ? <div className="mb-4">{guideList}</div> : null}
           {visible.length ? (
             <div className="grid gap-4">
               {visible.map((item) => (
@@ -349,11 +386,12 @@ export function SearchScreen() {
             </div>
           ) : (
             <>
+              {alternatives}
               {guideList}
               {discoverOffer}
               <div className="rounded-3xl bg-card px-5 py-10 ring-1 ring-foreground/10">
-              <h2 className="font-heading text-2xl">{t("search.emptyTitle")}</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("search.emptyBody")}</p>
+              <h2 className="font-heading text-2xl">{query ? t("need.zeroTitle") : t("search.emptyTitle")}</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{query ? t("need.zeroBody") : t("search.emptyBody")}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   type="button"
@@ -382,8 +420,10 @@ export function SearchScreen() {
           ) : null}
           {results.length > 0 ? (
             <>
-              {guideList}
+              {alternatives}
+              {intent === "bilgi" ? null : guideList}
               {discoverOffer}
+              <NeedFeedback query={query} category={needCategory} city={needCity} />
             </>
           ) : null}
         </div>

@@ -9,6 +9,7 @@ import { MarkedPhoto } from "@/components/directory/marked-photo"
 import { categoryById, cityCenter } from "@/lib/catalog"
 import { distanceKm, formatDistance, formatTry } from "@/lib/format"
 import { galleryCaption } from "@/lib/gallery-mark"
+import { trackNeedContact } from "@/lib/need-client"
 import {
   activeGallery,
   activeServices,
@@ -54,7 +55,7 @@ export function ShortRead({
           ))}
         </ul>
       ) : null}
-      <Button type="button" className="mt-4 h-11 rounded-xl" onClick={onBook}>
+      <Button type="button" className="mt-4 h-11 rounded-xl" onClick={() => { trackNeedContact("randevu"); onBook() }}>
         {business.booking === "randevu" ? "Randevu al" : business.booking === "rezervasyon" ? "Rezervasyon" : "Teklif iste"}
       </Button>
     </section>

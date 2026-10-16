@@ -11,6 +11,7 @@ import { publicArticles, searchGuides, type GuideHit } from "@/lib/blog"
 import { suggestions } from "@/lib/catalog"
 import { mapsSearchUrl, videoSearchUrl, webSearchUrl, type DiscoverEventType } from "@/lib/discover"
 import { recordDiscoverEvent } from "@/lib/discover-store"
+import { trackNeed } from "@/lib/need-client"
 import { searchSuggestions } from "@/lib/i18n"
 import { useDirectory } from "@/lib/directory-context"
 import { formatRating } from "@/lib/format"
@@ -196,7 +197,10 @@ function OutsideLinks({ query, city }: { query: string; city: string }) {
           href={item.href}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={() => recordDiscoverEvent({ type: item.type, q: query, city })}
+          onClick={() => {
+            recordDiscoverEvent({ type: item.type, q: query, city })
+            trackNeed({ kind: "external", q: query, city, target: item.type === "maps_click" ? "maps" : item.type === "video_click" ? "video" : "web" })
+          }}
           className="rounded-full bg-secondary px-3 py-1.5 text-xs"
         >
           {item.label}

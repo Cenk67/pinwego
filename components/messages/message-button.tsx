@@ -7,6 +7,7 @@ import { useGuestGate } from "@/components/auth/guest-gate"
 import { useAuth } from "@/lib/auth-context"
 import { useMessages } from "@/lib/message-context"
 import { ownsListing } from "@/lib/message-store"
+import { trackNeedContact } from "@/lib/need-client"
 import type { Business } from "@/lib/types"
 import { cn } from "cn"
 
@@ -32,6 +33,7 @@ export function MessageButton({
         return
       }
       const thread = openWithBusiness(business)
+      if (thread) trackNeedContact("mesaj")
       if (thread) router.push(`/mesajlar?konusma=${encodeURIComponent(thread.id)}`)
     })
   }
