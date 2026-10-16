@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { discoverCity, discoverPath, discoverQuery, mapsSearchUrl, registerDraftPath, type DiscoverPlace, type DiscoverReason } from "@/lib/discover"
+import { discoverCity, discoverPath, discoverQuery, mapsSearchUrl, registerDraftPath, videoSearchUrl, webSearchUrl, type DiscoverPlace, type DiscoverReason } from "@/lib/discover"
 import { recordDiscoverEvent, rememberDiscoverLead, useDiscoverSettings } from "@/lib/discover-store"
 import { useLocale } from "@/lib/use-locale"
 
@@ -27,6 +27,8 @@ export function DiscoverScreen() {
     setDraft(query)
   }
   const maps = settings.maps ? mapsSearchUrl(query, city) : ""
+  const web = webSearchUrl(query, city)
+  const video = videoSearchUrl(query, city)
   const idle: Loaded | null = !query
     ? { ok: false, reason: "invalid", places: [] }
     : !settings.places
@@ -115,6 +117,16 @@ export function DiscoverScreen() {
         {maps ? (
           <Button className="h-11 rounded-full" nativeButton={false} render={<a href={maps} target="_blank" rel="noopener noreferrer" onClick={() => recordDiscoverEvent({ type: "maps_click", q: query, city })} />}>
             {t("discover.allMaps")}
+          </Button>
+        ) : null}
+        {web ? (
+          <Button variant="outline" className="h-11 rounded-full" nativeButton={false} render={<a href={web} target="_blank" rel="noopener noreferrer" onClick={() => recordDiscoverEvent({ type: "web_click", q: query, city })} />}>
+            {t("discover.web")}
+          </Button>
+        ) : null}
+        {video ? (
+          <Button variant="outline" className="h-11 rounded-full" nativeButton={false} render={<a href={video} target="_blank" rel="noopener noreferrer" onClick={() => recordDiscoverEvent({ type: "video_click", q: query, city })} />}>
+            {t("discover.video")}
           </Button>
         ) : null}
         <Button variant="outline" className="h-11 rounded-full" nativeButton={false} render={<Link href="/ara" />}>

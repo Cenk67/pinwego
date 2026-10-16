@@ -9,6 +9,7 @@ import {
   postProblem,
   programmaticPosts,
   publicArticles,
+  searchGuides,
   removePost,
   savePost,
   type BlogPost,
@@ -78,6 +79,17 @@ test("admin can hide a generated page and add a post with an image", () => {
   assert.equal(saved.error, null)
   const next = assembleBlog(saved.state, businesses, sectors)
   assert.equal(findArticle(next, "rehber", "secim", "yeni-not")?.title, "Yeni not")
+})
+
+test("assistant guide search stays on published Pinwego posts", () => {
+  const document = assembleBlog(emptyBlogState(), [], sectors)
+  const breakfast = searchGuides(publicArticles(document), "Kahvaltı yeri nasıl seçilir")
+  assert.equal(breakfast[0]?.href, "/blog/rehber/secim/kahvalti-yeri-nasil-secilir")
+  const plumber = searchGuides(publicArticles(document), "Tesisat teklifinde ne olmalı")
+  assert.equal(plumber.some((item) => item.href.endsWith("/usta-teklifinde-ne-olmali")), true)
+  const hidden = document.articles.map((article) => ({ ...article, published: false }))
+  assert.equal(searchGuides(hidden, "Kahvaltı yeri nasıl seçilir").length, 0)
+  assert.equal(searchGuides(publicArticles(document), "zzzz qqqq").length, 0)
 })
 
 function business(category: string, city: string, district: string, slug: string): Business {

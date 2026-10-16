@@ -1,4 +1,5 @@
-import { slugifyKey } from "./format"
+import { fold, slugifyKey } from "./format"
+import { correctNeedText, matchNeed } from "./need"
 import type { Business } from "./types"
 
 function blogSlug(value: string) {
@@ -178,6 +179,75 @@ export function assembleBlog(state: BlogState, businesses: Business[], sectors: 
 
 export function publicArticles(document: BlogDocument) {
   return document.articles.filter((article) => article.published)
+}
+
+export type GuideHit = {
+  id: string
+  title: string
+  description: string
+  href: string
+}
+
+const GUIDE_STOP = new Set([
+  "icin",
+  "bir",
+  "veya",
+  "ile",
+  "gibi",
+  "var",
+  "yok",
+  "nasil",
+  "olan",
+  "iste",
+  "istiyorum",
+  "ariyorum",
+  "lutfen",
+  "burada",
+  "kadar",
+  "sonra",
+  "once",
+  "evim",
+  "benim",
+  "icin",
+])
+
+export function searchGuides(articles: BlogArticle[], query: string, limit = 3): GuideHit[] {
+  const text = correctNeedText(fold(query))
+  const tokens = text.split(" ").filter((token) => token.length >= 4 && !GUIDE_STOP.has(token))
+  const need = matchNeed(text)
+  if (need && !tokens.includes(need.focus)) tokens.push(need.focus)
+  if (!tokens.length) return []
+  const ranked = articles
+    .filter((article) => article.published)
+    .map((article) => ({ article, score: guideScore(article, tokens) }))
+    .filter((item) => item.score >= 4)
+    .sort((a, b) => b.score - a.score || b.article.updatedAt.localeCompare(a.article.updatedAt))
+    .slice(0, limit)
+  return ranked.map(({ article }) => ({
+    id: article.id,
+    title: article.title,
+    description: article.description,
+    href: articlePath(article),
+  }))
+}
+
+function guideScore(article: BlogArticle, tokens: string[]) {
+  const title = fold(article.title)
+  const description = fold(article.description)
+  const category = fold(`${article.categoryName} ${article.subcategoryName}`)
+  const body = fold(article.body)
+  let score = article.kind === "editorial" ? 1 : 0
+  for (const token of tokens) {
+    if (guideHit(title, token)) score += 6
+    if (guideHit(description, token)) score += 4
+    if (guideHit(category, token)) score += 3
+    if (guideHit(body, token)) score += 1
+  }
+  return score
+}
+
+function guideHit(field: string, token: string) {
+  return field.split(" ").some((word) => word === token || (token.length >= 5 && word.startsWith(token)))
 }
 
 export function stripArticles(document: BlogDocument, limit = 12) {

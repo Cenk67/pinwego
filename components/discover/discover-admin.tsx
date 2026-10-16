@@ -33,6 +33,8 @@ export function DiscoverAdmin() {
           ["Places isteği", requests],
           ["Places sonucu", results],
           ["Haritalar tıklaması", count(events, "maps_click")],
+          ["Web araması", count(events, "web_click")],
+          ["Video araması", count(events, "video_click")],
           ["Kayıt sayfası", count(events, "register_click")],
           ["Kayıt oluştu", count(events, "register_done")],
         ].map(([label, value]) => (

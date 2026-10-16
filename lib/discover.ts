@@ -32,7 +32,7 @@ export const defaultDiscoverSettings: DiscoverSettings = {
   registerPath: "/listele",
 }
 
-export type DiscoverEventType = "pinwego_miss" | "places_request" | "places_result" | "maps_click" | "register_click" | "register_done"
+export type DiscoverEventType = "pinwego_miss" | "places_request" | "places_result" | "maps_click" | "web_click" | "video_click" | "register_click" | "register_done"
 
 export type DiscoverEvent = {
   type: DiscoverEventType
@@ -74,6 +74,18 @@ export function mapsSearchUrl(query: string, city: string) {
   const text = mapsQuery(query, city)
   if (!text) return ""
   return `${DISCOVER_ORIGIN}?api=1&query=${encodeURIComponent(text)}`
+}
+
+export function webSearchUrl(query: string, city: string) {
+  const text = mapsQuery(query, city)
+  if (!text) return ""
+  return `https://www.google.com/search?q=${encodeURIComponent(text)}`
+}
+
+export function videoSearchUrl(query: string, city: string) {
+  const text = mapsQuery(query, city)
+  if (!text) return ""
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(text)}`
 }
 
 export function discoverPath(query: string, city: string) {

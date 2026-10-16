@@ -9,6 +9,7 @@ import {
   formatResponse,
 } from "@/lib/format"
 import { allSectors } from "@/lib/sectors"
+import { correctNeedText, matchNeed } from "@/lib/need"
 import { isWorldPhrase, worldAliases, worldFocus } from "@/lib/world-query"
 import type { Business, CategoryId, Filters } from "@/lib/types"
 
@@ -227,7 +228,7 @@ function knownPlaces(list: Business[]) {
 
 export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
   const raw = query.trim()
-  const text = fold(raw)
+  const text = correctNeedText(fold(raw))
   const tokens = text.split(" ").filter(Boolean)
   const places = knownPlaces(list)
 
@@ -267,6 +268,10 @@ export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
     const next = { id: group.id, score, focus: hits }
     if (!winners.length || score > winners[0].score) winners = [next]
     else if (score === winners[0].score) winners.push(next)
+  }
+  if (!winners.length) {
+    const need = matchNeed(text)
+    if (need) winners = [{ id: need.category, score: 1, focus: [need.focus] }]
   }
   const category = winners.length === 1 ? winners[0].id : undefined
   const categories = winners.map((item) => item.id)
@@ -504,6 +509,7 @@ export function concierge(
     return {
       text: "Bu tarife yakın kayıt zayıf. Semti ya da işi biraz daha açık yazar mısın?",
       results: results.filter((item) => item.score > 1),
+      outside: true,
     }
   }
 

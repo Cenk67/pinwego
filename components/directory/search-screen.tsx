@@ -4,6 +4,9 @@ import Link from "next/link"
 import { SlidersHorizontal } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useMemo, useState } from "react"
+import { GuideList } from "@/components/blog/guide-list"
+import { useBlog } from "@/components/blog/blog-context"
+import { publicArticles, searchGuides } from "@/lib/blog"
 import { BusinessCard } from "@/components/directory/business-card"
 import { MiniMap } from "@/components/directory/mini-map"
 import { SearchForm } from "@/components/directory/search-form"
@@ -24,6 +27,7 @@ import { cityCenter } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { discoverQuery, showDiscover } from "@/lib/discover"
 import { useDiscoverSettings } from "@/lib/discover-store"
+import { useNeedScope } from "@/lib/need-scope"
 import { defaultFilters, parseQuery, searchDirectory } from "@/lib/match"
 import { applyPlace, placeLabel } from "@/lib/place"
 import { sectorCopy } from "@/lib/sector-copy"
@@ -39,6 +43,8 @@ export function SearchScreen() {
   const { place, sectors, visibleBusinesses } = useDirectory()
   const { locale, t } = useLocale()
   const discoverSettings = useDiscoverSettings()
+  const scope = useNeedScope()
+  const blog = useBlog()
   const sorts: { id: SortKey; label: string }[] = [
     { id: "ilgili", label: t("search.sortRelevant") },
     { id: "puan", label: t("search.sortRating") },
@@ -83,6 +89,8 @@ export function SearchScreen() {
     [namedCity, place],
   )
   const scoped = useMemo(() => {
+    const nearest = <T extends { distanceKm: number }>(items: T[]) =>
+      [...items].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 8)
     const ranked = searchDirectory(
       catalog,
       query,
@@ -119,9 +127,13 @@ export function SearchScreen() {
       )
       const local = namedCity && !place.nearMe ? { items: relaxed, widened: false } : applyPlace(relaxed, place)
       if (local.items.length) return { ...local, adsFilled: true as const }
+      if (relaxed.length && parsed.category) return { items: nearest(relaxed), widened: true, adsFilled: true as const }
+    }
+    if (!placed.items.length && ranked.length && parsed.category) {
+      return { items: nearest(ranked), widened: true, adsFilled: false as const }
     }
     return { ...placed, adsFilled: false as const }
-  }, [catalog, query, sehir, kategori, minRating, maxPrice, openNow, verified, premium, sort, origin, namedCity, place])
+  }, [catalog, query, sehir, kategori, minRating, maxPrice, openNow, verified, premium, sort, origin, namedCity, place, parsed.category])
   const results = scoped.items
 
   const activeCount = [kategori !== "hepsi", minRating > 0, maxPrice < 4, openNow, verified, premium].filter(Boolean).length
@@ -226,8 +238,17 @@ export function SearchScreen() {
   )
 
   const safeQuery = discoverQuery(query)
-  const discoverOffer = showDiscover(results.length, discoverSettings, Boolean(safeQuery)) ? (
-    <DiscoverOffer query={safeQuery} city={namedCity && namedCity !== "hepsi" ? namedCity : ""} count={results.length} />
+  const thin = showDiscover(results.length, discoverSettings, Boolean(safeQuery))
+  const showOutside = Boolean(safeQuery) && discoverSettings.enabled && scope !== "pinwego" && (thin || scope === "rehber")
+  const guideHits = Boolean(safeQuery) && (thin || scope === "rehber") ? searchGuides(publicArticles(blog.document), query) : []
+  const guideList = guideHits.length ? <GuideList hits={guideHits} /> : null
+  const discoverOffer = showOutside ? (
+    <DiscoverOffer
+      query={safeQuery}
+      city={namedCity && namedCity !== "hepsi" ? namedCity : place.nearMe ? "" : place.province}
+      count={results.length}
+      guides={scope === "rehber" && !thin}
+    />
   ) : null
 
   return (
@@ -328,6 +349,7 @@ export function SearchScreen() {
             </div>
           ) : (
             <>
+              {guideList}
               {discoverOffer}
               <div className="rounded-3xl bg-card px-5 py-10 ring-1 ring-foreground/10">
               <h2 className="font-heading text-2xl">{t("search.emptyTitle")}</h2>
@@ -358,7 +380,12 @@ export function SearchScreen() {
               {t("search.more", { count: results.length - limit })}
             </Button>
           ) : null}
-          {results.length > 0 ? discoverOffer : null}
+          {results.length > 0 ? (
+            <>
+              {guideList}
+              {discoverOffer}
+            </>
+          ) : null}
         </div>
         <aside className="hidden lg:block">
           <div className="sticky top-24">

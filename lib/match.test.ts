@@ -39,4 +39,15 @@ assert.equal(cleaning[0]?.business.slug, "baskent-ofis-temizlik")
 assert.ok(cleaning.every((item) => item.business.category === "temizlik"))
 assert.equal(parseQuery("Çankaya ofis temizliği", businesses).category, "temizlik")
 
+const heat = parseQuery("Kışın evim sıcak olmuyor", businesses)
+assert.equal(heat.category, "enerji")
+const heatHits = searchDirectory(businesses, "Kışın evim sıcak olmuyor", { ...defaultFilters, sehir: "hepsi" })
+assert.ok(heatHits.length > 0)
+assert.ok(heatHits.every((item) => item.business.category === "enerji"))
+assert.equal(heatHits[0]?.business.slug, "bornova-kombi")
+
+assert.equal(parseQuery("sigrota ariyorum", businesses).category, "finans")
+assert.equal(parseQuery("Evimin su tesisatı patladı", businesses).category, "usta")
+assert.equal(parseQuery("Kadıköy'de çocukla gidilecek akşam yemeği", businesses).category, "yeme")
+
 console.log("tüm örnek aramalar beklenen kaydı seçti")

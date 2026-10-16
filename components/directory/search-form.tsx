@@ -7,11 +7,18 @@ import { PlaceButton } from "@/components/directory/place-picker"
 import { VoiceMic, VoicePanel, VoiceSearchRoot, type VoiceHandle } from "@/components/directory/voice-search"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { needScopes, saveNeedScope, useNeedScope, type NeedScope } from "@/lib/need-scope"
 import { voiceSearchPath, type VoicePatch } from "@/lib/voice/intent"
 import { getServerVoiceSettings, getVoiceSettings, subscribeVoice } from "@/lib/voice/settings"
 import { clearVoiceTrail } from "@/lib/voice/trail"
 import { useLocale } from "@/lib/use-locale"
 import { cn } from "cn"
+
+const scopeKey: Record<NeedScope, "need.scopeAll" | "need.scopePinwego" | "need.scopeGuide"> = {
+  hepsi: "need.scopeAll",
+  pinwego: "need.scopePinwego",
+  rehber: "need.scopeGuide",
+}
 
 export function SearchForm({
   initial = "",
@@ -28,6 +35,7 @@ export function SearchForm({
   const { t } = useLocale()
   const settings = useSyncExternalStore(subscribeVoice, getVoiceSettings, getServerVoiceSettings)
   const hint = placeholder ?? t("search.placeholder")
+  const scope = useNeedScope()
   const [value, setValue] = useState(initial)
   const voiceRef = useRef<VoiceHandle>(null)
 
@@ -93,6 +101,26 @@ export function SearchForm({
           </div>
         </div>
         <VoicePanel />
+        <div className="grid gap-2 px-1 pb-1">
+          {large ? <p className="text-sm font-medium">{t("need.hint")}</p> : null}
+          <div className="flex flex-wrap gap-2" role="group" aria-label={t("need.scope")}>
+            {needScopes.map((item) => (
+              <button
+                key={item}
+                type="button"
+                aria-pressed={scope === item}
+                onClick={() => saveNeedScope(item)}
+                className={
+                  scope === item
+                    ? "rounded-full bg-primary px-3 py-1.5 text-left text-xs text-primary-foreground"
+                    : "rounded-full bg-secondary px-3 py-1.5 text-left text-xs"
+                }
+              >
+                {t(scopeKey[item])}
+              </button>
+            ))}
+          </div>
+        </div>
       </form>
     </VoiceSearchRoot>
   )

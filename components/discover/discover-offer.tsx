@@ -3,16 +3,30 @@
 import Link from "next/link"
 import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { discoverPath, mapsSearchUrl } from "@/lib/discover"
+import { discoverPath, mapsSearchUrl, videoSearchUrl, webSearchUrl } from "@/lib/discover"
 import { recordDiscoverEvent, rememberDiscoverLead, useDiscoverSettings } from "@/lib/discover-store"
 import { useLocale } from "@/lib/use-locale"
 
-export function DiscoverOffer({ query, city, count }: { query: string; city: string; count: number }) {
+export function DiscoverOffer({
+  query,
+  city,
+  count,
+  guides = false,
+}: {
+  query: string
+  city: string
+  count: number
+  guides?: boolean
+}) {
   const { t } = useLocale()
   const settings = useDiscoverSettings()
   const maps = settings.maps ? mapsSearchUrl(query, city) : ""
+  const web = webSearchUrl(query, city)
+  const video = videoSearchUrl(query, city)
   const discover = discoverPath(query, city)
   const register = `${settings.registerPath.startsWith("/") ? settings.registerPath : "/listele"}`
+  const title = guides ? t("discover.guideTitle") : count === 0 ? t("discover.missTitle") : t("discover.thinTitle")
+  const body = guides ? t("discover.guideBody") : count === 0 ? t("discover.missBody") : t("discover.thinBody")
 
   useEffect(() => {
     if (count !== 0) return
@@ -21,8 +35,8 @@ export function DiscoverOffer({ query, city, count }: { query: string; city: str
 
   return (
     <section className="my-4 rounded-3xl bg-card px-5 py-5 ring-1 ring-foreground/10">
-      <h2 className="font-heading text-2xl">{count === 0 ? t("discover.missTitle") : t("discover.thinTitle")}</h2>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">{count === 0 ? t("discover.missBody") : t("discover.thinBody")}</p>
+      <h2 className="font-heading text-2xl">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         {maps ? (
           <Button
@@ -31,6 +45,26 @@ export function DiscoverOffer({ query, city, count }: { query: string; city: str
             render={<a href={maps} target="_blank" rel="noopener noreferrer" onClick={() => recordDiscoverEvent({ type: "maps_click", q: query, city })} />}
           >
             {t("discover.maps")}
+          </Button>
+        ) : null}
+        {web ? (
+          <Button
+            variant="outline"
+            className="h-11 rounded-full"
+            nativeButton={false}
+            render={<a href={web} target="_blank" rel="noopener noreferrer" onClick={() => recordDiscoverEvent({ type: "web_click", q: query, city })} />}
+          >
+            {t("discover.web")}
+          </Button>
+        ) : null}
+        {video ? (
+          <Button
+            variant="outline"
+            className="h-11 rounded-full"
+            nativeButton={false}
+            render={<a href={video} target="_blank" rel="noopener noreferrer" onClick={() => recordDiscoverEvent({ type: "video_click", q: query, city })} />}
+          >
+            {t("discover.video")}
           </Button>
         ) : null}
         {settings.places ? (

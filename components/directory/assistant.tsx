@@ -5,11 +5,17 @@ import { Sparkles, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { GuideList } from "@/components/blog/guide-list"
+import { useBlog } from "@/components/blog/blog-context"
+import { publicArticles, searchGuides, type GuideHit } from "@/lib/blog"
 import { suggestions } from "@/lib/catalog"
+import { mapsSearchUrl, videoSearchUrl, webSearchUrl, type DiscoverEventType } from "@/lib/discover"
+import { recordDiscoverEvent } from "@/lib/discover-store"
 import { searchSuggestions } from "@/lib/i18n"
 import { useDirectory } from "@/lib/directory-context"
 import { formatRating } from "@/lib/format"
 import { concierge, type RankedBusiness } from "@/lib/match"
+import { useNeedScope } from "@/lib/need-scope"
 import { useLocale } from "@/lib/use-locale"
 
 type Message = {
@@ -17,11 +23,15 @@ type Message = {
   role: "user" | "assistant"
   text: string
   results?: RankedBusiness[]
+  guides?: GuideHit[]
+  outsideQuery?: string
 }
 
 export function Assistant() {
   const { assistantOpen, setAssistantOpen, visibleBusinesses, city } = useDirectory()
   const { locale, t } = useLocale()
+  const scope = useNeedScope()
+  const blog = useBlog()
   const chips = locale === "tr" ? suggestions : searchSuggestions[locale]
   const [draft, setDraft] = useState("")
   const [messages, setMessages] = useState<Message[]>([
@@ -49,6 +59,8 @@ export function Assistant() {
         role: "assistant",
         text: answer.text,
         results: answer.results,
+        guides: searchGuides(publicArticles(blog.document), query),
+        outsideQuery: "outside" in answer && answer.outside ? query : undefined,
       },
     ])
     setDraft("")
@@ -117,6 +129,12 @@ export function Assistant() {
                   ))}
                 </div>
               ) : null}
+              {message.guides?.length ? (
+                <GuideList hits={message.guides} onOpen={() => setAssistantOpen(false)} />
+              ) : null}
+              {message.outsideQuery && scope !== "pinwego" ? (
+                <OutsideLinks query={message.outsideQuery} city={city} />
+              ) : null}
             </div>
           </div>
         ))}
@@ -157,5 +175,33 @@ export function Assistant() {
         </Button>
       </form>
     </section>
+  )
+}
+
+function OutsideLinks({ query, city }: { query: string; city: string }) {
+  const { t } = useLocale()
+  const links: { href: string; label: string; type: DiscoverEventType }[] = []
+  const maps = mapsSearchUrl(query, city)
+  const web = webSearchUrl(query, city)
+  const video = videoSearchUrl(query, city)
+  if (maps) links.push({ href: maps, label: t("discover.maps"), type: "maps_click" })
+  if (web) links.push({ href: web, label: t("discover.web"), type: "web_click" })
+  if (video) links.push({ href: video, label: t("discover.video"), type: "video_click" })
+  if (!links.length) return null
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {links.map((item) => (
+        <a
+          key={item.type}
+          href={item.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => recordDiscoverEvent({ type: item.type, q: query, city })}
+          className="rounded-full bg-secondary px-3 py-1.5 text-xs"
+        >
+          {item.label}
+        </a>
+      ))}
+    </div>
   )
 }
