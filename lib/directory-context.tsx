@@ -11,7 +11,8 @@ import {
 import { allBusinesses } from "@/lib/catalog"
 import { keepListingMedia } from "@/lib/listing-media"
 import { defaultPlace, isPlace, placeFromCity, type Place } from "@/lib/place"
-import { allSectors, isSector, normalizeSector, seedSectors, setCustomSectors } from "@/lib/sectors"
+import { isSector, rootSectors } from "@/lib/sectors"
+import { applyRemap, businessCategoryIds, isActive, liveTaxonomy, readPublicNodes, setLiveTaxonomy, type TaxonomyNode } from "@/lib/taxonomy"
 import type { Business, BusinessOverride, Lead, Sector } from "@/lib/types"
 
 type Persisted = {
@@ -51,8 +52,8 @@ function readStorage(): Persisted {
     const data = JSON.parse(raw) as Partial<Persisted>
     const city = typeof data.city === "string" ? data.city : emptyState.city
     const place = isPlace(data.place) ? data.place : placeFromCity(city)
+    // Browser-local sectors from the old flow are kept only so an admin can move them to the server.
     const sectors = Array.isArray(data.sectors) ? data.sectors.filter(isSector).filter((item) => item.custom) : []
-    setCustomSectors(sectors)
     const businessOverrides =
       data.businessOverrides && typeof data.businessOverrides === "object" && !Array.isArray(data.businessOverrides)
         ? (data.businessOverrides as Record<string, BusinessOverride>)
@@ -146,7 +147,6 @@ function commit(next: Persisted) {
     businessOverrides: next.businessOverrides ?? {},
   }
   loaded = true
-  setCustomSectors(sectors)
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(leanState(memory)))
   } catch {
@@ -168,14 +168,22 @@ function decorateBusiness(business: Business, overrides: Record<string, Business
   return patch ? keepListingMedia(business, { ...business, ...patch }) : business
 }
 
-function isHiddenBusiness(business: Business, hidden: string[], hiddenSectors: string[], remoteHidden: string[]) {
+function isHiddenBusiness(business: Business, hidden: string[], remoteHidden: string[]) {
   return (
     hidden.includes(business.id) ||
     hidden.includes(business.slug) ||
     remoteHidden.includes(business.id) ||
     remoteHidden.includes(business.slug) ||
-    hiddenSectors.includes(business.category)
+    !sectorVisible(business)
   )
+}
+
+/** A record stays visible while at least one of its sectors is active; unknown ids never hide it. */
+function sectorVisible(business: Business) {
+  const nodes = liveTaxonomy()
+  const ids = businessCategoryIds(business)
+  const known = ids.filter((id) => nodes.some((node) => node.id === id))
+  return known.length === 0 || known.some((id) => isActive(nodes, id))
 }
 
 function useHydrated() {
@@ -190,6 +198,9 @@ type Snapshot = Persisted & {
   remoteListings: Business[]
   remoteHiddenIds: string[]
   remoteReady: boolean
+  taxonomy: TaxonomyNode[]
+  remap: Record<string, string>
+  taxonomyReady: boolean
 }
 
 const serverSnapshot: Snapshot = {
@@ -197,13 +208,36 @@ const serverSnapshot: Snapshot = {
   remoteListings: [],
   remoteHiddenIds: [],
   remoteReady: false,
+  taxonomy: [],
+  remap: {},
+  taxonomyReady: false,
 }
 
 let remoteListings: Business[] = []
 let remoteHiddenIds: string[] = []
 let remoteReady = false
 let remoteStarted = false
+let taxonomy: TaxonomyNode[] = []
+let remap: Record<string, string> = {}
+let taxonomyReady = false
 let snapshot: Snapshot = serverSnapshot
+
+function readRemap(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  const out: Record<string, string> = {}
+  for (const [from, to] of Object.entries(value as Record<string, unknown>)) if (typeof to === "string") out[from] = to
+  return out
+}
+
+/** Installs a tree received from the server (initial load or an admin edit) and re-renders. */
+export function installTaxonomy(nodes: TaxonomyNode[] | null, nextRemap: Record<string, string> = remap) {
+  taxonomy = nodes ?? liveTaxonomy()
+  remap = nextRemap
+  taxonomyReady = true
+  setLiveTaxonomy(nodes)
+  rebuild()
+  listeners.forEach((listener) => listener())
+}
 
 function isListingRow(value: unknown): value is Business {
   if (!value || typeof value !== "object") return false
@@ -221,12 +255,16 @@ function isListingRow(value: unknown): value is Business {
 }
 
 function rebuild() {
-  snapshot = { ...memory, remoteListings, remoteHiddenIds, remoteReady }
+  snapshot = { ...memory, remoteListings, remoteHiddenIds, remoteReady, taxonomy, remap, taxonomyReady }
 }
 
 function startRemote() {
   if (remoteStarted || typeof fetch !== "function") return
   remoteStarted = true
+  void fetch("/api/sektor", { credentials: "include" })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data: { nodes?: unknown; remap?: unknown } | null) => installTaxonomy(readPublicNodes(data?.nodes), readRemap(data?.remap)))
+    .catch(() => installTaxonomy(null))
   void fetch("/api/ilan", { credentials: "include" })
     .then((response) => (response.ok ? response.json() : null))
     .then((data) => {
@@ -272,12 +310,15 @@ type DirectoryState = {
   visibleBusinesses: Business[]
   managedBusinesses: Business[]
   remoteReady: boolean
+  /** Active top-level sectors for strips, chips and filters. */
   sectors: Sector[]
-  managedSectors: Sector[]
-  addSector: (draft: Partial<Sector>) => Sector | null
-  removeSector: (id: string) => void
-  hideSector: (id: string, hidden: boolean) => void
-  hiddenSectorIds: string[]
+  /** Every node of the server tree, including passive ones for admin views. */
+  taxonomy: TaxonomyNode[]
+  taxonomyReady: boolean
+  remap: Record<string, string>
+  /** Sectors a visitor once added in this browser; shown to the admin for a one-time import. */
+  legacySectors: Sector[]
+  forgetLegacySectors: () => void
   removeRequest: (id: string) => void
   assistantOpen: boolean
   setAssistantOpen: (open: boolean) => void
@@ -373,44 +414,24 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
         const ids = current.hiddenBusinessIds.filter((item) => item !== id)
         commit({ ...current, hiddenBusinessIds: hidden ? [id, ...ids] : ids })
       },
-      isBusinessHidden: (business) =>
-        isHiddenBusiness(business, persisted.hiddenBusinessIds, persisted.hiddenSectorIds, persisted.remoteHiddenIds),
+      isBusinessHidden: (business) => isHiddenBusiness(business, persisted.hiddenBusinessIds, persisted.remoteHiddenIds),
       visibleBusinesses: allBusinesses(mergeListings(persisted.listings, persisted.remoteListings))
-        .map((item) => decorateBusiness(item, persisted.businessOverrides))
+        .map((item) => applyRemap(decorateBusiness(item, persisted.businessOverrides), persisted.remap))
         .filter((item) => item.profile?.published !== false)
-        .filter((item) => !isHiddenBusiness(item, persisted.hiddenBusinessIds, persisted.hiddenSectorIds, persisted.remoteHiddenIds)),
+        .filter((item) => !isHiddenBusiness(item, persisted.hiddenBusinessIds, persisted.remoteHiddenIds)),
       managedBusinesses: allBusinesses(mergeListings(persisted.listings, persisted.remoteListings)).map((item) =>
-        decorateBusiness(item, persisted.businessOverrides),
+        applyRemap(decorateBusiness(item, persisted.businessOverrides), persisted.remap),
       ),
       remoteReady: persisted.remoteReady,
-      sectors: (ready ? allSectors() : seedSectors).filter((item) => !persisted.hiddenSectorIds.includes(item.id)),
-      managedSectors: ready ? allSectors() : seedSectors,
-      addSector: (draft) => {
+      sectors: rootSectors(),
+      taxonomy: persisted.taxonomy.length ? persisted.taxonomy : liveTaxonomy(),
+      taxonomyReady: persisted.taxonomyReady,
+      remap: persisted.remap,
+      legacySectors: persisted.sectors,
+      forgetLegacySectors: () => {
         const current = getSnapshot()
-        const taken = allSectors().map((item) => item.id)
-        const sector = normalizeSector(draft, taken)
-        if (!sector) return null
-        commit({
-          ...current,
-          sectors: [sector, ...current.sectors.filter((item) => item.id !== sector.id)],
-          hiddenSectorIds: current.hiddenSectorIds.filter((item) => item !== sector.id),
-        })
-        return sector
+        commit({ ...current, sectors: [], hiddenSectorIds: [] })
       },
-      removeSector: (id) => {
-        const current = getSnapshot()
-        commit({
-          ...current,
-          sectors: current.sectors.filter((item) => item.id !== id),
-          hiddenSectorIds: current.hiddenSectorIds.filter((item) => item !== id),
-        })
-      },
-      hideSector: (id, hidden) => {
-        const current = getSnapshot()
-        const ids = current.hiddenSectorIds.filter((item) => item !== id)
-        commit({ ...current, hiddenSectorIds: hidden ? [id, ...ids] : ids })
-      },
-      hiddenSectorIds: persisted.hiddenSectorIds,
       removeRequest: (id) => {
         const current = getSnapshot()
         commit({ ...current, requests: current.requests.filter((item) => item.id !== id) })

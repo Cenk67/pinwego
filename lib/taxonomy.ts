@@ -819,7 +819,7 @@ export function readPublicNodes(value: unknown): TaxonomyNode[] | null {
     .map((item) => {
       if (!item || typeof item !== "object") return null
       const row = item as Record<string, unknown>
-      const node = readCustomNode({ ...row, status: "aktif" })
+      const node = readCustomNode({ ...row, status: row.status === "pasif" ? "pasif" : "aktif" })
       if (!node) return null
       return { ...node, custom: row.custom === true, seed: row.seed !== false }
     })
