@@ -532,7 +532,7 @@ export function businessInNode(nodes: TaxonomyNode[], business: Pick<Business, "
 }
 
 /** Resolves the sub-sector a business sits in (explicit id first, then the subcategory bridge). */
-export function businessLeaf(nodes: TaxonomyNode[], business: Pick<Business, "category" | "categories" | "subcategory">) {
+export function businessLeaf(nodes: TaxonomyNode[], business: Pick<Business, "category" | "categories" | "subcategory"> & Partial<Business>) {
   const ids = businessCategoryIds(business)
   for (const id of ids) {
     const node = nodeById(nodes, id)
@@ -762,7 +762,7 @@ export type MigrationReport = {
 /** Health check for the migration: what in the business data does not line up with the tree. */
 export function migrationReport(
   nodes: TaxonomyNode[],
-  businesses: Pick<Business, "category" | "categories" | "subcategory" | "orgKind" | "orgVerified">[],
+  businesses: (Pick<Business, "category" | "categories" | "subcategory" | "orgKind" | "orgVerified"> & Partial<Business>)[],
 ): MigrationReport {
   const byId = new Map(nodes.map((item) => [item.id, item]))
   const unknown = new Map<string, number>()
@@ -816,7 +816,7 @@ export function publicNode(node: TaxonomyNode) {
 export function readPublicNodes(value: unknown): TaxonomyNode[] | null {
   if (!Array.isArray(value)) return null
   const nodes = value
-    .map((item) => {
+    .map((item): TaxonomyNode | null => {
       if (!item || typeof item !== "object") return null
       const row = item as Record<string, unknown>
       const node = readCustomNode({ ...row, status: row.status === "pasif" ? "pasif" : "aktif" })

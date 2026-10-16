@@ -262,11 +262,11 @@ function startRemote() {
   if (remoteStarted || typeof fetch !== "function") return
   remoteStarted = true
   void fetch("/api/sektor", { credentials: "include" })
-    .then((response) => (response.ok ? response.json() : null))
-    .then((data: { nodes?: unknown; remap?: unknown } | null) => installTaxonomy(readPublicNodes(data?.nodes), readRemap(data?.remap)))
+    .then((response) => (response.ok ? (response.json() as Promise<{ nodes?: unknown; remap?: unknown }>) : null))
+    .then((data) => installTaxonomy(readPublicNodes(data?.nodes), readRemap(data?.remap)))
     .catch(() => installTaxonomy(null))
   void fetch("/api/ilan", { credentials: "include" })
-    .then((response) => (response.ok ? response.json() : null))
+    .then((response) => (response.ok ? (response.json() as Promise<{ listings?: unknown; hiddenIds?: unknown }>) : null))
     .then((data) => {
       const rows = Array.isArray(data?.listings) ? data.listings.filter(isListingRow) : []
       const hidden = Array.isArray(data?.hiddenIds) ? data.hiddenIds.filter((id: unknown) => typeof id === "string") : []

@@ -1,40 +1,32 @@
 "use client"
 
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useEffect, useState } from "react"
 import { CategoryGlyph, Cover } from "@/components/directory/bits"
 import { recordSectorClick } from "@/lib/sector-clicks"
 import { sectorCopy } from "@/lib/sector-copy"
+import { inSector } from "@/lib/taxonomy"
 import { useLocale } from "@/lib/use-locale"
 import type { Business, Sector } from "@/lib/types"
 import { cn } from "cn"
 
 const PAGE_SIZE = 20
 
-export function SectorStrip({
-  sectors,
-  businesses,
-  onRemove,
-  onAdd,
-}: {
-  sectors: Sector[]
-  businesses: Business[]
-  onRemove: (id: string) => void
-  onAdd: () => void
-}) {
+export function SectorStrip({ sectors, businesses }: { sectors: Sector[]; businesses: Business[] }) {
   const { locale, t } = useLocale()
   const pages = Math.max(1, Math.ceil(sectors.length / PAGE_SIZE))
   const [page, setPage] = useState(0)
   const [direction, setDirection] = useState<1 | -1>(1)
   const [paused, setPaused] = useState(false)
+  const signature = sectors.map((item) => item.id).join("\n")
+  const [seenSignature, setSeenSignature] = useState(signature)
+  if (seenSignature !== signature) {
+    setSeenSignature(signature)
+    setPage(0)
+  }
   const safePage = Math.min(page, pages - 1)
   const slice = sectors.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE)
-  const signature = sectors.map((item) => item.id).join("\n")
-
-  useEffect(() => {
-    setPage(0)
-  }, [signature])
 
   useEffect(() => {
     if (pages < 2 || paused) return
@@ -63,52 +55,36 @@ export function SectorStrip({
         >
           {slice.map((category) => {
             const copy = sectorCopy(locale, category)
-            const count = businesses.filter((item) => item.category === category.id).length
+            const count = businesses.filter((item) => inSector(item, category.id)).length
             return (
-              <div key={category.id} className="relative">
-                <Link
-                  href={`/ara?kategori=${category.id}`}
-                  onClick={() => recordSectorClick(category.id)}
-                  className="group relative block h-28 overflow-hidden rounded-3xl ring-1 ring-foreground/10"
-                >
-                  <Cover
-                    src={category.photo}
-                    alt=""
-                    className="absolute inset-0 size-full transition duration-300 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
-                  <div className="absolute right-3 bottom-3 left-3 text-white">
-                    <CategoryGlyph id={category.id} icon={category.icon} className="size-4" />
-                    <p className="mt-1 font-medium">{copy.label}</p>
-                    <p className="text-xs text-white/80">
-                      {t("sector.count", { count })} · {copy.blurb}
-                    </p>
-                  </div>
-                </Link>
-                {category.custom ? (
-                  <button
-                    type="button"
-                    aria-label={t("card.removeSector", { name: copy.label })}
-                    onClick={() => onRemove(category.id)}
-                    className="absolute top-2 right-2 grid size-8 place-items-center rounded-full bg-black/55 text-white"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                ) : null}
-              </div>
+              <Link
+                key={category.id}
+                href={`/ara?kategori=${category.id}`}
+                onClick={() => recordSectorClick(category.id)}
+                className="group relative block h-28 overflow-hidden rounded-3xl ring-1 ring-foreground/10"
+              >
+                <Cover
+                  src={category.photo}
+                  alt=""
+                  className="absolute inset-0 size-full transition duration-300 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+                <div className="absolute right-3 bottom-3 left-3 text-white">
+                  <CategoryGlyph id={category.id} icon={category.icon} className="size-4" />
+                  <p className="mt-1 font-medium">{copy.label}</p>
+                  <p className="text-xs text-white/80">
+                    {t("sector.count", { count })} · {copy.blurb}
+                  </p>
+                </div>
+              </Link>
             )
           })}
         </div>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={onAdd}
-          className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium text-muted-foreground ring-1 ring-foreground/15"
-        >
-          <Plus className="size-4" />
-          {t("home.sectorAdd")}
-        </button>
+        <Link href="/iletisim" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+          {t("home.sectorMissing")}
+        </Link>
         <div className="flex items-center gap-2">
           <p className="text-sm text-muted-foreground">
             {safePage * PAGE_SIZE + 1}–{Math.min(sectors.length, (safePage + 1) * PAGE_SIZE)} / {sectors.length}

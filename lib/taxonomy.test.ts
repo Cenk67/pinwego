@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { seedSectors } from "./sectors.ts"
+import { seedSectors } from "./sectors"
 import {
   applyRemap,
   applyTaxonomyOp,
@@ -22,7 +22,7 @@ import {
   seedTaxonomy,
   sortTr,
   type TaxonomyState,
-} from "./taxonomy.ts"
+} from "./taxonomy"
 
 const now = Date.UTC(2026, 9, 16, 12)
 const ctx = (businesses: { category: string; categories?: string[]; subcategory: string; source: "katalog" | "senin" | "google" }[] = []) => ({
@@ -72,7 +72,8 @@ result = applyTaxonomyOp(state, { op: "upsert", node: { label: "Elektrikli bisik
 assert.ok(result.ok)
 state = result.state
 assert.equal(result.id, "bisiklet-tamiri-elektrikli-bisiklet")
-assert.equal(result.nodes.find((n) => n.id === result.id)?.photo, "/photos/office.jpg", "child inherits the parent cover")
+const childId = result.id
+assert.equal(result.nodes.find((n) => n.id === childId)?.photo, "/photos/office.jpg", "child inherits the parent cover")
 result = applyTaxonomyOp(state, { op: "upsert", node: { label: "Şarj istasyonu", parentId: "oto" } }, ctx())
 assert.ok(result.ok)
 state = result.state

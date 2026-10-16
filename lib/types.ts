@@ -241,6 +241,7 @@ export type BusinessOverride = Partial<
     | "premium"
     | "openNow"
     | "category"
+    | "subcategory"
     | "categories"
     | "orgKind"
     | "orgVerified"

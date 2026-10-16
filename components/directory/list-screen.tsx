@@ -4,8 +4,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { GuestNotice } from "@/components/auth/guest-gate"
-import { fieldClass } from "@/components/directory/bits"
-import { SectorForm } from "@/components/directory/sector-form"
+import { ClassificationFields, defaultClassification, primarySubLabel, type Classification } from "@/components/directory/classification-fields"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
 import { Input } from "@/components/ui/input"
@@ -17,14 +16,14 @@ import { defaultPlace, type Place } from "@/lib/place"
 import { useDirectory } from "@/lib/directory-context"
 import { cleanDiscoverText } from "@/lib/discover"
 import { recordDiscoverEvent, takeDiscoverLead } from "@/lib/discover-store"
-import type { Business, CategoryId } from "@/lib/types"
+import type { Business } from "@/lib/types"
 
 export function ListScreen() {
   const router = useRouter()
   const { account } = useAuth()
-  const { addListing, rememberListing, sectors } = useDirectory()
-  const [sectorOpen, setSectorOpen] = useState(false)
-  const [category, setCategory] = useState<CategoryId>("yeme")
+  const { addListing, rememberListing, taxonomy } = useDirectory()
+  const [cls, setCls] = useState<Classification>(defaultClassification)
+  const category = cls.category
   const [place, setPlace] = useState<Place>(defaultPlace)
   const [district, setDistrict] = useState("")
   const [districtTouched, setDistrictTouched] = useState(false)
@@ -65,7 +64,10 @@ export function ListScreen() {
           op: "create",
           name: name.trim(),
           category,
-          subcategory: meta.label,
+          categories: cls.categories,
+          subcategory: primarySubLabel(taxonomy, cls) || meta.label,
+          orgKind: cls.orgKind,
+          providerKind: cls.providerKind,
           city,
           district: area,
           address: `${area}, ${city}`,
@@ -88,6 +90,10 @@ export function ListScreen() {
       }
       if (data?.reason === "limited") {
         setError("Çok fazla deneme. Bir süre sonra tekrar dene.")
+        return
+      }
+      if (data?.reason === "kategori") {
+        setError("Seçilen sektör artık kullanılmıyor. Sektörü yeniden seç.")
         return
       }
       if (!response.ok || !data?.listing) {
@@ -135,24 +141,7 @@ export function ListScreen() {
           <Input id="biz-name" value={name} onChange={(event) => setName(event.target.value)} className="h-11" />
           {draftAddress ? <p className="text-sm leading-6 text-muted-foreground">Taslak adres, kayda kendiliğinden yazılmaz: {draftAddress}</p> : null}
         </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="biz-category">Kategori</Label>
-          <select
-            id="biz-category"
-            className={fieldClass}
-            value={category}
-            onChange={(event) => setCategory(event.target.value as CategoryId)}
-          >
-            {sectors.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="text-left text-sm text-primary" onClick={() => setSectorOpen(true)}>
-            Listede yoksa sektör ekle
-          </button>
-        </div>
+        <ClassificationFields value={cls} onChange={setCls} nodes={taxonomy} idPrefix="biz" />
         <div className="grid gap-2 rounded-3xl bg-card p-4 ring-1 ring-foreground/10">
           <Label>Şehir</Label>
           <p className="text-xs leading-5 text-muted-foreground">
@@ -198,7 +187,6 @@ export function ListScreen() {
           {pending ? "Kaydediliyor" : "Kaydı oluştur"}
         </Button>
       </form>
-      <SectorForm open={sectorOpen} onOpenChange={setSectorOpen} />
     </div>
   )
 }
