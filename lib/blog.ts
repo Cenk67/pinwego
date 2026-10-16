@@ -49,6 +49,10 @@ export type BlogPost = {
   publishedAt: string
   updatedAt: string
   related?: BlogLink[]
+  /** Extra need phrases the search matches on, beyond title and body (e.g. "su kaçağı", "petek"). */
+  keywords?: string[]
+  /** The sentence the "find a business" button searches with. */
+  needQuery?: string
 }
 
 export type BlogArticle = BlogPost & {
@@ -219,7 +223,7 @@ export function searchGuides(articles: BlogArticle[], query: string, limit = 3):
   if (!tokens.length) return []
   const ranked = articles
     .filter((article) => article.published)
-    .map((article) => ({ article, score: guideScore(article, tokens) }))
+    .map((article) => ({ article, score: guideScore(article, tokens, text) }))
     .filter((item) => item.score >= 4)
     .sort((a, b) => b.score - a.score || b.article.updatedAt.localeCompare(a.article.updatedAt))
     .slice(0, limit)
@@ -231,12 +235,15 @@ export function searchGuides(articles: BlogArticle[], query: string, limit = 3):
   }))
 }
 
-function guideScore(article: BlogArticle, tokens: string[]) {
+function guideScore(article: BlogArticle, tokens: string[], text: string) {
   const title = fold(article.title)
   const description = fold(article.description)
   const category = fold(`${article.categoryName} ${article.subcategoryName}`)
   const body = fold(article.body)
   let score = article.kind === "editorial" ? 1 : 0
+  for (const keyword of blogKeywords(article.keywords)) {
+    if (` ${text} `.includes(` ${keyword} `) || tokens.some((token) => guideHit(keyword, token))) score += 5
+  }
   for (const token of tokens) {
     if (guideHit(title, token)) score += 6
     if (guideHit(description, token)) score += 4
@@ -244,6 +251,16 @@ function guideScore(article: BlogArticle, tokens: string[]) {
     if (guideHit(body, token)) score += 1
   }
   return score
+}
+
+/** Keywords are stored as the editor typed them; matching happens on the folded form. */
+export function blogKeywords(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.filter((item): item is string => typeof item === "string").map((item) => fold(item)).filter(Boolean))]
+}
+
+export function parseKeywordList(value: string) {
+  return [...new Set(value.split(/[,\n;]/).map((item) => item.trim()).filter(Boolean))].slice(0, 20)
 }
 
 function guideHit(field: string, token: string) {
@@ -478,6 +495,14 @@ export function seedSubcategories(): BlogSubcategory[] {
       description: "Katalog kaydındaki adres, saat ve kaynak bilgisini okuma.",
       order: 1,
     },
+    {
+      id: "sub-ihtiyac",
+      categoryId: GUIDE_CATEGORY,
+      slug: "ihtiyac",
+      name: "İhtiyaç rehberleri",
+      description: "Bir ihtiyaç cümlesinden doğru işletmeye giden yol: ne acil, ne beklenebilir, teklifte ne sorulur.",
+      order: 2,
+    },
   ]
 }
 
@@ -538,6 +563,133 @@ export function editorialPosts(): BlogPost[] {
         "Zonguldak kayıtlarının bir kısmı açık harita bilgisinden gelir. Ad, ilçe, adres ve çalışma saati vardır. Puan ve yorum kopyalanmamışsa kartta sıfır görünür; bu, işletmenin puansız olduğu anlamına gelmez, kaydın o alanı taşımadığı anlamına gelir.",
         "İlçe adı seçimi belirler. Karadeniz Ereğli, Kozlu, Merkez, Çaycuma ve Alaplı aynı ilin içinde ayrı listelerdir. Sokak adresindeki bir ilçe sözü, işletmenin o ilçede olduğu anlamına gelmez.",
         "Şehir rehberindeki Zonguldak sayfaları, aynı ilçede kümelenen sektörleri ayrıca açar. Üçten az kayıt olan sektör için ayrı sayfa üretilmez; ince sayfa arama sonucunda gürültü olur.",
+      ].join("\n\n"),
+    },
+    {
+      id: "edit-tesisat-patladi",
+      slug: "su-tesisati-patlayinca-ilk-on-dakika",
+      categoryId: GUIDE_CATEGORY,
+      subcategoryId: "sub-ihtiyac",
+      title: "Su tesisatı patlayınca ilk on dakikada ne yapılır",
+      description: "Ana vanayı kapat, sigortayı kontrol et, hasarı fotoğrafla; sonra tesisatçıya üç bilgiyi ver: kat, su türü, hasar yeri.",
+      image: "/photos/plumber.jpg",
+      imageAlt: "Mutfak tezgâhı altında açılmış su tesisatı",
+      published: true,
+      kind: "editorial",
+      publishedAt: "2026-10-14",
+      updatedAt: "2026-10-14",
+      keywords: ["su tesisatı patladı", "su kaçağı", "boru patladı", "petek akıtıyor", "tesisatçı", "acil tesisat", "su basması"],
+      needQuery: "Evimin su tesisatı patladı",
+      related: [
+        { href: "/ara?q=Evimin%20su%20tesisat%C4%B1%20patlad%C4%B1", label: "Tesisatçı ara", note: "pinwego kayıtları, yanıt süresine göre" },
+        { href: "/blog/rehber/secim/usta-teklifinde-ne-olmali", label: "Usta çağırmadan önce teklifte ne olmalı", note: "rehber" },
+      ],
+      body: [
+        "Su basan bir dairede sıra önemlidir: önce kullanım suyunun ana vanası, sonra elektrik. Su elektrik prizine ya da sigorta kutusuna yaklaştıysa sigortayı indirmeden tesisatçı çağırmayın; iki ustayı aynı anda isteyebilirsiniz.",
+        "Tesisatçıya telefonda üç bilgi yeter:\n- Hangi katta ve hangi odada\n- Temiz su mu, pis su mu, kalorifer suyu mu\n- Su nereden geliyor: boru, petek, musluk altı, klozet rezervuarı",
+        "Acil çağrıda fiyat işe başlamadan netleşmez; keşif ücreti, parça ve işçilik ayrı söylenmelidir. pinwego kartındaki yanıt süresi, kimin önce gelebileceğini gösterir. Alttaki arama cümlesi tesisatçıları yakınlık ve yanıt süresine göre sıralar.",
+        "Hasar bir alt kata indiyse fotoğraf ve saat kaydı sigorta ve yönetim görüşmesinde işe yarar. Konut sigortası varsa poliçedeki su hasarı maddesine bakın; bu konuda teklif akışı arama sonuçlarından ayrı yürür.",
+      ].join("\n\n"),
+    },
+    {
+      id: "edit-ev-isinmiyor",
+      slug: "kisin-ev-isinmiyorsa-kombi-mi-petek-mi",
+      categoryId: GUIDE_CATEGORY,
+      subcategoryId: "sub-ihtiyac",
+      title: "Kışın ev ısınmıyorsa sorun kombi mi, petek mi, yalıtım mı",
+      description: "Isınmayan evde üç olası neden ve her birinin hangi ustaya gittiği: kombi servisi, tesisatçı, yalıtım ekibi.",
+      image: "/photos/ac.jpg",
+      imageAlt: "Duvara monte kombi ve ısıtma tesisatı",
+      published: true,
+      kind: "editorial",
+      publishedAt: "2026-10-14",
+      updatedAt: "2026-10-14",
+      keywords: ["evim sıcak olmuyor", "ev ısınmıyor", "kombi", "petek ısınmıyor", "kombi servisi", "kombi bakımı", "yalıtım", "doğalgaz faturası"],
+      needQuery: "Kışın evim sıcak olmuyor",
+      related: [
+        { href: "/ara?q=K%C4%B1%C5%9F%C4%B1n%20evim%20s%C4%B1cak%20olmuyor", label: "Kombi servisi ara", note: "pinwego kayıtları" },
+      ],
+      body: [
+        "\"Evim sıcak olmuyor\" cümlesi tek bir ustaya gitmez. Kombi çalışıyor ama petekler soğuksa tesisat ve hava sorunudur. Kombi sık arıza veriyor ya da basınç düşüyorsa kombi servisi gerekir. Her şey çalışıyor ama ısı tutmuyorsa yalıtım ve pencere konuşulur.",
+        "Servis çağırmadan önce bakılacaklar:\n- Kombi basıncı 1 ile 1,5 bar arasında mı\n- Peteklerin üstü soğuk, altı sıcak mı (hava var)\n- Bir oda ısınıp diğeri ısınmıyor mu (vana veya tesisat)\n- Fatura arttı ama ısı düştü mü (verim, bakım zamanı)",
+        "Kombi bakımı yılda bir yapılır ve kış başında servisler dolar; arama sonucundaki yanıt süresi bu dönemde önemlidir. Kartta yetkili servis mi özel servis mi olduğu yazar; garanti süren cihazda yetkili servis tercih edilir.",
+        "Isı kaybı yapısal ise mantolama ve pencere işi kombi servisinin değil yalıtım ekibinin işidir. Arama, cümlenizdeki ipucuna göre önce enerji ve ısıtma kayıtlarını, yakın kategori olarak da usta ve çatı kayıtlarını gösterir.",
+      ].join("\n\n"),
+    },
+    {
+      id: "edit-arac-sigortasi",
+      slug: "arac-sigortasi-secerken-trafik-mi-kasko-mu",
+      categoryId: GUIDE_CATEGORY,
+      subcategoryId: "sub-ihtiyac",
+      title: "Araç sigortası seçerken trafik sigortası ile kasko arasındaki fark",
+      description: "Zorunlu trafik sigortası, kasko ve ek teminatlar; teklif karşılaştırırken aynı tabloya konulacak altı satır.",
+      image: "/photos/repair.jpg",
+      imageAlt: "Serviste kaldırılmış bir otomobil",
+      published: true,
+      kind: "editorial",
+      publishedAt: "2026-10-14",
+      updatedAt: "2026-10-14",
+      keywords: ["araç sigortası", "araba sigortası", "kasko", "trafik sigortası", "sigorta teklifi", "sigorta acentesi", "uygun sigorta"],
+      needQuery: "Aracım için uygun sigorta arıyorum",
+      related: [
+        { href: "/ara?q=Arac%C4%B1m%20i%C3%A7in%20uygun%20sigorta%20ar%C4%B1yorum", label: "Sigorta acentesi ara", note: "pinwego kayıtları" },
+        { href: "/talep", label: "Teklif talebi bırak", note: "sigorta teklifi ayrı akışta yürür" },
+      ],
+      body: [
+        "Trafik sigortası zorunludur ve karşı tarafın zararını öder; kasko isteğe bağlıdır ve kendi aracınızı korur. \"Uygun sigorta\" aranırken ilk soru hangisinin istendiğidir; ikisi aynı poliçe değildir.",
+        "Teklifleri karşılaştırırken aynı tabloya konulacak satırlar:\n- Hasarsızlık indirimi kademesi\n- Muafiyet tutarı ve oranı\n- İkame araç, çekici ve cam teminatı\n- Anlaşmalı servis mi, yetkili servis mi\n- Deprem, sel ve kemirgen gibi ek teminatlar\n- Taksit ve peşin fark",
+        "pinwego'da sigorta acenteleri bir işletme kaydı olarak listelenir; fiyat burada hesaplanmaz. Teklif ve onay, acentenin kendi akışında yürür. Arama ekranında yazdığınız cümle yalnızca eşleşme için kullanılır, pazarlama izni anlamına gelmez.",
+        "Aracın yaşı, kullanım amacı ve il bilgisi fiyatı değiştirir; acenteye bu üç bilgiyi baştan vermek tekliflerin karşılaştırılabilir gelmesini sağlar.",
+      ].join("\n\n"),
+    },
+    {
+      id: "edit-web-sitesi",
+      slug: "isletmeye-web-sitesi-yaptirirken-brief",
+      categoryId: GUIDE_CATEGORY,
+      subcategoryId: "sub-ihtiyac",
+      title: "İşletmeye web sitesi yaptırırken tek sayfalık brief",
+      description: "Ajans veya yazılımcıya gitmeden önce amaç, sayfa listesi, içerik sahibi, alan adı ve bakım sorularını yazılı hale getirme.",
+      image: "/photos/office.jpg",
+      imageAlt: "Dizüstü bilgisayarlı bir çalışma masası",
+      published: true,
+      kind: "editorial",
+      publishedAt: "2026-10-14",
+      updatedAt: "2026-10-14",
+      keywords: ["web sitesi yaptırmak", "web sitesi", "internet sitesi", "e-ticaret sitesi", "web tasarım", "yazılım ajansı", "kurumsal site"],
+      needQuery: "İşletmeme web sitesi yaptırmak istiyorum",
+      related: [
+        { href: "/ara?q=%C4%B0%C5%9Fletmeme%20web%20sitesi%20yapt%C4%B1rmak%20istiyorum", label: "Web tasarım ve yazılım ara", note: "pinwego kayıtları" },
+      ],
+      body: [
+        "Web sitesi teklifi, ne istendiği yazılmadan karşılaştırılamaz. Beş sayfalık tanıtım sitesi ile ödeme alan e-ticaret sitesi aynı cümleyle istenir ama on kat fark eder.",
+        "Tek sayfalık brief:\n- Amaç: tanıtım, randevu, sipariş, başvuru\n- Sayfa listesi: hangi sayfalar, kaç dil\n- İçerik: metin ve fotoğrafı kim veriyor\n- Alan adı ve barındırma kimin adına\n- Teslim sonrası bakım, güncelleme ve yedek kimde",
+        "Teklifte tasarım, yazılım, içerik girişi ve yıllık bakım ayrı kalemler olarak istenir. Alan adı ve barındırma hesabının işletme adına açılması, ajans değişse bile sitenin sizde kalmasını sağlar.",
+        "pinwego'da teknoloji ve yazılım kayıtları portföy, yanıt süresi ve yorumla birlikte listelenir; aynı brief'i üç kayda göndermek karşılaştırmayı kolaylaştırır.",
+      ].join("\n\n"),
+    },
+    {
+      id: "edit-hafta-sonu-cocuk",
+      slug: "cocuklarla-hafta-sonu-nereye-gidilir",
+      categoryId: GUIDE_CATEGORY,
+      subcategoryId: "sub-ihtiyac",
+      title: "Çocuklarla hafta sonu nereye gidilir: yaş, hava ve süreye göre seçim",
+      description: "Oyun alanı, atölye, müze, açık hava ve aile restoranı; yaş grubuna, havaya ve ayrılabilecek süreye göre nasıl daraltılır.",
+      image: "/photos/garden.jpg",
+      imageAlt: "Bahçede oyun alanı ve ağaçlar",
+      published: true,
+      kind: "editorial",
+      publishedAt: "2026-10-14",
+      updatedAt: "2026-10-14",
+      keywords: ["çocuklarla gidilecek yer", "hafta sonu çocuk", "çocuk etkinliği", "aile aktivitesi", "oyun alanı", "çocuk atölyesi", "aile restoranı"],
+      needQuery: "Bu hafta sonu çocuklarla gidebileceğim bir yer arıyorum",
+      related: [
+        { href: "/ara?q=Bu%20hafta%20sonu%20%C3%A7ocuklarla%20gidebilece%C4%9Fim%20bir%20yer%20ar%C4%B1yorum", label: "Aile dostu yerleri ara", note: "eğlence, çocuk ve yeme-içme kayıtları birlikte" },
+      ],
+      body: [
+        "\"Çocuklarla gidilecek bir yer\" tek bir kategori değildir. Oyun alanı, atölye, müze, açık hava parkı ve aile restoranı ayrı kayıtlarda durur. Arama bu cümleyi eğlence, çocuk ve yeme-içme kayıtlarına birlikte uygular; aile etiketi olan kayıtlar öne gelir.",
+        "Daraltmak için üç soru:\n- Yaş: üç yaş altı için bebek bakım odası ve sessiz köşe; okul çağı için atölye ve etkinlik\n- Hava: kapalı alan mı, açık hava mı\n- Süre: iki saatlik bir kafe mi, günübirlik bir gezi mi",
+        "Kartta aile etiketi, çocuk menüsü ve bebek sandalyesi notları yorumlardan çok işletmenin kendi beyanıdır; son yorumlar hafta sonu kalabalığını gösterir. Rezervasyon isteyen yerlerde cumartesi öğleni erkenden dolar.",
+        "Pinwego'da kayıt azsa arama sonucu yakın kategorileri ve dış kaynakları (harita, video) aynı sayfada önerir; dış sayfalar pinwego kaydı değildir ve yeni sekmede açılır.",
       ].join("\n\n"),
     },
   ]

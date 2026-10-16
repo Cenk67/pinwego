@@ -3,9 +3,11 @@ import test from "node:test"
 import {
   articlePath,
   assembleBlog,
+  blogKeywords,
   contentBlocks,
   emptyBlogState,
   findArticle,
+  parseKeywordList,
   postProblem,
   programmaticPosts,
   publicArticles,
@@ -90,6 +92,24 @@ test("assistant guide search stays on published Pinwego posts", () => {
   const hidden = document.articles.map((article) => ({ ...article, published: false }))
   assert.equal(searchGuides(hidden, "Kahvaltı yeri nasıl seçilir").length, 0)
   assert.equal(searchGuides(publicArticles(document), "zzzz qqqq").length, 0)
+})
+
+test("need guides answer the five brief sentences through their keywords", () => {
+  const document = assembleBlog(emptyBlogState(), [], sectors)
+  const articles = publicArticles(document)
+  const expect: [string, string][] = [
+    ["Evimin su tesisatı patladı", "su-tesisati-patlayinca-ilk-on-dakika"],
+    ["Kışın evim sıcak olmuyor", "kisin-ev-isinmiyorsa-kombi-mi-petek-mi"],
+    ["Aracım için uygun sigorta arıyorum", "arac-sigortasi-secerken-trafik-mi-kasko-mu"],
+    ["İşletmeme web sitesi yaptırmak istiyorum", "isletmeye-web-sitesi-yaptirirken-brief"],
+    ["Bu hafta sonu çocuklarla gidebileceğim bir yer arıyorum", "cocuklarla-hafta-sonu-nereye-gidilir"],
+  ]
+  for (const [sentence, slug] of expect) {
+    assert.equal(searchGuides(articles, sentence)[0]?.href, `/blog/rehber/ihtiyac/${slug}`, sentence)
+  }
+  assert.ok(document.subcategories.some((item) => item.id === "sub-ihtiyac" && item.categoryId === "cat-rehber"))
+  assert.deepEqual(blogKeywords(["Su Kaçağı", "su kaçağı", 3, ""]), ["su kacagi"])
+  assert.deepEqual(parseKeywordList("kombi, petek;  yalıtım\nkombi"), ["kombi", "petek", "yalıtım"])
 })
 
 function business(category: string, city: string, district: string, slug: string): Business {

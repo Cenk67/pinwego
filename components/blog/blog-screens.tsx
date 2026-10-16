@@ -15,6 +15,8 @@ import {
   type BlogArticle,
 } from "@/lib/blog"
 import { useBlog } from "@/components/blog/blog-context"
+import { Button } from "@/components/ui/button"
+import { useLocale } from "@/lib/use-locale"
 
 export function BlogIndex() {
   const { document } = useBlog()
@@ -117,6 +119,7 @@ export function ArticleScreen({
   slug: string
 }) {
   const { document } = useBlog()
+  const { t } = useLocale()
   const article = findArticle(document, categorySlug, subcategorySlug, slug)
   if (!article) return <Missing title="Yazı yok" />
   const blocks = contentBlocks(article.body)
@@ -165,9 +168,25 @@ export function ArticleScreen({
           Bu sayfa katalogdaki kayıtlardan üretildi. Metin ve görsel yönetim panelinden değiştirilebilir.
         </p>
       ) : null}
+      {article.needQuery ? (
+        <div className="mt-8 flex flex-wrap items-center gap-3 rounded-3xl bg-primary px-5 py-5 text-primary-foreground">
+          <div className="min-w-0 flex-1">
+            <p className="font-heading text-2xl">{t("need.guideSearch")}</p>
+            <p className="mt-1 text-sm text-primary-foreground/80">“{article.needQuery}”</p>
+          </div>
+          <Button
+            variant="secondary"
+            className="h-11 rounded-full px-5"
+            nativeButton={false}
+            render={<Link href={`/ara?q=${encodeURIComponent(article.needQuery)}`} />}
+          >
+            {t("need.submit")}
+          </Button>
+        </div>
+      ) : null}
       {article.related?.length ? (
         <aside className="mt-8 rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
-          <h2 className="font-heading text-2xl">Katalog kayıtları</h2>
+          <h2 className="font-heading text-2xl">{article.kind === "programmatic" ? "Katalog kayıtları" : "İlgili bağlantılar"}</h2>
           <ul className="mt-3 grid gap-2">
             {article.related.map((item) => (
               <li key={item.href}>

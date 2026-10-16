@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   articlePath,
   categoryProblem,
+  parseKeywordList,
   postProblem,
   removeCategory,
   removePost,
@@ -283,6 +284,7 @@ function PostForm({
   onCancel: () => void
 }) {
   const [draft, setDraft] = useState(post)
+  const [keywordText, setKeywordText] = useState((post.keywords ?? []).join(", "))
   const [scaleNote, setScaleNote] = useState("")
   const [busy, setBusy] = useState(false)
   const choices = subcategories.filter((item) => item.categoryId === draft.categoryId)
@@ -344,6 +346,29 @@ function PostForm({
       <Field label="Yazı">
         <Textarea value={draft.body} onChange={(event) => setDraft({ ...draft, body: event.target.value })} className="min-h-48" />
       </Field>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Arama anahtar kelimeleri (virgülle)">
+          <Input
+            value={keywordText}
+            onChange={(event) => {
+              setKeywordText(event.target.value)
+              setDraft((current) => ({ ...current, keywords: parseKeywordList(event.target.value) }))
+            }}
+            placeholder="su kaçağı, petek, kombi bakımı"
+            className="h-11"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">İhtiyaç araması bu sözcükleri başlık ve metinle birlikte eşler.</p>
+        </Field>
+        <Field label="İşletme arama cümlesi">
+          <Input
+            value={draft.needQuery ?? ""}
+            onChange={(event) => setDraft({ ...draft, needQuery: event.target.value || undefined })}
+            placeholder="Evimin su tesisatı patladı"
+            className="h-11"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">Yazının altındaki “Bu konuda işletme ara” düğmesi bu cümleyle arar.</p>
+        </Field>
+      </div>
       <div className="grid gap-4 md:grid-cols-[180px_1fr]">
         {draft.image ? <img src={draft.image} alt={draft.imageAlt || ""} className="aspect-[16/10] w-full rounded-2xl object-cover" /> : <div className="grid aspect-[16/10] place-items-center rounded-2xl bg-secondary text-sm text-muted-foreground">Görsel yok</div>}
         <div className="grid content-start gap-3">
