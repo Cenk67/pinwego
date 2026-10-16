@@ -1,4 +1,5 @@
 import { turkeyProvince, turkeyRegion, turkeyRegions } from "@/lib/turkey-areas"
+import { applyNorthernCyprus, KKTC_CODE, kktcDistrict, kktcDistricts, kktcRegion, kktcViewbox } from "@/lib/kktc"
 import type { AreaOption, Place } from "@/lib/place"
 
 type Slot = "region" | "province" | "district" | "neighborhood"
@@ -81,15 +82,21 @@ export function placeFromNominatim(item: NominatimItem, nearMe = false): Place |
   let neighborhood = text(address, "quarter", "suburb", "neighbourhood", "village", "hamlet")
   if (samePlace(district, province)) district = ""
   if (samePlace(neighborhood, district) || samePlace(neighborhood, province)) neighborhood = ""
-  const parts = [neighborhood, district, province, region, country].filter(Boolean)
+  const located = applyNorthernCyprus(
+    {
+      country,
+      countryCode: (address.country_code || "").toLowerCase(),
+      region,
+      province,
+      district,
+      neighborhood,
+    },
+    address,
+  )
+  const parts = [located.neighborhood, located.district, located.province, located.region, located.country].filter(Boolean)
   return {
     label: nearMe ? "Yakınımdakiler" : parts.slice(0, 2).join(", ") || item.display_name || "Konum",
-    country,
-    countryCode: (address.country_code || "").toLowerCase(),
-    region,
-    province,
-    district,
-    neighborhood,
+    ...located,
     lat,
     lng,
     nearMe,
@@ -107,6 +114,12 @@ export function loose(value: string) {
 function samePlace(left: string, right: string) {
   if (!left || !right) return false
   return loose(left) === loose(right)
+}
+
+function divisionName(name: string, province: string) {
+  const stripped = name.replace(/\s+İlçesi$/u, "").replace(/\s+Ilcesi$/u, "").trim()
+  if (province && samePlace(stripped, province)) return "Merkez"
+  return stripped
 }
 
 function option(name: string, lat: number, lng: number, adminLevel: number): AreaOption {
@@ -299,12 +312,18 @@ function preferPlace(items: NominatimItem[], hint: string) {
   return (named || pool[0])?.place ?? null
 }
 
+function countryQuery(country: string) {
+  if (!country || country === KKTC_CODE) return ""
+  return `&countrycodes=${encodeURIComponent(country.toLowerCase())}`
+}
+
 async function pointFor(query: string, country: string) {
-  const filter = country ? `&countrycodes=${encodeURIComponent(country.toLowerCase())}` : ""
+  const bounds = country === KKTC_CODE ? `&viewbox=${kktcViewbox}&bounded=1` : ""
   const items = (await nominatim(
-    `search?format=jsonv2&addressdetails=1&limit=6${filter}&q=${encodeURIComponent(query)}`,
+    `search?format=jsonv2&addressdetails=1&limit=6${countryQuery(country)}${bounds}&q=${encodeURIComponent(query)}`,
   )) as NominatimItem[]
   const place = preferPlace(items, query)
+  if (country === KKTC_CODE && place?.countryCode !== KKTC_CODE) return null
   return place ? { lat: place.lat, lng: place.lng } : null
 }
 
@@ -343,6 +362,23 @@ async function divisions(url: URL) {
   const district = url.searchParams.get("district")?.trim() || ""
   const given = finitePoint(url.searchParams.get("lat") || "", url.searchParams.get("lng") || "")
 
+  if (country === KKTC_CODE && level === "region") {
+    return { slot: "region" as const, options: [option(kktcRegion.name, kktcRegion.lat, kktcRegion.lng, 3)] }
+  }
+  if (country === KKTC_CODE && level === "province") {
+    return {
+      slot: "province" as const,
+      options: kktcDistricts.map((item) => option(item.name, item.lat, item.lng, 4)),
+    }
+  }
+  if (country === KKTC_CODE && level === "district") {
+    const match = kktcDistrict(province)
+    return {
+      slot: "district" as const,
+      options: (match?.towns ?? []).map((item) => option(item.name, item.lat, item.lng, 6)),
+    }
+  }
+
   if (level === "region") {
     if (country === "tr") {
       return {
@@ -364,7 +400,14 @@ async function divisions(url: URL) {
       }
     }
     const name = await englishCountry(country)
-    const cities = region ? await cityNames(name, region) : []
+    let cities: string[] = []
+    if (region) {
+      try {
+        cities = await cityNames(name, region)
+      } catch {
+        cities = []
+      }
+    }
     let center = given
     if (!center && region) center = await pointFor([region, name].filter(Boolean).join(", "), country)
     if (!cities.length && region) {
@@ -388,7 +431,11 @@ async function divisions(url: URL) {
       return {
         slot: "district" as const,
         options: uniqueOptions(
-          cities.filter((item) => !samePlace(item, province)).map((item) => option(item, 0, 0, 6)),
+          cities.map((item) => {
+            const name = divisionName(item, province)
+            if (name === "Merkez" && match) return option(name, match.lat, match.lng, 6)
+            return option(name, 0, 0, 6)
+          }),
         ).slice(0, 400),
       }
     }
@@ -409,7 +456,7 @@ async function divisions(url: URL) {
       const name = country === "tr" ? "Türkiye" : countryName || (await englishCountry(country))
       center = await pointFor([district, province, region, name].filter(Boolean).join(", "), country)
     }
-    const parent = district || province
+    const parent = country === KKTC_CODE && district === "Merkez" ? province : district || province
     const options = center ? await placesAround(center.lat, center.lng, parent) : []
     return { slot: "neighborhood" as const, options, center: given ? undefined : center }
   }
@@ -427,7 +474,7 @@ export async function GET(request: Request) {
 
   try {
     if (level) {
-      const key = `div:v3:${level}:${country}:${url.searchParams.get("region") || ""}:${url.searchParams.get("province") || ""}:${url.searchParams.get("district") || ""}:${lat || ""}:${lng || ""}`
+      const key = `div:v4:${level}:${country}:${url.searchParams.get("region") || ""}:${url.searchParams.get("province") || ""}:${url.searchParams.get("district") || ""}:${lat || ""}:${lng || ""}`
       const body = await cached(key, 1000 * 60 * 60 * 12, () => divisions(url))
       return Response.json(body)
     }
@@ -444,12 +491,21 @@ export async function GET(request: Request) {
     }
 
     if (!query) return Response.json({ error: "Arama boş." }, { status: 400 })
-    const countryFilter = country ? `&countrycodes=${encodeURIComponent(country)}` : ""
-    const places = await cached(`q:${country}:${query}`, 1000 * 60 * 30, async () => {
+    const places = await cached(`q:v5:${country}:${query}`, 1000 * 60 * 30, async () => {
+      const bounds = country === KKTC_CODE ? `&viewbox=${kktcViewbox}&bounded=1` : ""
       const items = (await nominatim(
-        `search?format=jsonv2&addressdetails=1&limit=6${countryFilter}&q=${encodeURIComponent(query)}`,
+        `search?format=jsonv2&addressdetails=1&limit=6${countryQuery(country)}${bounds}&q=${encodeURIComponent(query)}`,
       )) as NominatimItem[]
-      return items.map((item) => placeFromNominatim(item)).filter((item): item is Place => Boolean(item))
+      const found = items.map((item) => placeFromNominatim(item)).filter((item): item is Place => Boolean(item))
+      if (country !== KKTC_CODE) return found
+      const north = found.filter((item) => item.countryCode === KKTC_CODE)
+      if (north.length) return north
+      const widened = (await nominatim(
+        `search?format=jsonv2&addressdetails=1&limit=6&q=${encodeURIComponent(`${query} Kuzey Kıbrıs`)}`,
+      )) as NominatimItem[]
+      return widened
+        .map((item) => placeFromNominatim(item))
+        .filter((item): item is Place => Boolean(item && item.countryCode === KKTC_CODE))
     })
     return Response.json(places)
   } catch (error) {

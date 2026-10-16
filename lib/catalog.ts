@@ -155,6 +155,11 @@ export function cityCenter(name: string) {
 }
 
 export const suggestions = [
+  "Evimin su tesisatı patladı",
+  "Kışın evim sıcak olmuyor",
+  "Aracım için uygun sigorta arıyorum",
+  "İşletmeme web sitesi yaptırmak istiyorum",
+  "Bu hafta sonu çocuklarla gidebileceğim bir yer arıyorum",
   "Kadıköy'de çocukla gidilecek akşam yemeği",
   "Beşiktaş'ta bugün gelebilen boya ustası",
   "Nişantaşı diş temizliği, uygun fiyat",

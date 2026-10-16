@@ -44,8 +44,30 @@ export function adultBirthDate(value: string) {
   return born <= limit
 }
 
+export function validGsm(value: string) {
+  if (validPhone(value)) return true
+  const compact = value.trim().replace(/[\s().-]/g, "")
+  if (!compact.startsWith("+")) return false
+  return /^\d{8,15}$/.test(compact.slice(1))
+}
+
+export function validBirthDate(value: string, today = istanbulDay()) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const year = Number(value.slice(0, 4))
+  const month = Number(value.slice(5, 7))
+  const day = Number(value.slice(8, 10))
+  if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) return false
+  const born = new Date(Date.UTC(year, month - 1, day))
+  if (born.getUTCFullYear() !== year || born.getUTCMonth() !== month - 1 || born.getUTCDate() !== day) return false
+  return value <= today
+}
+
+function istanbulDay(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).format(now)
+}
+
 export function validPassword(value: string) {
-  return value.length >= 8
+  return value.length >= 8 && value.length <= 200 && /\p{L}/u.test(value) && /\d/.test(value)
 }
 
 export function fileProblem(file: File | null) {

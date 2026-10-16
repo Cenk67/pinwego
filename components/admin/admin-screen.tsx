@@ -2,6 +2,20 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
+import { BlogAdmin } from "@/components/blog/blog-admin"
+import { VoiceAdmin } from "@/components/admin/voice-admin"
+import { CampaignAdmin } from "@/components/campaigns/campaign-manage"
+import { QrAdmin } from "@/components/qr/qr-center"
+import { DiscoverAdmin } from "@/components/discover/discover-admin"
+import { AnalyticsPanel } from "@/components/admin/analytics-panel"
+import { NeedAdmin } from "@/components/admin/need-admin"
+import { ViewAdmin } from "@/components/directory/view-report"
+import { InboxPanel } from "@/components/admin/inbox-panel"
+import { BulkUpload } from "@/components/admin/bulk-upload"
+import { CustomerPanel } from "@/components/admin/customer-panel"
+import { PagesPanel } from "@/components/admin/pages-panel"
+import { NotifyPanel } from "@/components/admin/notify-panel"
+import { CrmPanel } from "@/components/crm/crm-panel"
 import { SectorForm } from "@/components/directory/sector-form"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
@@ -11,12 +25,23 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth-context"
-import { ADMIN_EMAIL, ADMIN_PASSWORD, openStoredDocument } from "@/lib/auth-store"
+import { openStoredDocument } from "@/lib/auth-store"
 import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
+import { ContactEditor } from "@/components/directory/contact-lines"
+import { ProfileEditor } from "@/components/directory/profile-editor"
+import { useListingGallery } from "@/components/directory/saved-media"
+import { SocialLinkEditor } from "@/components/directory/social-links"
+import { useMinute } from "@/components/directory/hours-view"
+import { applyManual, bookFromHours, hoursFromBook, weekError } from "@/lib/hours"
+import type { ManualAction } from "@/lib/hours"
+import { mediaReason } from "@/lib/listing-media"
+import { listingFields, normalizeProfile, resolveProfile } from "@/lib/profile"
+import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
 import { fold, slugify } from "@/lib/format"
 import { maskId } from "@/lib/identity"
-import type { BookingKind, Business, CategoryId } from "@/lib/types"
+import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
+import type { BookingKind, Business, BusinessProfile, CategoryId, HourBook } from "@/lib/types"
 
 const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
 const tabs = [
@@ -25,6 +50,19 @@ const tabs = [
   { id: "sektorler", label: "Sektörler" },
   { id: "talepler", label: "Talepler" },
   { id: "hesaplar", label: "Hesaplar" },
+  { id: "musteriler", label: "Müşteriler" },
+  { id: "blog", label: "Blog" },
+  { id: "ses", label: "Sesli arama" },
+  { id: "kampanya", label: "Kampanyalar" },
+  { id: "qr", label: "QR kartlar" },
+  { id: "kesif", label: "Keşif" },
+  { id: "crm", label: "CRM" },
+  { id: "bildirim", label: "Bildirim" },
+  { id: "analitik", label: "Analitik" },
+  { id: "ihtiyac", label: "İhtiyaç araması" },
+  { id: "gorunum", label: "Görüntülenme" },
+  { id: "icerik", label: "İçerik" },
+  { id: "iletisim", label: "İletişim" },
 ] as const
 
 type Tab = (typeof tabs)[number]["id"]
@@ -39,15 +77,35 @@ export function AdminScreen() {
   const { account } = useAuth()
   const [tab, setTab] = useState<Tab>("ozet")
 
-  if (account?.role !== "admin") {
+  if (!account) {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-16">
+        <p className="text-sm font-medium text-primary">Yönetici</p>
+        <h1 className="mt-2 font-heading text-4xl text-balance">Yönetim yönetici girişi ister.</h1>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          Müşteri ve işletme hesapları bu paneli açmaz. Yönetici kapısı giriş bölümündedir.
+        </p>
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          <Button className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap?kayit=yonetici" />}>
+            Yönetici girişi
+          </Button>
+          <Button variant="outline" className="h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap" />}>
+            Tüm girişler
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (account.role !== "admin") {
     return (
       <div className="mx-auto max-w-xl px-4 py-16">
         <h1 className="font-heading text-4xl text-balance">Yönetim yalnızca yönetici hesabına açık.</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          Giriş ekranından Yönetici girişi ile {ADMIN_EMAIL} hesabını kullan. Şifre bu tarayıcıdaki örnek panel içindir.
+          Bu oturum {account.role === "musteri" ? "müşteri" : "işletme"} hesabı. Yönetici girişi ayrı kapıdadır.
         </p>
-        <Button className="mt-6 h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap" />}>
-          Hesaba dön
+        <Button className="mt-6 h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap?kayit=yonetici" />}>
+          Yönetici girişi
         </Button>
       </div>
     )
@@ -58,8 +116,8 @@ export function AdminScreen() {
       <p className="text-sm font-medium text-primary">Yönetim paneli</p>
       <h1 className="mt-2 font-heading text-4xl leading-tight">pinwego’yu buradan yönet.</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-        Sektör, işletme, talep ve hesap kayıtları bu tarayıcıda durur. Gizlenen sektör ve işletme keşif, arama ve
-        talepte görünmez.
+        Yeni işletme kayıtları sunucuda durur; arama ve işletme sayfası onları gösterir. Sektör, talep ve belgeler bu
+        tarayıcıda kalır. Gizlenen sektör ve işletme keşif, arama ve talepte görünmez.
       </p>
       <div className="mt-6 flex flex-wrap gap-2">
         {tabs.map((item) => (
@@ -82,6 +140,19 @@ export function AdminScreen() {
       {tab === "sektorler" ? <SectorAdmin /> : null}
       {tab === "talepler" ? <RequestAdmin /> : null}
       {tab === "hesaplar" ? <AccountAdmin /> : null}
+      {tab === "musteriler" ? <CustomerPanel /> : null}
+      {tab === "blog" ? <BlogAdmin /> : null}
+      {tab === "ses" ? <VoiceAdmin /> : null}
+      {tab === "kampanya" ? <CampaignAdmin /> : null}
+      {tab === "qr" ? <QrAdmin /> : null}
+      {tab === "kesif" ? <DiscoverAdmin /> : null}
+      {tab === "crm" ? <CrmPanel /> : null}
+      {tab === "bildirim" ? <NotifyPanel /> : null}
+      {tab === "analitik" ? <AnalyticsPanel /> : null}
+      {tab === "ihtiyac" ? <NeedAdmin /> : null}
+      {tab === "gorunum" ? <ViewAdmin /> : null}
+      {tab === "icerik" ? <PagesPanel /> : null}
+      {tab === "iletisim" ? <InboxPanel /> : null}
     </div>
   )
 }
@@ -107,11 +178,22 @@ function Overview() {
       <article className="rounded-3xl bg-primary p-5 text-primary-foreground sm:col-span-2 lg:col-span-4">
         <p className="font-heading text-2xl">Yönetici girişi</p>
         <p className="mt-2 text-sm leading-6 text-primary-foreground/85">
-          E-posta {ADMIN_EMAIL}. Şifre {ADMIN_PASSWORD}. Bu tarayıcıdaki örnek panel içindir; ayrı bir sunucu yoktur.
+          Oturum posta koduyla açılır. Kullanıcı adı ve şifre bu ekranda yazılmaz.
         </p>
       </article>
     </div>
   )
+}
+
+async function postListing(body: Record<string, unknown>) {
+  const response = await fetch("/api/ilan", {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  const data = (await response.json().catch(() => null)) as { ok?: boolean; reason?: string; listing?: Business } | null
+  return { response, data }
 }
 
 function BusinessAdmin() {
@@ -123,11 +205,16 @@ function BusinessAdmin() {
     patchBusiness,
     addListing,
     removeListing,
+    rememberListing,
+    forgetListing,
+    rememberHidden,
   } = useDirectory()
   const [query, setQuery] = useState("")
   const [limit, setLimit] = useState(12)
   const [editor, setEditor] = useState<Business | null>(null)
+  const [profileTarget, setProfileTarget] = useState<Business | null>(null)
   const [creating, setCreating] = useState(false)
+  const now = useMinute()
 
   const filtered = useMemo(() => {
     const needle = fold(query)
@@ -149,9 +236,21 @@ function BusinessAdmin() {
           placeholder="İşletme, semt, telefon ara"
           className="h-11 sm:max-w-72"
         />
-        <Button type="button" className="h-11 rounded-xl" onClick={() => setCreating(true)}>
-          İşletme ekle
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <BulkUpload
+            onImported={(listings) => {
+              for (const listing of listings) {
+                addListing(listing)
+                rememberListing(listing)
+                const review = (listing as { review?: string }).review
+                if (review === "onay" || review === "taslak") rememberHidden(listing.id, true)
+              }
+            }}
+          />
+          <Button type="button" className="h-11 rounded-xl" onClick={() => setCreating(true)}>
+            İşletme ekle
+          </Button>
+        </div>
       </div>
       <div className="mt-4 grid gap-3">
         {filtered.slice(0, limit).map((business) => {
@@ -165,23 +264,54 @@ function BusinessAdmin() {
                   </Link>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {categoryById(business.category).label} · {business.district}, {business.city} · {sourceLabel(business.source)}
-                    {hidden ? " · gizli" : ""}
+                    {(business as { review?: string }).review === "onay"
+                      ? " · onay bekliyor"
+                      : (business as { review?: string }).review === "taslak"
+                        ? " · taslak"
+                        : hidden
+                          ? " · gizli"
+                          : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => setEditor(business)}>
                     Düzenle
                   </Button>
+                  <Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => setProfileTarget(business)}>
+                    Profil
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
                     className="h-9 rounded-xl"
-                    onClick={() => hideBusiness(business.id, !hidden)}
+                    onClick={() => {
+                      const next = !hidden
+                      if (business.source !== "senin") {
+                        hideBusiness(business.id, next)
+                        return
+                      }
+                      void postListing({ op: "flags", id: business.id, hidden: next }).then(({ response }) => {
+                        if (!response.ok) return
+                        hideBusiness(business.id, next)
+                        rememberHidden(business.id, next)
+                      })
+                    }}
                   >
                     {hidden ? "Göster" : "Gizle"}
                   </Button>
                   {business.source === "senin" ? (
-                    <Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => removeListing(business.id)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 rounded-xl"
+                      onClick={() => {
+                        void postListing({ op: "delete", id: business.id }).then(({ response }) => {
+                          if (!response.ok) return
+                          removeListing(business.id)
+                          forgetListing(business.id)
+                        })
+                      }}
+                    >
                       Sil
                     </Button>
                   ) : null}
@@ -191,23 +321,59 @@ function BusinessAdmin() {
                 <Label className="gap-2">
                   <Checkbox
                     checked={business.verified}
-                    onCheckedChange={(checked) => patchBusiness(business.id, { verified: checked === true })}
+                    onCheckedChange={(checked) => {
+                      const verified = checked === true
+                      if (business.source !== "senin") {
+                        patchBusiness(business.id, { verified })
+                        return
+                      }
+                      void postListing({ op: "flags", id: business.id, verified }).then(({ response, data }) => {
+                        if (!response.ok || !data?.listing) return
+                        patchBusiness(business.id, { verified: data.listing.verified })
+                        rememberListing(data.listing)
+                      })
+                    }}
                   />
                   Doğrulanmış
                 </Label>
                 <Label className="gap-2">
                   <Checkbox
                     checked={business.premium}
-                    onCheckedChange={(checked) => patchBusiness(business.id, { premium: checked === true })}
+                    onCheckedChange={(checked) => {
+                      const premium = checked === true
+                      if (business.source !== "senin") {
+                        patchBusiness(business.id, { premium })
+                        return
+                      }
+                      void postListing({ op: "flags", id: business.id, premium }).then(({ response, data }) => {
+                        if (!response.ok || !data?.listing) return
+                        patchBusiness(business.id, { premium: data.listing.premium })
+                        rememberListing(data.listing)
+                      })
+                    }}
                   />
                   Öne çıkan
                 </Label>
                 <Label className="gap-2">
                   <Checkbox
-                    checked={business.openNow}
-                    onCheckedChange={(checked) => patchBusiness(business.id, { openNow: checked === true })}
+                    checked={Boolean(now && business.hourBook?.manual?.mode === "open" && Date.parse(business.hourBook.manual.until) > now)}
+                    onCheckedChange={(checked) => {
+                      const action: ManualAction = { mode: checked === true ? "open" : "auto", span: "today" }
+                      const base = business.hourBook ?? bookFromHours(business.hours)
+                      if (business.source !== "senin") {
+                        const next = applyManual(base, action, Date.now())
+                        if (!next) return
+                        patchBusiness(business.id, { hourBook: next, hours: hoursFromBook(next) })
+                        return
+                      }
+                      void postListing({ op: "durum", id: business.id, mode: action.mode, span: action.span }).then(({ response, data }) => {
+                        if (!response.ok || !data?.listing) return
+                        patchBusiness(business.id, { hourBook: data.listing.hourBook, hours: data.listing.hours, openNow: data.listing.openNow })
+                        rememberListing(data.listing)
+                      })
+                    }}
                   />
-                  Şu an açık
+                  Bugün açık işaretle
                 </Label>
               </div>
             </article>
@@ -231,17 +397,171 @@ function BusinessAdmin() {
           }}
         />
       ) : null}
+      {profileTarget ? (
+        <ProfileDialog
+          key={profileTarget.id}
+          business={profileTarget}
+          onClose={() => setProfileTarget(null)}
+          onSave={(patch) => {
+            patchBusiness(profileTarget.id, patch)
+            setProfileTarget(null)
+          }}
+        />
+      ) : null}
       {creating ? (
         <CreateBusiness
           sectors={managedSectors}
           onClose={() => setCreating(false)}
-          onCreate={(business) => {
-            addListing(business)
+          onCreate={async (business) => {
+            const { response, data } = await postListing({ op: "create", ...business, verified: true })
+            if (!response.ok || !data?.listing) return "Kayıt sunucuya yazılamadı. Yönetici oturumu açık olsun."
+            addListing(data.listing)
+            rememberListing(data.listing)
             setCreating(false)
+            return null
           }}
         />
       ) : null}
     </div>
+  )
+}
+
+function ProfileDialog({
+  business,
+  onClose,
+  onSave,
+}: {
+  business: Business
+  onClose: () => void
+  onSave: (patch: ReturnType<typeof listingFields> & { hours: Business["hours"]; hourBook: HourBook; photo?: string }) => void
+}) {
+  const media = useListingGallery(business.id, business.source === "senin")
+  if (business.source === "senin" && !media.ready) {
+    return (
+      <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-2xl">{business.name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Kapak ve galeri yükleniyor.</p>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+  const base = resolveProfile(business)
+  const initialProfile = media.gallery.length ? normalizeProfile({ ...base, gallery: media.gallery }, base) : base
+  return (
+    <ProfileForm
+      business={business}
+      onClose={onClose}
+      onSave={onSave}
+      initialCover={media.photo || business.photo}
+      initialProfile={initialProfile}
+    />
+  )
+}
+
+function ProfileForm({
+  business,
+  onClose,
+  onSave,
+  initialCover,
+  initialProfile,
+}: {
+  business: Business
+  onClose: () => void
+  onSave: (patch: ReturnType<typeof listingFields> & { hours: Business["hours"]; hourBook: HourBook; photo?: string }) => void
+  initialCover: string
+  initialProfile: BusinessProfile
+}) {
+  const [profile, setProfile] = useState<BusinessProfile>(initialProfile)
+  const [cover, setCover] = useState(initialCover)
+  const { patchBusiness, rememberListing } = useDirectory()
+  const [book, setBook] = useState<HourBook>(() => business.hourBook ?? bookFromHours(business.hours))
+  const [error, setError] = useState("")
+  async function onManual(action: ManualAction) {
+    const next = applyManual(book, action, Date.now())
+    if (!next) {
+      setError(action.mode === "open" ? "Tatil günü açık işaretlenemez." : "Süre geçersiz.")
+      return
+    }
+    if (business.source === "senin") {
+      const { response, data } = await postListing({ op: "durum", id: business.id, mode: action.mode, span: action.span, until: action.until })
+      if (!response.ok || !data?.listing?.hourBook) {
+        setError(data?.reason === "tatil" ? "Tatil günü açık işaretlenemez." : "İşaret sunucuya yazılamadı.")
+        return
+      }
+      setBook(data.listing.hourBook)
+      patchBusiness(business.id, { hourBook: data.listing.hourBook, hours: data.listing.hours, openNow: data.listing.openNow })
+      rememberListing(data.listing)
+    } else {
+      setBook(next)
+      patchBusiness(business.id, { hourBook: next, hours: hoursFromBook(next) })
+    }
+    setError("")
+  }
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-2xl">{business.name}</DialogTitle>
+        </DialogHeader>
+        <form
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void (async () => {
+              const problem = weekError(book)
+              if (problem) {
+                setError(problem)
+                return
+              }
+              const clean = normalizeProfile(profile, resolveProfile(business))
+              const hours = hoursFromBook(book)
+              const fields = listingFields(clean)
+              if (business.source === "senin") {
+                const visual = await postListing({ op: "gorsel", id: business.id, photo: cover, gallery: clean.gallery })
+                if (!visual.response.ok || !visual.data?.listing) {
+                  setError(mediaReason(visual.data?.reason))
+                  return
+                }
+                const timed = await postListing({ op: "saat", id: business.id, week: book.week, specials: book.specials })
+                const base = timed.data?.listing ?? visual.data.listing
+                rememberListing({ ...base, photo: visual.data.listing.photo, profile: clean, hours, hourBook: book })
+                if (!timed.response.ok) {
+                  setError("Kapak ve galeri kayda geçti. Saatler yazılamadı.")
+                  return
+                }
+                onSave({ ...fields, profile: clean, hours, hourBook: book, photo: visual.data.listing.photo })
+                return
+              }
+              onSave({ ...fields, hours, hourBook: book, photo: cover })
+            })()
+          }}
+        >
+          <ProfileEditor
+            business={business}
+            value={profile}
+            onChange={setProfile}
+            cover={cover}
+            onCover={setCover}
+            book={book}
+            onBook={setBook}
+            onManual={(action) => void onManual(action)}
+            allowPublish
+          />
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={onClose}>
+              Vazgeç
+            </Button>
+            <Button type="submit" className="h-11 flex-1 rounded-xl">
+              Profili kaydet
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -257,12 +577,14 @@ function BusinessEditor({
   onSave: (patch: Parameters<ReturnType<typeof useDirectory>["patchBusiness"]>[1]) => void
 }) {
   const [name, setName] = useState(business.name)
-  const [phone, setPhone] = useState(business.phone)
+  const [contacts, setContacts] = useState<ContactDraft>(() => draftContacts(business))
   const [city, setCity] = useState(business.city)
   const [district, setDistrict] = useState(business.district)
   const [summary, setSummary] = useState(business.summary)
   const [category, setCategory] = useState<CategoryId>(business.category)
   const [booking, setBooking] = useState<BookingKind>(business.booking)
+  const [links, setLinks] = useState<BusinessLinks>(() => draftLinks(business))
+  const [linkError, setLinkError] = useState("")
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
@@ -274,9 +596,20 @@ function BusinessEditor({
           className="grid gap-3"
           onSubmit={(event) => {
             event.preventDefault()
+            const social = savedLinks(links)
+            if (social.error) {
+              setLinkError(social.error)
+              return
+            }
+            const contact = savedContacts(contacts)
+            if (contact.error) {
+              setLinkError(contact.error)
+              return
+            }
             onSave({
               name: name.trim(),
-              phone: phone.trim(),
+              phone: contact.phone,
+              contacts: contact.contacts,
               city,
               district: district.trim(),
               address: `${district.trim()}, ${city}`,
@@ -284,11 +617,13 @@ function BusinessEditor({
               about: summary.trim(),
               category,
               booking,
+              links: social.links,
+              website: social.website,
             })
           }}
         >
           <Field label="Ad" id="edit-name" value={name} onChange={setName} />
-          <Field label="Telefon" id="edit-phone" value={phone} onChange={setPhone} />
+          <ContactEditor value={contacts} onChange={setContacts} />
           <label className="grid gap-1.5 text-sm">
             Sektör
             <select className={fieldClass} value={category} onChange={(event) => setCategory(event.target.value)}>
@@ -322,6 +657,8 @@ function BusinessEditor({
             <Label htmlFor="edit-summary">Özet</Label>
             <Textarea id="edit-summary" value={summary} onChange={(event) => setSummary(event.target.value)} className="min-h-24" />
           </div>
+          <SocialLinkEditor value={links} onChange={setLinks} />
+          {linkError ? <p className="text-sm text-destructive">{linkError}</p> : null}
           <div className="flex gap-2">
             <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={onClose}>
               Vazgeç
@@ -343,11 +680,11 @@ function CreateBusiness({
 }: {
   sectors: { id: string; label: string; photo?: string }[]
   onClose: () => void
-  onCreate: (business: Business) => void
+  onCreate: (business: Business) => Promise<string | null>
 }) {
   const { account } = useAuth()
   const [name, setName] = useState("")
-  const [phone, setPhone] = useState("")
+  const [contacts, setContacts] = useState<ContactDraft>({ landline: "", mobile: "", whatsapp: "" })
   const [city, setCity] = useState("İstanbul")
   const [district, setDistrict] = useState("")
   const [summary, setSummary] = useState("")
@@ -364,14 +701,23 @@ function CreateBusiness({
           className="grid gap-3"
           onSubmit={(event) => {
             event.preventDefault()
-            if (name.trim().length < 2 || district.trim().length < 2 || summary.trim().length < 8) {
+            if (name.trim().length < 2 || district.trim().length < 2 || summary.trim().length < 12) {
               setError("Ad, semt ve kısa özet gerekli.")
+              return
+            }
+            const contact = savedContacts(contacts)
+            if (contact.error) {
+              setError(contact.error)
+              return
+            }
+            if (contact.phone.replace(/\D/g, "").length < 10) {
+              setError("Telefon için en az 10 rakam yaz.")
               return
             }
             const meta = categoryById(category)
             const slug = slugify(name)
             const center = cityCenter(city)
-            onCreate({
+            void onCreate({
               id: slug,
               slug,
               name: name.trim(),
@@ -382,7 +728,8 @@ function CreateBusiness({
               address: `${district.trim()}, ${city}`,
               lat: center.lat + (Math.random() - 0.5) * 0.04,
               lng: center.lng + (Math.random() - 0.5) * 0.04,
-              phone: phone.trim() || "0212 555 00 00",
+              phone: contact.phone,
+              contacts: contact.contacts,
               rating: 0,
               reviewCount: 0,
               priceLevel: 2,
@@ -404,6 +751,8 @@ function CreateBusiness({
               facts: [],
               source: "senin",
               ownerAccountId: account?.id,
+            }).then((message) => {
+              if (message) setError(message)
             })
           }}
         >
@@ -429,7 +778,7 @@ function CreateBusiness({
             </label>
             <Field label="Semt" id="new-district" value={district} onChange={setDistrict} />
           </div>
-          <Field label="Telefon" id="new-phone" value={phone} onChange={setPhone} />
+          <ContactEditor value={contacts} onChange={setContacts} />
           <div className="grid gap-1.5">
             <Label htmlFor="new-summary">Özet</Label>
             <Textarea id="new-summary" value={summary} onChange={(event) => setSummary(event.target.value)} className="min-h-24" />
@@ -549,7 +898,7 @@ function AccountAdmin() {
               <p className="font-medium">{item.name}</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {item.email} · {item.role === "admin" ? "yönetici" : item.role === "isletme" ? "işletme" : "müşteri"}
-                {item.customer ? ` · TCKN ${maskId(item.customer.nationalId)}` : ""}
+                {item.customer?.nationalId ? ` · TCKN ${maskId(item.customer.nationalId)}` : ""}
                 {item.business ? ` · VKN ${maskId(item.business.taxId)}` : ""}
               </p>
             </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { GuestNotice } from "@/components/auth/guest-gate"
 import { BusinessCard } from "@/components/directory/business-card"
 import { fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
 import { fold } from "@/lib/format"
 import { defaultFilters, searchDirectory } from "@/lib/match"
@@ -33,6 +35,7 @@ function budgetMaxPrice(budget: string) {
 }
 
 export function RequestScreen() {
+  const { account } = useAuth()
   const { requests, place, setPlace, sectors, visibleBusinesses } = useDirectory()
   const [step, setStep] = useState(0)
   const [description, setDescription] = useState("")
@@ -67,6 +70,8 @@ export function RequestScreen() {
     const scoped = applyPlace(ranked, place)
     return { items: scoped.items.slice(0, 3), widened: scoped.widened }
   }, [step, visibleBusinesses, query, place, category, budget])
+
+  if (!account) return <GuestNotice />
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 md:py-12">

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" fill="none" preserveAspectRatio="xMidYMid slice">
+  <pattern id="dots" width="32" height="32" patternUnits="userSpaceOnUse">
+    <circle cx="1.2" cy="1.2" r="1.15" fill="#0B63F6" fill-opacity="0.09"/>
+  </pattern>
+  <rect width="1440" height="900" fill="url(#dots)"/>
+  <path d="M-140 150C220 20 460 300 820 150C1120 30 1280 80 1600 210" stroke="url(#blue)" stroke-width="128" stroke-linecap="round"/>
+  <path d="M-100 390C280 230 560 560 900 370C1200 200 1340 250 1580 430" stroke="url(#cyan)" stroke-width="96" stroke-linecap="round"/>
+  <path d="M160 860C460 720 780 900 1100 760C1280 680 1400 720 1620 650" stroke="#0063F7" stroke-opacity="0.07" stroke-width="78" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="blue" x1="0" y1="80" x2="1440" y2="260" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0063F7" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#2AD4FF" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="1440" y1="180" x2="0" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3EE6FF" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#0063F7" stop-opacity="0.03"/>
+    </linearGradient>
+  </defs>
+</svg>

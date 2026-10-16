@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { countryCodes } from "@/lib/countries"
+import { KKTC_CODE, KKTC_NAME } from "@/lib/kktc"
 import { useDirectory } from "@/lib/directory-context"
 import { googleEmbedUrl, googlePlaceLink } from "@/lib/google-map"
 import { placeLabel, type AreaOption, type Place } from "@/lib/place"
@@ -28,6 +29,7 @@ const emptyOptions: Record<Slot, AreaOption[]> = {
 }
 
 function countryName(code: string) {
+  if (code.toUpperCase() === KKTC_CODE.toUpperCase()) return KKTC_NAME
   try {
     return new Intl.DisplayNames(["tr"], { type: "region" }).of(code) || code
   } catch {
@@ -94,7 +96,10 @@ export function PlaceEditor({
   embedded?: boolean
 }) {
   const countries = useMemo(
-    () => countryCodes.map((code) => ({ code, name: countryName(code) })).sort((a, b) => a.name.localeCompare(b.name, "tr")),
+    () =>
+      [...countryCodes.map((code) => ({ code, name: countryName(code) })), { code: KKTC_CODE.toUpperCase(), name: KKTC_NAME }].sort(
+        (a, b) => a.name.localeCompare(b.name, "tr"),
+      ),
     [],
   )
   const [draft, setDraft] = useState<Place>(current)
@@ -246,7 +251,8 @@ export function PlaceEditor({
     setStatus("Google haritası için konum aranıyor")
     setError("")
     try {
-      const places = await readJson<Place[]>(await fetch(`/api/yer?q=${encodeURIComponent(text)}`))
+      const country = draft.countryCode.toLowerCase() === KKTC_CODE ? `&country=${KKTC_CODE}` : ""
+      const places = await readJson<Place[]>(await fetch(`/api/yer?q=${encodeURIComponent(text)}${country}`))
       setHits(places)
       setStatus(places.length ? "" : "Bu ada yakın kayıt yok.")
     } catch (caught) {
@@ -298,7 +304,10 @@ export function PlaceEditor({
       if (generation.current === token && next.province) await loadLevel("district", next, token)
       if (generation.current === token && next.district) await loadLevel("neighborhood", next, token)
     } catch (caught) {
-      if (generation.current === token) setError(caught instanceof Error ? caught.message : "Konum açılamadı.")
+      if (generation.current !== token) return
+      setStatus("")
+      if (next.country && Number.isFinite(next.lat)) return
+      setError(caught instanceof Error ? caught.message : "Konum açılamadı.")
     }
   }
 

@@ -5,26 +5,41 @@ import { Sparkles, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { GuideList } from "@/components/blog/guide-list"
+import { useBlog } from "@/components/blog/blog-context"
+import { publicArticles, searchGuides, type GuideHit } from "@/lib/blog"
 import { suggestions } from "@/lib/catalog"
+import { mapsSearchUrl, videoSearchUrl, webSearchUrl, type DiscoverEventType } from "@/lib/discover"
+import { recordDiscoverEvent } from "@/lib/discover-store"
+import { trackNeed } from "@/lib/need-client"
+import { searchSuggestions } from "@/lib/i18n"
 import { useDirectory } from "@/lib/directory-context"
 import { formatRating } from "@/lib/format"
 import { concierge, type RankedBusiness } from "@/lib/match"
+import { useNeedScope } from "@/lib/need-scope"
+import { useLocale } from "@/lib/use-locale"
 
 type Message = {
   id: string
   role: "user" | "assistant"
   text: string
   results?: RankedBusiness[]
+  guides?: GuideHit[]
+  outsideQuery?: string
 }
 
 export function Assistant() {
   const { assistantOpen, setAssistantOpen, visibleBusinesses, city } = useDirectory()
+  const { locale, t } = useLocale()
+  const scope = useNeedScope()
+  const blog = useBlog()
+  const chips = locale === "tr" ? suggestions : searchSuggestions[locale]
   const [draft, setDraft] = useState("")
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "hello",
       role: "assistant",
-      text: "Katalogda semt, bütçe ya da aciliyet yaz. Üç kayda kadar gerekçesiyle getiririm.",
+      text: "",
     },
   ])
   const endRef = useRef<HTMLDivElement>(null)
@@ -45,6 +60,8 @@ export function Assistant() {
         role: "assistant",
         text: answer.text,
         results: answer.results,
+        guides: searchGuides(publicArticles(blog.document), query),
+        outsideQuery: "outside" in answer && answer.outside ? query : undefined,
       },
     ])
     setDraft("")
@@ -55,27 +72,27 @@ export function Assistant() {
       <button
         type="button"
         onClick={() => setAssistantOpen(true)}
-        className="fixed right-4 bottom-24 z-40 flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-lg md:bottom-6"
+        className="fixed end-4 bottom-24 z-40 flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-lg print:hidden md:bottom-6"
       >
         <Sparkles className="size-4" />
-        Asistan
+        {t("assist.open")}
       </button>
     )
   }
 
   return (
     <section
-      className="fixed inset-x-3 top-20 bottom-20 z-50 flex flex-col overflow-hidden rounded-3xl bg-popover ring-1 ring-foreground/10 shadow-2xl md:inset-auto md:right-6 md:bottom-6 md:h-[34rem] md:w-[24rem]"
-      aria-label="pinwego asistanı"
+      className="fixed inset-x-3 top-20 bottom-20 z-50 flex flex-col overflow-hidden rounded-3xl bg-popover ring-1 ring-foreground/10 shadow-2xl print:hidden md:inset-auto md:end-6 md:bottom-6 md:h-[34rem] md:w-[24rem]"
+      aria-label={t("assist.open")}
     >
       <header className="flex items-center justify-between border-b border-foreground/10 px-4 py-3">
         <div>
-          <p className="font-heading text-lg leading-none">Asistan</p>
-          <p className="mt-1 text-xs text-muted-foreground">Katalog içinden eşleştirir</p>
+          <p className="font-heading text-lg leading-none">{t("assist.open")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("assist.matches")}</p>
         </div>
         <button
           type="button"
-          aria-label="Asistanı kapat"
+          aria-label={t("assist.close")}
           onClick={() => setAssistantOpen(false)}
           className="grid size-8 place-items-center rounded-full hover:bg-muted"
         >
@@ -92,7 +109,7 @@ export function Assistant() {
                   : "max-w-[95%] text-sm leading-6"
               }
             >
-              <p>{message.text}</p>
+              <p>{message.id === "hello" ? t("assist.hello") : message.text}</p>
               {message.results?.length ? (
                 <div className="mt-2 grid gap-2">
                   {message.results.map((item) => (
@@ -113,12 +130,18 @@ export function Assistant() {
                   ))}
                 </div>
               ) : null}
+              {message.guides?.length ? (
+                <GuideList hits={message.guides} onOpen={() => setAssistantOpen(false)} />
+              ) : null}
+              {message.outsideQuery && scope !== "pinwego" ? (
+                <OutsideLinks query={message.outsideQuery} city={city} />
+              ) : null}
             </div>
           </div>
         ))}
         {messages.length === 1 ? (
           <div className="flex flex-wrap gap-2">
-            {suggestions.slice(0, 3).map((item) => (
+            {chips.slice(0, 3).map((item) => (
               <button
                 key={item}
                 type="button"
@@ -140,11 +163,11 @@ export function Assistant() {
         }}
       >
         <label className="flex-1">
-          <span className="sr-only">Asistana yaz</span>
+          <span className="sr-only">{t("assist.open")}</span>
           <Input
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Üsküdar’da elektrikçi"
+            placeholder={t("search.placeholder")}
             className="h-11"
           />
         </label>
@@ -153,5 +176,36 @@ export function Assistant() {
         </Button>
       </form>
     </section>
+  )
+}
+
+function OutsideLinks({ query, city }: { query: string; city: string }) {
+  const { t } = useLocale()
+  const links: { href: string; label: string; type: DiscoverEventType }[] = []
+  const maps = mapsSearchUrl(query, city)
+  const web = webSearchUrl(query, city)
+  const video = videoSearchUrl(query, city)
+  if (maps) links.push({ href: maps, label: t("discover.maps"), type: "maps_click" })
+  if (web) links.push({ href: web, label: t("discover.web"), type: "web_click" })
+  if (video) links.push({ href: video, label: t("discover.video"), type: "video_click" })
+  if (!links.length) return null
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {links.map((item) => (
+        <a
+          key={item.type}
+          href={item.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => {
+            recordDiscoverEvent({ type: item.type, q: query, city })
+            trackNeed({ kind: "external", q: query, city, target: item.type === "maps_click" ? "maps" : item.type === "video_click" ? "video" : "web" })
+          }}
+          className="rounded-full bg-secondary px-3 py-1.5 text-xs"
+        >
+          {item.label}
+        </a>
+      ))}
+    </div>
   )
 }

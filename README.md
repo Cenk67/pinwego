@@ -8,7 +8,7 @@ Katalog örnek kayıtlardan oluşur. Eşleştirme tarayıcıda çalışır; hari
 
 ## Çalıştırma
 
-Node.js 20.9 veya daha yenisi gerekir.
+Node.js 20.9 veya daha yenisi gerekir. Cloudflare Workers yayını Node.js 22.18 veya daha yenisini ister.
 
 ```bash
 npm install
@@ -16,6 +16,17 @@ npm run dev
 ```
 
 Site [http://127.0.0.1:43123](http://127.0.0.1:43123) adresinde açılır. `localhost:3000` bu projede kullanılmıyor.
+
+## Cloudflare Workers
+
+Canlı site Cloudflare Workers üzerinde durur. `pinwego.com` ve `www.pinwego.com`, `cloudflare.config.ts` içinde bu Worker’a bağlıdır. Alan adının ad sunucuları zaten Cloudflare’dedir; yayın sırasında DNS kaydı ve sertifika Cloudflare tarafından yazılır.
+
+```bash
+npx cf auth login
+npm run deploy:vinext
+```
+
+`cf auth login` Cloudflare hesabını CLI’ye bağlar. `npm run deploy:vinext` Worker’ı kurar ve `pinwego.com` ile `www.pinwego.com` kayıtlarını ona yazar. Yerel Next.js sunucusu aynı kalır (`npm run dev`). Workers önizlemesi `npm run dev:vinext` ile 43124 portunda açılır.
 
 Açılmazsa:
 
@@ -27,6 +38,7 @@ Açılmazsa:
 
 - Sektörler: yeme-içme, konaklama, sağlık, temizlik, usta, otomotiv, hukuk, turizm, inşaat ve diğer ticari alanlar dahil 80 civarı hazır sektör. Ana sayfada ara, işletme kaydında seç. Listede yoksa “Sektör ekle” ile yeni sektör yazılır; arama sözcükleri, simge ve kapak seçilir. Özel sektörler bu tarayıcıda kalır.
 - Doğal dille arama: semt, bütçe, aciliyet ve kategori aynı cümleden okunur.
+- Akıllı ihtiyaç bulucu: “Evimin su tesisatı patladı”, “Kışın evim sıcak olmuyor” gibi cümleler yazım düzeltmesi, eş anlamlı ve ihtiyaç sözlüğüyle kategoriye bağlanır; sonuç sayfası anlaşılan ihtiyacı özetler, gerekirse şehir / aciliyet / bütçe sorar, yakın kategorileri önerir, Pinwego’da kayıt yoksa Google, YouTube ve Haritalar bağlantısı verir. Sponsorlu kayıt alakasız aramada öne geçmez. Yönetim → İhtiyaç araması sekmesi sıfır sonuç dönen cümleleri, eşleşme oranını, dış kaynağa geçişi ve iletişim dönüşümünü gösterir. Ayrıntı: `docs/akilli-ihtiyac/`.
 - İşletme profili: fotoğraf, puan, yorum, saat, hizmet fiyatı, doğrulama ve öne çıkan rozeti.
 - Harita: pinler işletmenin enlem ve boylamına göre Google Haritalar üzerinde durur; yakınlık semte göre ayarlanır. Yol tarifi Google Haritalar’ı açar.
 - Konum: Eşleştir yanındaki düğme ülke, bölge, il, ilçe ve semti birbirine bağlı seçer. Seçilen nokta Google Haritalar’da durur. Yakınımdakiler tarayıcı konumunu kullanır. Örnek katalog İstanbul, Ankara, İzmir, Antalya ve Bursa kayıtlarındadır; başka bir yer haritada görünür, liste boş kalabilir.
@@ -35,7 +47,7 @@ Açılmazsa:
 - Paylaş: her işletmenin yanında paylaş düğmesi vardır. Telefonda sistem menüsü bütün uygulamaları açar; değilse WhatsApp, Telegram, X, Facebook, LinkedIn, e-posta, SMS ve bağlantı kopyalama durur.
 - Karşılaştırma: kaydettiğin işletmeleri yan yana bak.
 - Hesap kapısı: kayıtlı olmayan hesap arama, harita, randevu ve kayıt eklemeyi açamaz. Müşteri T.C. kimlik bilgisi ve teyit belgesi girer. İşletme vergi levhası, imza sirküleri, sicil belgesi ve yetkili kimliğini yükler. Kayıt ve belgeler bu tarayıcıda durur.
-- Yönetim: girişte Yönetici girişi vardır (`admin@pinwego.local` / `pinwego-admin`). `/yonetim` panelinden sektör gizleme/ekleme, işletme doğrulama, öne çıkarma, gizleme ve düzenleme, talepleri silme ve hesap belgelerini inceleme yapılır. Değişiklik bu tarayıcıda kalır.
+- Yönetim: yönetici girişi kullanıcı adı ve şifreden sonra posta kutusuna giden tek kullanımlık kod ister. Kullanıcı adı ve şifre repoda durmaz. `/yonetim` panelinden sektör gizleme/ekleme, işletme doğrulama, öne çıkarma, gizleme ve düzenleme, talepleri silme ve hesap belgelerini inceleme yapılır. Katalog değişiklikleri bu tarayıcıda kalır.
 - Kendi kaydın: doğrulanmış işletme hesabı işletme ekle formunu aramaya düşürür; kayıt yalnızca bu tarayıcıda durur.
 - Mesajlar: `/mesajlar` içinde işletme aranır, seçilir ve doğrudan yazılır. Kart ve profildeki Mesaj gönder de aynı sohbeti açar. Rahatsız eden sohbette müşteri işletmeyi, işletme müşteriyi veya başka işletmeyi engeller; Engeli kaldır ile yazışma yeniden açılır. Gelen mesajda ekran uyarısı çıkar; izin verilirse tarayıcı bildirimi de gider. Oturum sekme bazlıdır: iki sekmede iki hesap açıp canlı sohbet edilebilir.
 - Asistan: aynı eşleştiriciyle kısa bir sohbet.

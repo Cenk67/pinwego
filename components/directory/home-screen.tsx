@@ -1,40 +1,59 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowUpRight, Plus, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { ArrowUpRight } from "lucide-react"
+import { useMemo, useState, useSyncExternalStore } from "react"
+import { useGuestGate } from "@/components/auth/guest-gate"
 import { BusinessCard } from "@/components/directory/business-card"
-import { CategoryGlyph, Cover, fieldClass } from "@/components/directory/bits"
+import { fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
+import { NeedMemoryChips } from "@/components/directory/need-memory-chips"
 import { SearchForm } from "@/components/directory/search-form"
 import { SectorForm } from "@/components/directory/sector-form"
+import { HomeCampaigns } from "@/components/campaigns/home-campaigns"
+import { BlogStrip } from "@/components/blog/blog-strip"
+import { SectorStrip } from "@/components/directory/sector-strip"
 import { Button } from "@/components/ui/button"
 import { suggestions } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { fold } from "@/lib/format"
+import { searchSuggestions } from "@/lib/i18n"
+import { sectorCopy } from "@/lib/sector-copy"
+import { useLocale } from "@/lib/use-locale"
 import { distanceFromPlace, placeLabel, applyPlace } from "@/lib/place"
+import { useMinute } from "@/components/directory/hours-view"
+import { liveList } from "@/lib/hours"
+import { getSectorClicks, getServerSectorClicks, rankSectors, subscribeSectorClicks } from "@/lib/sector-clicks"
 
 export function HomeScreen() {
   const { place, sectors, visibleBusinesses, removeSector } = useDirectory()
+  const { allow } = useGuestGate()
+  const { locale, t } = useLocale()
+  const chips = locale === "tr" ? suggestions : searchSuggestions[locale]
   const [sectorQuery, setSectorQuery] = useState("")
   const [sectorOpen, setSectorOpen] = useState(false)
-  const catalog = visibleBusinesses
+  const sectorClicks = useSyncExternalStore(subscribeSectorClicks, getSectorClicks, getServerSectorClicks)
+  const now = useMinute()
+  const catalog = useMemo(() => liveList(visibleBusinesses, now), [visibleBusinesses, now])
   const catalogCount = catalog.length
   const visibleSectors = useMemo(() => {
     const needle = fold(sectorQuery)
-    if (!needle) return sectors
-    return sectors.filter((item) => fold(`${item.label} ${item.blurb} ${item.phrases.join(" ")}`).includes(needle))
-  }, [sectors, sectorQuery])
+    const matched = needle
+      ? sectors.filter((item) => {
+          const copy = sectorCopy(locale, item)
+          return fold(`${item.label} ${item.blurb} ${copy.label} ${copy.blurb} ${item.phrases.join(" ")}`).includes(needle)
+        })
+      : sectors
+    return rankSectors(matched, sectorClicks)
+  }, [sectors, sectorQuery, sectorClicks, locale])
   const ranked = catalog.map((business) => ({ business, distanceKm: distanceFromPlace(place, business) }))
   const scoped = applyPlace(ranked, place)
   const local = scoped.items
     .map((item) => ({ business: item.business, km: item.distanceKm }))
     .sort((a, b) => a.km - b.km)
   const nearby = local.filter((item) => item.business.openNow).slice(0, 6)
-  const featured = (local.some((item) => item.business.premium)
-    ? local.filter((item) => item.business.premium)
-    : local
-  ).slice(0, 3)
+  const sponsored = local.filter((item) => item.business.premium)
+  const featured = (sponsored.length ? sponsored : local).slice(0, 3)
 
   return (
     <div>
@@ -42,20 +61,24 @@ export function HomeScreen() {
         <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 md:py-16 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <div className="min-w-0">
             <p className="text-sm font-medium text-primary">
-              Ticari rehber · {catalogCount} kayıt · {sectors.length} sektör
+              {t("home.kicker", { count: catalogCount, sectors: sectors.length })}
             </p>
             <h1 className="mt-3 max-w-full font-heading text-4xl leading-[1.05] text-balance md:max-w-xl md:text-6xl">
-              Doğru işletme, tek cümle.
+              {t("need.hint")}
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
-              Yorum, fiyat, mesafe ve randevuyu aynı kartta topladık. Ne aradığını yaz; pinwego
-              yakındaki kaydı gerekçesiyle sıralasın.
+              {t("need.lead")} {t("home.lead")}
+            </p>
+            <p className="mt-2 max-w-xl text-sm text-muted-foreground">{t("home.original")}</p>
+            <p className="mt-3 flex flex-wrap gap-4 text-sm">
+              <Link href="/hakkimizda" className="text-primary">{t("home.about")}</Link>
+              <Link href="/nasil-calisir" className="text-primary">{t("home.how")}</Link>
             </p>
             <div className="mt-6">
               <SearchForm large />
             </div>
             <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-              {suggestions.map((item) => (
+              {chips.map((item) => (
                 <Link
                   key={item}
                   href={`/ara?q=${encodeURIComponent(item)}`}
@@ -65,9 +88,10 @@ export function HomeScreen() {
                 </Link>
               ))}
             </div>
+            <NeedMemoryChips className="mt-3" />
           </div>
           <MiniMap
-            label={place.nearMe ? "Yakınımdakiler" : `${placeLabel(place)} kayıtları`}
+            label={place.nearMe ? t("search.near") : `${placeLabel(place)}`}
             points={local.map((item) => item.business)}
             focus={place}
             className="min-h-80"
@@ -75,18 +99,18 @@ export function HomeScreen() {
         </div>
       </section>
 
+      <HomeCampaigns />
+
       <section className="mx-auto max-w-6xl px-4 py-10">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <h2 className="font-heading text-3xl">Şu an açık</h2>
+            <h2 className="font-heading text-3xl">{t("home.open")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {scoped.widened
-                ? "40 km içinde açık kayıt yok. En yakın örnekler duruyor."
-                : `${placeLabel(place)} çevresindeki açık kayıtlar`}
+              {scoped.widened ? t("home.openWide") : t("home.openHere", { place: placeLabel(place) })}
             </p>
           </div>
           <Link href="/ara?acik=1" className="text-sm text-primary">
-            Tümü
+            {t("home.all")}
           </Link>
         </div>
         {nearby.length ? (
@@ -98,100 +122,65 @@ export function HomeScreen() {
             ))}
           </div>
         ) : (
-          <p className="mt-5 text-sm text-muted-foreground">Bu konumda açık örnek kayıt yok.</p>
+          <p className="mt-5 text-sm text-muted-foreground">{t("home.openEmpty")}</p>
         )}
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="font-heading text-3xl">Sektörler</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {sectors.length} sektör. Listede yoksa ekle; arama ve talep aynı kaydı kullanır.
-            </p>
+            <h2 className="font-heading text-3xl">{t("home.sectors")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t("home.sectorsLead", { count: sectors.length })}</p>
           </div>
           <input
             value={sectorQuery}
             onChange={(event) => setSectorQuery(event.target.value)}
-            placeholder="Sektör ara"
+            placeholder={t("home.sectorSearch")}
+            aria-label={t("home.sectorSearch")}
             className={`${fieldClass} sm:max-w-56`}
           />
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {visibleSectors.map((category) => {
-            const count = catalog.filter((item) => item.category === category.id).length
-            return (
-              <div key={category.id} className="relative">
-                <Link
-                  href={`/ara?kategori=${category.id}`}
-                  className="group relative block h-36 overflow-hidden rounded-3xl ring-1 ring-foreground/10"
-                >
-                  <Cover
-                    src={category.photo}
-                    alt=""
-                    className="absolute inset-0 size-full transition duration-300 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
-                  <div className="absolute right-3 bottom-3 left-3 text-white">
-                    <CategoryGlyph id={category.id} icon={category.icon} className="size-4" />
-                    <p className="mt-1 font-medium">{category.label}</p>
-                    <p className="text-xs text-white/80">
-                      {count} kayıt · {category.blurb}
-                    </p>
-                  </div>
-                </Link>
-                {category.custom ? (
-                  <button
-                    type="button"
-                    aria-label={`${category.label} sektörünü kaldır`}
-                    onClick={() => removeSector(category.id)}
-                    className="absolute top-2 right-2 grid size-8 place-items-center rounded-full bg-black/55 text-white"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                ) : null}
-              </div>
-            )
-          })}
-          <button
-            type="button"
-            onClick={() => setSectorOpen(true)}
-            className="flex h-36 flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-foreground/25 bg-card text-sm font-medium text-muted-foreground"
-          >
-            <Plus className="size-5" />
-            Sektör ekle
-          </button>
-        </div>
-        {sectorQuery && !visibleSectors.length ? (
-          <p className="mt-4 text-sm text-muted-foreground">Bu aramada sektör yok. Yeni sektör ekleyebilirsin.</p>
-        ) : null}
+        {visibleSectors.length ? (
+          <SectorStrip
+            sectors={visibleSectors}
+            businesses={catalog}
+            onRemove={(id) => allow(() => removeSector(id))}
+            onAdd={() => allow(() => setSectorOpen(true))}
+          />
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">{t("home.sectorEmpty")}</p>
+        )}
         <SectorForm open={sectorOpen} onOpenChange={setSectorOpen} />
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-10">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <h2 className="font-heading text-3xl">Öne çıkanlar</h2>
+            <h2 className="font-heading text-3xl">{t("home.featured")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Ücretsiz kaydın yanında, sponsoru belli premium görünürlük.
+              {sponsored.length ? t("home.featuredOn") : t("home.featuredOff")}
             </p>
           </div>
-          <Link href="/ara?one=1" className="text-sm text-primary">
-            Liste
+          <Link href={sponsored.length ? "/ara?one=1" : "/ara"} className="text-sm text-primary">
+            {t("home.list")}
           </Link>
         </div>
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
-          {featured.map((item) => (
-            <BusinessCard key={item.business.id} business={item.business} distanceKm={item.km} />
-          ))}
-        </div>
+        {featured.length ? (
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {featured.map((item) => (
+              <BusinessCard key={item.business.id} business={item.business} distanceKm={item.km} />
+            ))}
+          </div>
+        ) : (
+          <p className="mt-5 text-sm text-muted-foreground">{t("home.featuredEmpty")}</p>
+        )}
       </section>
 
       <section className="mx-auto grid max-w-6xl gap-4 px-4 py-6 md:grid-cols-3">
         {[
-          ["1", "Anlat", "Semt, bütçe, saat ya da işi düz cümleyle yaz. Süzgeçler arkada durur."],
-          ["2", "Karşılaştır", "Puan, yorum, fiyat aralığı, açıklık ve dönüş süresi aynı kartta."],
-          ["3", "İlerle", "Randevu, rezervasyon ya da teklif talebi işletmenin kendi kaydından gider."],
+          ["1", t("home.step1"), t("home.step1b")],
+          ["2", t("home.step2"), t("home.step2b")],
+          ["3", t("home.step3"), t("home.step3b")],
         ].map(([step, title, copy]) => (
           <article key={step} className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
             <p className="font-heading text-3xl text-primary">{step}</p>
@@ -204,10 +193,8 @@ export function HomeScreen() {
       <section className="mx-auto max-w-6xl px-4 py-8">
         <div className="flex flex-col items-start justify-between gap-4 rounded-3xl bg-primary px-6 py-8 text-primary-foreground md:flex-row md:items-center">
           <div>
-            <h2 className="font-heading text-3xl">İşi anlat, üç kayıt gelsin.</h2>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-primary-foreground/80">
-              Boya, temizlik, tesisat ya da ofis tedariki. Talep, fiyat aralığı yazılı işletmelerle eşleşir.
-            </p>
+            <h2 className="font-heading text-3xl">{t("home.ctaTitle")}</h2>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-primary-foreground/80">{t("home.ctaBody")}</p>
           </div>
           <Button
             variant="secondary"
@@ -215,11 +202,12 @@ export function HomeScreen() {
             nativeButton={false}
             render={<Link href="/talep" />}
           >
-            Talep oluştur
+            {t("nav.request")}
             <ArrowUpRight className="size-4" />
           </Button>
         </div>
       </section>
+      <BlogStrip />
     </div>
   )
 }

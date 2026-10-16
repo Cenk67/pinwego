@@ -3,9 +3,11 @@
 import { useRouter } from "next/navigation"
 import { MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useGuestGate } from "@/components/auth/guest-gate"
 import { useAuth } from "@/lib/auth-context"
 import { useMessages } from "@/lib/message-context"
 import { ownsListing } from "@/lib/message-store"
+import { trackNeedContact } from "@/lib/need-client"
 import type { Business } from "@/lib/types"
 import { cn } from "cn"
 
@@ -20,16 +22,20 @@ export function MessageButton({
 }) {
   const router = useRouter()
   const { account } = useAuth()
+  const { allow } = useGuestGate()
   const { openWithBusiness } = useMessages()
   const mine = account ? ownsListing(account, business) : false
 
   function open() {
-    if (mine) {
-      router.push("/mesajlar")
-      return
-    }
-    const thread = openWithBusiness(business)
-    if (thread) router.push(`/mesajlar?konusma=${encodeURIComponent(thread.id)}`)
+    allow(() => {
+      if (mine) {
+        router.push("/mesajlar")
+        return
+      }
+      const thread = openWithBusiness(business)
+      if (thread) trackNeedContact("mesaj")
+      if (thread) router.push(`/mesajlar?konusma=${encodeURIComponent(thread.id)}`)
+    })
   }
 
   if (compact) {

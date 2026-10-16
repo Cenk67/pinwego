@@ -1,0 +1,45 @@
+import assert from "node:assert/strict"
+import { emptyStats, noteAccount, noteVisit, parseStats, percentChange, reportDay, shiftDay, statsReport } from "./stats"
+
+const morning = Date.parse("2026-10-12T21:30:00Z")
+assert.equal(reportDay(morning), "2026-10-13")
+assert.equal(reportDay(Date.parse("2026-10-12T20:30:00Z")), "2026-10-12")
+assert.equal(shiftDay("2026-03-01", -1), "2026-02-28")
+assert.equal(percentChange(0, 0), 0)
+assert.equal(percentChange(5, 0), null)
+assert.equal(percentChange(15, 10), 50)
+assert.equal(parseStats("{"), null)
+assert.equal(parseStats(null)?.customers, 0)
+
+let stats = emptyStats()
+stats = noteAccount(stats, { at: morning, role: "musteri", kind: "kayit", id: "m-1" })
+stats = noteAccount(stats, { at: morning, role: "isletme", kind: "kayit", id: "i-1" })
+stats = noteAccount(stats, { at: morning, role: "musteri", kind: "giris", id: "m-1" })
+stats = noteAccount(stats, { at: morning + 1000, role: "musteri", kind: "giris", id: "m-1" })
+stats = noteAccount(stats, { at: morning, role: "musteri", kind: "giris", id: "m-2" })
+assert.equal(stats.customers, 1)
+assert.equal(stats.businesses, 1)
+assert.equal(stats.customerLogins, 3)
+assert.equal(stats.days["2026-10-13"].customerActive, 2)
+assert.equal(stats.businessLogins, 0)
+
+const first = noteVisit(stats, { at: morning, session: "a".repeat(24), path: "/ara", source: "doğrudan" })
+const again = noteVisit(first.state, { at: morning, session: "a".repeat(24), path: "/ara", source: "doğrudan" })
+const other = noteVisit(again.state, { at: morning, session: "a".repeat(24), path: "/kesif", source: "google.com" })
+assert.equal(again.fresh, false)
+assert.equal(other.state.days["2026-10-13"].views, 2)
+assert.equal(other.state.days["2026-10-13"].sessions, 1)
+assert.equal(other.state.customers, 1)
+
+const report = statsReport(other.state, "2026-10-13", "2026-10-13")
+assert.equal(report?.totals.newCustomers, 1)
+assert.equal(report?.totals.newBusinesses, 1)
+assert.equal(report?.totals.views, 2)
+assert.equal(report?.previous.views, 0)
+assert.equal(report?.change.views, null)
+assert.equal(report?.approvals.pending, 0)
+
+const wide = statsReport(other.state, "2026-01-01", "2026-10-13")
+assert.equal(wide && wide.chart.length < wide.days, true)
+
+console.log("istatistik günü ve sayaçları ayrıldı")

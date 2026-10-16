@@ -1,4 +1,5 @@
 import { cityCenter } from "@/lib/catalog"
+import { getLocale, translate } from "@/lib/i18n"
 import {
   bookingLabel,
   distanceKm,
@@ -8,6 +9,8 @@ import {
   formatResponse,
 } from "@/lib/format"
 import { allSectors } from "@/lib/sectors"
+import { correctNeedDetailed, matchNeed, type NeedCorrection } from "@/lib/need"
+import { isWorldPhrase, worldAliases, worldFocus } from "@/lib/world-query"
 import type { Business, CategoryId, Filters } from "@/lib/types"
 
 export type RankedBusiness = {
@@ -31,7 +34,8 @@ export const defaultFilters: Filters = {
 function categoryPhrases() {
   return allSectors().map((item) => ({
     id: item.id,
-    phrases: [...new Set([...item.phrases, fold(item.label)])],
+    label: fold(item.label),
+    phrases: [...new Set([...item.phrases, fold(item.label), ...worldAliases(item.id).map((alias) => alias.phrase)])],
   }))
 }
 
@@ -83,17 +87,36 @@ const STOPWORDS = new Set([
   "icin",
   "olan",
   "fiyat",
+  "the",
+  "and",
+  "for",
+  "with",
+  "near",
+  "please",
+  "now",
+  "open",
+  "und",
+  "pour",
+  "para",
+  "con",
   "nde",
   "nda",
   "dan",
   "den",
 ])
 
-const CITIES = ["İstanbul", "Ankara", "İzmir", "Antalya", "Bursa", "Zonguldak"]
+export const CITIES = ["İstanbul", "Ankara", "İzmir", "Antalya", "Bursa", "Zonguldak"]
 
 export type ParsedQuery = {
   raw: string
+  /** Folded, corrected text the engine actually matched. */
+  text: string
+  /** Typo repairs and synonym swaps applied to the raw text. */
+  changes: NeedCorrection[]
   category?: CategoryId
+  categories: CategoryId[]
+  labels: string[]
+  focus: string[]
   city?: string
   district?: string
   minRating?: number
@@ -102,9 +125,98 @@ export type ParsedQuery = {
   terms: string[]
 }
 
+const VOWELS = new Set(["a", "e", "i", "o", "u"])
+
+function stems(token: string) {
+  const forms = new Set([token])
+  let body = token
+  if (body.length > 5 && (body.endsWith("ler") || body.endsWith("lar"))) {
+    body = body.slice(0, -3)
+    forms.add(body)
+  }
+  if (body.length > 4 && /(?:den|dan|ten|tan)$/.test(body)) {
+    body = body.slice(0, -3)
+    forms.add(body)
+  }
+  if (body.length > 4 && /(?:de|da|te|ta)$/.test(body)) {
+    body = body.slice(0, -2)
+    forms.add(body)
+  }
+  if (body.length > 3 && VOWELS.has(body.slice(-1))) {
+    const cut = body.slice(0, -1)
+    forms.add(cut)
+    const last = cut.slice(-1)
+    const soften: Record<string, string> = { g: "k", b: "p", d: "t", c: "c" }
+    if (cut.length > 3 && soften[last]) forms.add(`${cut.slice(0, -1)}${soften[last]}`)
+  }
+  return forms
+}
+
+function wordMatch(token: string, word: string) {
+  if (!word) return false
+  if (token === word) return true
+  if (word.length < 3) return false
+  if (token.startsWith(word)) return true
+  if (token.length >= 4 && word.startsWith(token)) return true
+  for (const form of stems(token)) {
+    if (form === word || form.startsWith(word)) return true
+  }
+  return false
+}
+
 function hasPhrase(text: string, phrase: string) {
-  if (phrase.includes(" ")) return text.includes(phrase)
-  return text.split(" ").some((token) => token === phrase || token.startsWith(phrase))
+  const tokens = text.split(" ").filter(Boolean)
+  const words = phrase.split(" ").filter(Boolean)
+  if (!words.length) return false
+  if (words.length === 1) return tokens.some((token) => wordMatch(token, words[0]))
+  for (let index = 0; index <= tokens.length - words.length; index += 1) {
+    if (words.every((word, offset) => wordMatch(tokens[index + offset], word))) return true
+  }
+  return false
+}
+
+function genericPhrase(phrase: string, label: string) {
+  if (phrase === label) return true
+  const words = phrase.split(" ")
+  if (words.length !== 1) return false
+  const word = words[0]
+  return label.split(" ").some((part) => part.length >= 3 && (part.startsWith(word) || word.startsWith(part)))
+}
+
+const GENERIC_TRADE = new Set([
+  "klinik",
+  "klinigi",
+  "merkez",
+  "merkezi",
+  "servis",
+  "ofis",
+  "salon",
+  "usta",
+  "ustasi",
+  "dukkan",
+  "magaza",
+  "hizmet",
+  "hizmeti",
+  "bakim",
+  "bakimi",
+  "tamir",
+  "tamiri",
+  "saglik",
+  "sagligi",
+])
+
+function tradeWords(value: string) {
+  return fold(value)
+    .split(" ")
+    .filter((word) => word.length >= 3 && !GENERIC_TRADE.has(word))
+}
+
+export function sameTrade(left: Business, right: Business) {
+  if (left.category !== right.category) return false
+  const origin = tradeWords(left.subcategory)
+  const other = tradeWords(right.subcategory)
+  if (!origin.length || !other.length) return false
+  return origin.some((word) => other.some((item) => wordMatch(word, item) || wordMatch(item, word)))
 }
 
 function knownPlaces(list: Business[]) {
@@ -120,9 +232,11 @@ function knownPlaces(list: Business[]) {
 
 export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
   const raw = query.trim()
-  const text = fold(raw)
-  const tokens = text.split(" ").filter(Boolean)
   const places = knownPlaces(list)
+  const protectedWords = [...places.map((place) => fold(place.name)), ...places.map((place) => fold(place.city)), ...CITIES.map((name) => fold(name))]
+  const corrected = correctNeedDetailed(fold(raw), protectedWords)
+  const text = corrected.text
+  const tokens = text.split(" ").filter(Boolean)
 
   let district: string | undefined
   let city: string | undefined
@@ -145,18 +259,33 @@ export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
   }
 
   const phrases = categoryPhrases()
-  let category: CategoryId | undefined
-  let categoryScore = 0
+  let winners: { id: CategoryId; score: number; focus: string[] }[] = []
+  const strong = matchNeed(text, true)
+  if (strong) winners = strong.categories.map((id) => ({ id, score: 1, focus: [strong.focus] }))
   for (const group of phrases) {
+    if (strong) break
+    const hits: string[] = []
     let score = 0
     for (const phrase of group.phrases) {
-      if (hasPhrase(text, phrase)) score += phrase.split(" ").length + 1
+      if (!hasPhrase(text, phrase)) continue
+      score += phrase.split(" ").length + phrase.length / 10
+      const mapped = worldFocus(group.id, phrase)
+      if (mapped) hits.push(mapped)
+      else if (!isWorldPhrase(group.id, phrase) && !genericPhrase(phrase, group.label)) hits.push(phrase)
     }
-    if (score > categoryScore) {
-      category = group.id
-      categoryScore = score
-    }
+    if (score <= 0) continue
+    const next = { id: group.id, score, focus: hits }
+    if (!winners.length || score > winners[0].score) winners = [next]
+    else if (score === winners[0].score) winners.push(next)
   }
+  if (!winners.length) {
+    const need = matchNeed(text)
+    if (need) winners = need.categories.map((id) => ({ id, score: 1, focus: [need.focus] }))
+  }
+  const category = winners.length === 1 ? winners[0].id : undefined
+  const categories = winners.map((item) => item.id)
+  const labels = winners.map((item) => phrases.find((group) => group.id === item.id)?.label ?? "")
+  const focus = [...new Set(winners.flatMap((item) => item.focus))]
 
   const tags = TAG_RULES.filter((rule) =>
     rule.phrases.some((phrase) => hasPhrase(text, phrase)),
@@ -169,15 +298,26 @@ export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
   else if (text.includes("yuksek puan")) minRating = 4.2
 
   const openNow =
-    text.includes("su an") || text.includes("acik olan") || text.includes("hala acik")
+    text.includes("su an") ||
+    text.includes("acik olan") ||
+    text.includes("hala acik") ||
+    text.includes("open now") ||
+    text.includes("jetzt geoffnet") ||
+    text.includes("ouvert maintenant") ||
+    text.includes("abierto ahora") ||
+    text.includes("aberto agora")
 
   const consumed = new Set<string>(STOPWORDS)
   if (city) consumed.add(fold(city))
   if (district) consumed.add(fold(district))
   for (const group of phrases) {
-    for (const phrase of group.phrases) phrase.split(" ").forEach((part) => consumed.add(part))
+    if (!categories.includes(group.id)) continue
+    for (const phrase of group.phrases) {
+      if (hasPhrase(text, phrase)) phrase.split(" ").forEach((part) => consumed.add(part))
+    }
   }
   for (const rule of TAG_RULES) {
+    if (!tags.includes(rule.tag)) continue
     for (const phrase of rule.phrases) phrase.split(" ").forEach((part) => consumed.add(part))
   }
 
@@ -185,7 +325,32 @@ export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
     .filter((token) => token.length > 2 && !consumed.has(token))
     .slice(0, 8)
 
-  return { raw, category, city, district, minRating, openNow, tags, terms }
+  return { raw, text, changes: corrected.changes, category, categories, labels, focus, city, district, minRating, openNow, tags, terms }
+}
+
+function identity(business: Business) {
+  return fold(`${business.name} ${business.subcategory}`)
+}
+
+function salientWords(focus: string[], labels: string[]) {
+  const words = [...new Set(focus.flatMap((phrase) => phrase.split(" ")))]
+  return words.filter((word) => {
+    if (word.length < 3) return false
+    return !labels.some((label) => {
+      if (genericPhrase(word, label)) return true
+      for (const form of stems(word)) {
+        if (genericPhrase(form, label)) return true
+      }
+      return false
+    })
+  })
+}
+
+function narrowToWritten(list: Business[], focus: string[], labels: string[]) {
+  const words = salientWords(focus, labels)
+  if (!words.length) return list
+  const hits = list.filter((business) => words.some((word) => hasPhrase(identity(business), word)))
+  return hits.length ? hits : list
 }
 
 function haystack(business: Business) {
@@ -200,6 +365,12 @@ function haystack(business: Business) {
       business.tags.join(" "),
       business.services.map((service) => service.name).join(" "),
       business.amenities.join(" "),
+      (business.profile?.aiTags ?? []).join(" "),
+      (business.profile?.seoTags ?? []).join(" "),
+      (business.profile?.services ?? [])
+        .filter((service) => service.active)
+        .map((service) => `${service.name} ${(service.aiTags ?? []).join(" ")}`)
+        .join(" "),
     ].join(" "),
   )
 }
@@ -210,6 +381,12 @@ function termHit(hay: string, term: string) {
     if (token.startsWith(term)) return true
     return term.startsWith(token) && token.length >= 4
   })
+}
+
+/** Stricter than termHit: short words such as "sit" or "bir" must not keep a listing alive on their own. */
+function strongHit(hay: string, term: string) {
+  if (term.length < 4) return false
+  return hay.split(" ").some((token) => token === term || token.startsWith(term))
 }
 
 function explain(business: Business, parsed: ParsedQuery, km: number) {
@@ -235,7 +412,11 @@ function explain(business: Business, parsed: ParsedQuery, km: number) {
   if (parsed.tags.includes("acil")) parts.push(`dönüş ${formatResponse(business.responseMinutes)}`)
   if (parsed.openNow && business.openNow) parts.push("şu an açık")
   parts.push(formatDistance(km))
-  parts.push(business.reviewCount ? `${formatRating(business)} puan` : "yeni kayıt")
+  parts.push(
+    business.reviewCount
+      ? `${formatRating(business)} ${translate(getLocale(), "search.points")}`
+      : translate(getLocale(), "card.new"),
+  )
   return parts.join(" · ")
 }
 
@@ -247,6 +428,15 @@ export function searchDirectory(
 ): RankedBusiness[] {
   const parsed = parseQuery(query, list)
   const distanceOrigin = parsed.city ? cityCenter(parsed.city) : origin
+  const unstructured =
+    Boolean(query.trim()) &&
+    !parsed.categories.length &&
+    !parsed.city &&
+    !parsed.district &&
+    !parsed.tags.length &&
+    !parsed.minRating &&
+    !parsed.openNow &&
+    parsed.terms.length > 0
   const filtered = list.filter((business) => {
     if (filters.sehir !== "hepsi" && fold(business.city) !== fold(filters.sehir)) return false
     if (filters.kategori !== "hepsi" && business.category !== filters.kategori) return false
@@ -255,10 +445,19 @@ export function searchDirectory(
     if (filters.openNow && !business.openNow) return false
     if (filters.verified && !business.verified) return false
     if (filters.premium && !business.premium) return false
+    if (filters.kategori === "hepsi" && parsed.categories.length && !parsed.categories.includes(business.category)) {
+      return false
+    }
+    // A sentence the engine could not read at all (no category, place, tag or filter) only keeps
+    // listings whose own text mentions one of its words; otherwise it is a genuine zero result.
+    if (unstructured && filters.kategori === "hepsi" && !parsed.terms.some((term) => strongHit(haystack(business), term))) {
+      return false
+    }
     return true
   })
+  const pool = narrowToWritten(filtered, parsed.focus, parsed.labels)
 
-  const ranked = filtered.map((business) => {
+  const ranked = pool.map((business) => {
     const km = distanceKm(distanceOrigin, business)
     let score = business.rating / 5
     const hasIntent = Boolean(query.trim())
@@ -290,7 +489,8 @@ export function searchDirectory(
       score -= Math.min(km, 40) * 0.04
     }
 
-    if (business.premium) score += 0.35
+    // A sponsored listing only gets its nudge inside its own category; it never climbs over an unrelated organic match.
+    if (business.premium && (!hasIntent || !parsed.category || parsed.category === business.category)) score += 0.35
     if (business.verified) score += 0.15
     score += Math.min(business.reviewCount, 400) / 400
 
@@ -345,6 +545,7 @@ export function concierge(
     return {
       text: "Bu tarife yakın kayıt zayıf. Semti ya da işi biraz daha açık yazar mısın?",
       results: results.filter((item) => item.score > 1),
+      outside: true,
     }
   }
 

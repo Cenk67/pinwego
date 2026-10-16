@@ -1,56 +1,81 @@
 "use client"
 
 import Link from "next/link"
+import { Logo } from "@/components/brand/logo"
+import { LanguageMenu } from "@/components/directory/language-menu"
 import { PlaceButton } from "@/components/directory/place-picker"
 import { useAuth } from "@/lib/auth-context"
 import { useDirectory } from "@/lib/directory-context"
 import { useMessages } from "@/lib/message-context"
+import { customerLoginPath } from "@/lib/auth-path"
+import { useLocale } from "@/lib/use-locale"
 
 export function Header() {
   const { saved } = useDirectory()
   const { account } = useAuth()
   const { unread } = useMessages()
+  const { t } = useLocale()
   return (
-    <header className="sticky top-0 z-40 border-b border-foreground/10 bg-background/90 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-full bg-primary text-primary-foreground">
-            <svg viewBox="0 0 24 24" className="size-4" aria-hidden>
-              <circle cx="12" cy="9" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
-              <path d="M12 12.5 V19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          </span>
-          <span className="font-heading text-xl tracking-tight">pinwego</span>
+    <header className="sticky top-0 z-40 border-b border-foreground/10 bg-card/95 backdrop-blur-md print:hidden">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4">
+        <Link href="/" aria-label="pinwego" className="flex shrink-0 items-center">
+          <Logo />
         </Link>
-        <nav className="ml-4 hidden items-center gap-5 text-sm md:flex">
+        <nav className="ms-2 hidden items-center gap-x-3 text-sm whitespace-nowrap md:flex">
+          <Link href="/blog" className="hover:text-primary">
+            {t("nav.blog")}
+          </Link>
+          <Link href="/kampanyalar" className="hover:text-primary">
+            {t("nav.campaigns")}
+          </Link>
           <Link href="/ara" className="hover:text-primary">
-            Keşfet
+            {t("nav.explore")}
           </Link>
           <Link href="/talep" className="hover:text-primary">
-            Talep oluştur
+            {t("nav.request")}
           </Link>
           <Link href="/listele" className="hover:text-primary">
-            İşletme ekle
+            {t("nav.add")}
           </Link>
           <Link href="/mesajlar" className="hover:text-primary">
-            Mesajlar{unread ? ` (${unread})` : ""}
+            {t("nav.messages")}
+            {unread ? ` (${unread})` : ""}
           </Link>
           <Link href="/kaydedilenler" className="hover:text-primary">
-            Kayıtlı{saved.length ? ` (${saved.length})` : ""}
+            {t("nav.saved")}
+            {saved.length ? ` (${saved.length})` : ""}
           </Link>
           {account?.role === "admin" ? (
             <Link href="/yonetim" className="hover:text-primary">
-              Yönetim
+              {t("nav.admin")}
             </Link>
           ) : null}
-          <Link href="/hesap" className="hover:text-primary">
-            Hesap
-          </Link>
+          {account?.role === "isletme" || account?.role === "admin" ? (
+            <Link href="/panel" className="hover:text-primary">
+              {t("nav.panel")}
+            </Link>
+          ) : null}
+          {account ? (
+            <Link href="/hesap" className="hover:text-primary">
+              {t("nav.account")}
+            </Link>
+          ) : (
+            <Link href={customerLoginPath} className="rounded-full bg-primary px-3 py-1.5 text-primary-foreground">
+              {t("nav.login")}
+            </Link>
+          )}
         </nav>
-        <Link href={account?.role === "admin" ? "/yonetim" : "/hesap"} className="ml-auto text-sm hover:text-primary md:hidden">
-          {account?.role === "admin" ? "Yönetim" : "Hesap"}
+        <Link href="/blog" className="ms-auto text-sm hover:text-primary md:hidden">
+          {t("nav.blog")}
         </Link>
-        <PlaceButton compact className="md:ml-auto" />
+        <Link
+          href={account?.role === "admin" ? "/yonetim" : account ? "/hesap" : customerLoginPath}
+          className="text-sm hover:text-primary md:hidden"
+        >
+          {account?.role === "admin" ? t("nav.admin") : account ? t("nav.account") : t("nav.login")}
+        </Link>
+        <LanguageMenu />
+        <PlaceButton compact className="md:ms-auto" />
       </div>
     </header>
   )

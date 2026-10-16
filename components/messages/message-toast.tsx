@@ -19,7 +19,7 @@ export function MessageToast() {
     <Link
       href={toast.href}
       onClick={dismissToast}
-      className="fixed inset-x-4 bottom-24 z-50 max-w-sm rounded-2xl bg-foreground px-4 py-3 text-sm text-background shadow-lg md:inset-x-auto md:right-4 md:bottom-8"
+      className="fixed inset-x-4 bottom-24 z-50 max-w-sm rounded-2xl bg-foreground px-4 py-3 text-sm text-background shadow-lg print:hidden md:inset-x-auto md:right-4 md:bottom-8"
     >
       <p className="font-medium">Yeni mesaj · {toast.title}</p>
       <p className="mt-1 line-clamp-2 text-background/80">{toast.body}</p>

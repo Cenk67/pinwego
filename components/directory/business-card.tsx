@@ -1,12 +1,21 @@
+"use client"
+
 import Link from "next/link"
 import { BadgeCheck } from "lucide-react"
+import { useGuestGate } from "@/components/auth/guest-gate"
 import { ClaimPrompt } from "@/components/directory/claim-button"
+import { ContactLines } from "@/components/directory/contact-lines"
 import { Cover, RatingBlock, SaveButton } from "@/components/directory/bits"
 import { ShareButton } from "@/components/directory/share-button"
 import { MessageButton } from "@/components/messages/message-button"
 import { categoryById } from "@/lib/catalog"
+import { watchCopy } from "@/lib/guest"
 import { formatDistance, priceLabel, priceMarks, priceRange } from "@/lib/format"
+import { sectorCopy } from "@/lib/sector-copy"
 import type { Business } from "@/lib/types"
+import { useMinute } from "@/components/directory/hours-view"
+import { liveBusiness } from "@/lib/hours"
+import { useLocale } from "@/lib/use-locale"
 
 export function BusinessCard({
   business,
@@ -19,7 +28,14 @@ export function BusinessCard({
   reason?: string
   layout?: "stack" | "row"
 }) {
+  const { member } = useGuestGate()
+  const { locale, t } = useLocale()
+  const now = useMinute()
+  const live = liveBusiness(business, now)
+  const presence = now ? live.presence : undefined
   const category = categoryById(business.category)
+  const sector = sectorCopy(locale, category)
+  const summary = member ? business.summary : watchCopy(business.summary)
   return (
     <article className="relative flex h-full flex-col overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10">
       <Link
@@ -42,16 +58,16 @@ export function BusinessCard({
           <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
             <span
               className={
-                business.openNow
+                live.openNow
                   ? "rounded-full bg-white/95 px-2 py-0.5 text-xs font-medium text-emerald-800"
-                  : "rounded-full bg-white/90 px-2 py-0.5 text-xs text-foreground/70"
+                  : "rounded-full bg-white/90 px-2 py-0.5 text-xs font-medium text-rose-800"
               }
             >
-              {business.openNow ? "Açık" : "Kapalı"}
+              {presence ? t(presence.labelKey) : live.openNow ? t("card.open") : t("card.closed")}
             </span>
             {business.premium ? (
               <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
-                Öne çıkan
+                {t("card.sponsored")}
               </span>
             ) : null}
           </div>
@@ -61,12 +77,12 @@ export function BusinessCard({
             <div>
               <h3 className="font-heading text-xl leading-tight">{business.name}</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                {category.label} · {business.district}
+                {sector.label} · {business.district}
               </p>
             </div>
             <RatingBlock business={business} />
           </div>
-          <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{business.summary}</p>
+          <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{summary}</p>
           {reason ? (
             <p className="rounded-2xl bg-primary/10 px-3 py-2 text-sm leading-5 text-primary">
               {reason}
@@ -77,23 +93,25 @@ export function BusinessCard({
               {typeof distanceKm === "number" ? formatDistance(distanceKm) : business.city}
               {" · "}
               {priceMarks(business.priceLevel)} {priceLabel(business.priceLevel)}
+              {presence?.detailKey ? ` · ${t(presence.detailKey, { time: presence.time })}` : ""}
             </span>
             <span className="text-foreground">{priceRange(business)}</span>
           </div>
           {business.source === "google" ? (
-            <p className="text-xs text-primary">Google Haritalar kaydı</p>
+            <p className="text-xs text-primary">{t("card.google")}</p>
           ) : business.verified ? (
             <p className="flex items-center gap-1 text-xs text-primary">
               <BadgeCheck className="size-3.5" />
-              Doğrulandı
+              {t("card.verified")}
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              {business.source === "senin" ? "Senin kaydın" : "Doğrulama bekliyor"}
+              {business.source === "senin" ? t("card.yours") : t("card.pending")}
             </p>
           )}
         </div>
       </Link>
+      <ContactLines business={business} compact />
       {business.source === "google" ? (
         <div className="px-4 pb-4">
           <ClaimPrompt business={business} />

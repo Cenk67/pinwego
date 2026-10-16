@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react"
 import { allBusinesses } from "@/lib/catalog"
+import { keepListingMedia } from "@/lib/listing-media"
 import { defaultPlace, isPlace, placeFromCity, type Place } from "@/lib/place"
 import { allSectors, isSector, normalizeSector, seedSectors, setCustomSectors } from "@/lib/sectors"
 import type { Business, BusinessOverride, Lead, Sector } from "@/lib/types"
@@ -75,6 +76,7 @@ function readStorage(): Persisted {
 
 function subscribe(listener: () => void) {
   listeners.add(listener)
+  startRemote()
   return () => listeners.delete(listener)
 }
 
@@ -82,19 +84,62 @@ function getSnapshot() {
   if (!loaded) {
     loaded = true
     memory = readStorage()
+    rebuild()
   }
-  return memory
+  return snapshot
 }
 
 function getServerSnapshot() {
-  return emptyState
+  return serverSnapshot
+}
+
+function withoutBinary(value: string) {
+  return value.startsWith("data:") ? "" : value
+}
+
+function leanBusiness(business: Business): Business {
+  const photo = withoutBinary(business.photo) || "/photos/office.jpg"
+  if (!business.profile) return { ...business, photo }
+  return {
+    ...business,
+    photo,
+    profile: {
+      ...business.profile,
+      gallery: business.profile.gallery
+        .map((item) => ({ ...item, image: withoutBinary(item.image) }))
+        .filter((item) => item.image),
+      services: business.profile.services.map((item) => ({ ...item, image: withoutBinary(item.image) })),
+    },
+  }
+}
+
+function leanState(state: Persisted): Persisted {
+  const businessOverrides: Record<string, BusinessOverride> = {}
+  for (const [id, patch] of Object.entries(state.businessOverrides)) {
+    const profile = patch.profile
+    businessOverrides[id] = {
+      ...patch,
+      photo: patch.photo ? withoutBinary(patch.photo) || undefined : patch.photo,
+      profile: profile
+        ? {
+            ...profile,
+            gallery: profile.gallery.map((item) => ({ ...item, image: withoutBinary(item.image) })).filter((item) => item.image),
+            services: profile.services.map((item) => ({ ...item, image: withoutBinary(item.image) })),
+          }
+        : profile,
+    }
+  }
+  return { ...state, listings: state.listings.map(leanBusiness), businessOverrides }
 }
 
 function commit(next: Persisted) {
   const sectors = next.sectors.filter((item) => item.custom)
   memory = {
-    ...emptyState,
-    ...next,
+    city: next.city,
+    place: next.place,
+    saved: next.saved,
+    requests: next.requests,
+    listings: next.listings,
     sectors,
     hiddenBusinessIds: next.hiddenBusinessIds ?? [],
     hiddenSectorIds: next.hiddenSectorIds ?? [],
@@ -102,17 +147,35 @@ function commit(next: Persisted) {
   }
   loaded = true
   setCustomSectors(sectors)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(memory))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(leanState(memory)))
+  } catch {
+    try {
+      const slim = leanState(memory)
+      slim.listings = slim.listings.map((item) => ({ ...item, profile: undefined }))
+      slim.businessOverrides = {}
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(slim))
+    } catch {
+      // The open tab keeps the record even when the browser cannot store the photos.
+    }
+  }
+  rebuild()
   listeners.forEach((listener) => listener())
 }
 
 function decorateBusiness(business: Business, overrides: Record<string, BusinessOverride>) {
   const patch = overrides[business.id] ?? overrides[business.slug]
-  return patch ? { ...business, ...patch } : business
+  return patch ? keepListingMedia(business, { ...business, ...patch }) : business
 }
 
-function isHiddenBusiness(business: Business, hidden: string[], hiddenSectors: string[]) {
-  return hidden.includes(business.id) || hidden.includes(business.slug) || hiddenSectors.includes(business.category)
+function isHiddenBusiness(business: Business, hidden: string[], hiddenSectors: string[], remoteHidden: string[]) {
+  return (
+    hidden.includes(business.id) ||
+    hidden.includes(business.slug) ||
+    remoteHidden.includes(business.id) ||
+    remoteHidden.includes(business.slug) ||
+    hiddenSectors.includes(business.category)
+  )
 }
 
 function useHydrated() {
@@ -121,6 +184,70 @@ function useHydrated() {
     () => true,
     () => false,
   )
+}
+
+type Snapshot = Persisted & {
+  remoteListings: Business[]
+  remoteHiddenIds: string[]
+  remoteReady: boolean
+}
+
+const serverSnapshot: Snapshot = {
+  ...emptyState,
+  remoteListings: [],
+  remoteHiddenIds: [],
+  remoteReady: false,
+}
+
+let remoteListings: Business[] = []
+let remoteHiddenIds: string[] = []
+let remoteReady = false
+let remoteStarted = false
+let snapshot: Snapshot = serverSnapshot
+
+function isListingRow(value: unknown): value is Business {
+  if (!value || typeof value !== "object") return false
+  const row = value as Partial<Business>
+  return (
+    typeof row.slug === "string" &&
+    typeof row.name === "string" &&
+    row.source === "senin" &&
+    Array.isArray(row.services) &&
+    Array.isArray(row.tags) &&
+    Array.isArray(row.reviews) &&
+    Array.isArray(row.amenities) &&
+    Array.isArray(row.hours)
+  )
+}
+
+function rebuild() {
+  snapshot = { ...memory, remoteListings, remoteHiddenIds, remoteReady }
+}
+
+function startRemote() {
+  if (remoteStarted || typeof fetch !== "function") return
+  remoteStarted = true
+  void fetch("/api/ilan", { credentials: "include" })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data) => {
+      const rows = Array.isArray(data?.listings) ? data.listings.filter(isListingRow) : []
+      const hidden = Array.isArray(data?.hiddenIds) ? data.hiddenIds.filter((id: unknown) => typeof id === "string") : []
+      remoteListings = rows
+      remoteHiddenIds = hidden
+      remoteReady = true
+      rebuild()
+      listeners.forEach((listener) => listener())
+    })
+    .catch(() => {
+      remoteReady = true
+      rebuild()
+      listeners.forEach((listener) => listener())
+    })
+}
+
+function mergeListings(local: Business[], incoming: Business[]) {
+  const seen = new Set(incoming.map((item) => item.slug))
+  return [...incoming, ...local.filter((item) => !seen.has(item.slug))]
 }
 
 type DirectoryState = {
@@ -135,12 +262,16 @@ type DirectoryState = {
   addRequest: (lead: Lead) => void
   listings: Business[]
   addListing: (business: Business) => void
+  rememberListing: (business: Business) => void
+  forgetListing: (id: string) => void
+  rememberHidden: (id: string, hidden: boolean) => void
   removeListing: (id: string) => void
   patchBusiness: (id: string, patch: BusinessOverride) => void
   hideBusiness: (id: string, hidden: boolean) => void
   isBusinessHidden: (business: Business) => boolean
   visibleBusinesses: Business[]
   managedBusinesses: Business[]
+  remoteReady: boolean
   sectors: Sector[]
   managedSectors: Sector[]
   addSector: (draft: Partial<Sector>) => Sector | null
@@ -193,6 +324,25 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
         const current = getSnapshot()
         commit({ ...current, listings: [business, ...current.listings.filter((item) => item.slug !== business.slug)] })
       },
+      rememberListing: (business) => {
+        const previous = remoteListings.find((item) => item.id === business.id || item.slug === business.slug)
+        const next = keepListingMedia(previous, business)
+        remoteListings = [next, ...remoteListings.filter((item) => item.slug !== business.slug && item.id !== business.id)]
+        remoteReady = true
+        rebuild()
+        listeners.forEach((listener) => listener())
+      },
+      forgetListing: (id) => {
+        remoteListings = remoteListings.filter((item) => item.id !== id && item.slug !== id)
+        remoteHiddenIds = remoteHiddenIds.filter((item) => item !== id)
+        rebuild()
+        listeners.forEach((listener) => listener())
+      },
+      rememberHidden: (id, hidden) => {
+        remoteHiddenIds = hidden ? [id, ...remoteHiddenIds.filter((item) => item !== id)] : remoteHiddenIds.filter((item) => item !== id)
+        rebuild()
+        listeners.forEach((listener) => listener())
+      },
       removeListing: (id) => {
         const current = getSnapshot()
         const rest = { ...current.businessOverrides }
@@ -224,13 +374,15 @@ export function DirectoryProvider({ children }: { children: ReactNode }) {
         commit({ ...current, hiddenBusinessIds: hidden ? [id, ...ids] : ids })
       },
       isBusinessHidden: (business) =>
-        isHiddenBusiness(business, persisted.hiddenBusinessIds, persisted.hiddenSectorIds),
-      visibleBusinesses: allBusinesses(persisted.listings)
+        isHiddenBusiness(business, persisted.hiddenBusinessIds, persisted.hiddenSectorIds, persisted.remoteHiddenIds),
+      visibleBusinesses: allBusinesses(mergeListings(persisted.listings, persisted.remoteListings))
         .map((item) => decorateBusiness(item, persisted.businessOverrides))
-        .filter((item) => !isHiddenBusiness(item, persisted.hiddenBusinessIds, persisted.hiddenSectorIds)),
-      managedBusinesses: allBusinesses(persisted.listings).map((item) =>
+        .filter((item) => item.profile?.published !== false)
+        .filter((item) => !isHiddenBusiness(item, persisted.hiddenBusinessIds, persisted.hiddenSectorIds, persisted.remoteHiddenIds)),
+      managedBusinesses: allBusinesses(mergeListings(persisted.listings, persisted.remoteListings)).map((item) =>
         decorateBusiness(item, persisted.businessOverrides),
       ),
+      remoteReady: persisted.remoteReady,
       sectors: (ready ? allSectors() : seedSectors).filter((item) => !persisted.hiddenSectorIds.includes(item.id)),
       managedSectors: ready ? allSectors() : seedSectors,
       addSector: (draft) => {

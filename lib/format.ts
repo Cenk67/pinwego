@@ -1,3 +1,5 @@
+import { getLocale, translate } from "@/lib/i18n"
+import type { MessageKey } from "@/lib/messages"
 import type { BookingKind, Business } from "@/lib/types"
 
 export function formatTry(value: number) {
@@ -9,11 +11,11 @@ export function formatTry(value: number) {
 }
 
 export function formatResponse(minutes: number) {
-  if (minutes < 60) return `${minutes} dk`
+  if (minutes < 60) return translate(getLocale(), "time.min", { n: minutes })
   const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} sa`
+  if (hours < 24) return translate(getLocale(), "time.hour", { n: hours })
   const days = Math.round(hours / 24)
-  return `${days} gün`
+  return translate(getLocale(), "time.day", { n: days })
 }
 
 export function formatDistance(km: number) {
@@ -22,7 +24,7 @@ export function formatDistance(km: number) {
 }
 
 export function formatRating(business: Business) {
-  if (!business.reviewCount) return "Yeni"
+  if (!business.reviewCount) return translate(getLocale(), "card.new")
   return business.rating.toFixed(1)
 }
 
@@ -31,20 +33,22 @@ export function priceMarks(level: number) {
 }
 
 export function priceLabel(level: number) {
-  return ["Ekonomik", "Orta", "Üst", "Lüks"][level - 1] ?? "Orta"
+  const key = (`price.${level}` as MessageKey)
+  if (level >= 1 && level <= 4) return translate(getLocale(), key)
+  return translate(getLocale(), "price.2")
 }
 
 export function bookingLabel(kind: BookingKind) {
-  if (kind === "randevu") return "Randevu al"
-  if (kind === "rezervasyon") return "Rezervasyon"
-  return "Teklif iste"
+  if (kind === "randevu") return translate(getLocale(), "book.randevu")
+  if (kind === "rezervasyon") return translate(getLocale(), "book.rezervasyon")
+  return translate(getLocale(), "book.teklif")
 }
 
 export function priceRange(business: Business) {
   const prices = business.services
     .map((service) => service.price)
     .filter((price) => price > 0)
-  if (!prices.length) return "Fiyat sorunuz"
+  if (!prices.length) return translate(getLocale(), "card.ask")
   const min = Math.min(...prices)
   const max = Math.max(...prices)
   if (min === max) return formatTry(min)
@@ -60,7 +64,7 @@ export function fold(value: string) {
     .replaceAll("ş", "s")
     .replaceAll("ö", "o")
     .replaceAll("ç", "c")
-    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim()
 }

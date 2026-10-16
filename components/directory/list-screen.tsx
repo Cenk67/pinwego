@@ -1,7 +1,9 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
+import { GuestNotice } from "@/components/auth/guest-gate"
 import { fieldClass } from "@/components/directory/bits"
 import { SectorForm } from "@/components/directory/sector-form"
 import { Button } from "@/components/ui/button"
@@ -9,86 +11,113 @@ import { useAuth } from "@/lib/auth-context"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
+import { PlaceEditor } from "@/components/directory/place-picker"
+import { categoryById, defaultBooking } from "@/lib/catalog"
+import { defaultPlace, type Place } from "@/lib/place"
 import { useDirectory } from "@/lib/directory-context"
-import { slugify } from "@/lib/format"
+import { cleanDiscoverText } from "@/lib/discover"
+import { recordDiscoverEvent, takeDiscoverLead } from "@/lib/discover-store"
 import type { Business, CategoryId } from "@/lib/types"
-
-const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
 
 export function ListScreen() {
   const router = useRouter()
   const { account } = useAuth()
-  const { addListing, listings, sectors } = useDirectory()
+  const { addListing, rememberListing, sectors } = useDirectory()
   const [sectorOpen, setSectorOpen] = useState(false)
-  const [name, setName] = useState("")
   const [category, setCategory] = useState<CategoryId>("yeme")
-  const [city, setCity] = useState("İstanbul")
+  const [place, setPlace] = useState<Place>(defaultPlace)
   const [district, setDistrict] = useState("")
+  const [districtTouched, setDistrictTouched] = useState(false)
   const [phone, setPhone] = useState("")
   const [summary, setSummary] = useState("")
+  const params = useSearchParams()
+  const draftAddress = cleanDiscoverText(params.get("adres") ?? "", 120)
   const [error, setError] = useState("")
+  const [pending, setPending] = useState(false)
+  const [name, setName] = useState(() => cleanDiscoverText(params.get("ad") ?? "", 80))
 
-  function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent) {
     event.preventDefault()
     const digits = phone.replace(/\D/g, "")
-    if (name.trim().length < 2 || district.trim().length < 2 || summary.trim().length < 12) {
+    const city = (place.province || place.region || place.country).trim()
+    const area = district.trim() || place.neighborhood || place.district
+    if (name.trim().length < 2 || area.length < 2 || summary.trim().length < 12) {
       setError("Ad, semt ve en az bir cümlelik özet gerekli.")
+      return
+    }
+    if (!place.country || !Number.isFinite(place.lat)) {
+      setError("Şehir ve konum seç.")
       return
     }
     if (digits.length < 10) {
       setError("Telefon için en az 10 rakam gir.")
       return
     }
-    const center = cityCenter(city)
     const meta = categoryById(category)
-    const slug = slugify(name)
-    const business: Business = {
-      id: slug,
-      slug,
-      name: name.trim(),
-      category,
-      subcategory: meta.label,
-      city,
-      district: district.trim(),
-      address: `${district.trim()}, ${city}`,
-      lat: center.lat + (Math.random() - 0.5) * 0.04,
-      lng: center.lng + (Math.random() - 0.5) * 0.04,
-      phone: phone.trim(),
-      rating: 0,
-      reviewCount: 0,
-      priceLevel: 2,
-      openNow: true,
-      summary: summary.trim(),
-      about: summary.trim(),
-      services: [],
-      amenities: ["Yeni kayıt"],
-      tags: [],
-      reviews: [],
-      premium: false,
-      verified: false,
-      responseMinutes: 180,
-      founded: new Date().getFullYear(),
-      photo: meta.photo,
-      photoPosition: "center",
-      booking: defaultBooking(category),
-      hours: DAYS.map((day) => ({ day, hours: day === "Pazar" ? "Kapalı" : "09:00–18:00" })),
-      facts: [],
-      source: "senin",
-      ownerAccountId: account?.id,
+    setPending(true)
+    setError("")
+    try {
+      const response = await fetch("/api/ilan", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          op: "create",
+          name: name.trim(),
+          category,
+          subcategory: meta.label,
+          city,
+          district: area,
+          address: `${area}, ${city}`,
+          lat: place.lat,
+          lng: place.lng,
+          phone: phone.trim(),
+          summary: summary.trim(),
+          photo: meta.photo,
+          booking: defaultBooking(category),
+        }),
+      })
+      const data = (await response.json().catch(() => null)) as { listing?: Business; reason?: string } | null
+      if (response.status === 401 || data?.reason === "oturum") {
+        setError("Bu oturum işletme kaydını sunucuya yazamıyor. İşletme hesabınla yeniden giriş yap.")
+        return
+      }
+      if (data?.reason === "yetki") {
+        setError("Bu hesap işletme kaydı açamaz.")
+        return
+      }
+      if (data?.reason === "limited") {
+        setError("Çok fazla deneme. Bir süre sonra tekrar dene.")
+        return
+      }
+      if (!response.ok || !data?.listing) {
+        setError("Kayıt kaydedilemedi. Alanları kontrol edip tekrar dene.")
+        return
+      }
+      addListing(data.listing)
+      rememberListing(data.listing)
+      if (takeDiscoverLead()) recordDiscoverEvent({ type: "register_done", q: name.trim(), city })
+      router.push(`/isletme/${data.listing.slug}`)
+    } catch {
+      setError("Kayıt kaydedilemedi. Bağlantını kontrol edip tekrar dene.")
+    } finally {
+      setPending(false)
     }
-    addListing(business)
-    router.push(`/isletme/${slug}`)
   }
 
-  if (account?.role !== "isletme" && account?.role !== "admin") {
+  if (!account) return <GuestNotice />
+
+  if (account.role !== "isletme" && account.role !== "admin") {
     return (
       <div className="mx-auto max-w-xl px-4 py-16">
         <h1 className="font-heading text-4xl text-balance">İşletme eklemek için işletme hesabı gerekir.</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          Müşteri hesabı arama, harita ve talep için yeter. Kendi işletmeni rehbere koymak için çıkış yapıp vergi
-          levhası, imza sirküleri, sicil belgesi ve yetkili kimliğiyle işletme kaydı aç.
+          Müşteri hesabı arama, harita ve talep için yeter. İşletme kaydı ayrı açılır; vergi levhası, imza sirküleri,
+          sicil belgesi ve yetkili kimliği istenir. Müşteri kaydın bu tarayıcıda durur.
         </p>
+        <Button className="mt-6 h-11 rounded-xl" nativeButton={false} render={<Link href="/hesap?kayit=isletme" />}>
+          İşletme kaydı
+        </Button>
       </div>
     )
   }
@@ -98,12 +127,13 @@ export function ListScreen() {
       <p className="text-sm font-medium text-primary">Ücretsiz kayıt</p>
       <h1 className="mt-2 font-heading text-4xl leading-tight">İşletmeni ekle.</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        Kayıt bu tarayıcıda kalır, aramada ve profilde görünür. Doğrulama ve öne çıkarma bu demoda elle açılmaz.
+        Kayıt aramada ve işletme sayfasında görünür. Doğrulama ve öne çıkarma yönetici onayından sonra açılır.
       </p>
       <form onSubmit={submit} className="mt-6 grid gap-4">
         <div className="grid gap-1.5">
           <Label htmlFor="biz-name">İşletme adı</Label>
           <Input id="biz-name" value={name} onChange={(event) => setName(event.target.value)} className="h-11" />
+          {draftAddress ? <p className="text-sm leading-6 text-muted-foreground">Taslak adres, kayda kendiliğinden yazılmaz: {draftAddress}</p> : null}
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="biz-category">Kategori</Label>
@@ -123,19 +153,31 @@ export function ListScreen() {
             Listede yoksa sektör ekle
           </button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="grid gap-1.5">
-            <Label htmlFor="biz-city">Şehir</Label>
-            <select id="biz-city" className={fieldClass} value={city} onChange={(event) => setCity(event.target.value)}>
-              {cities.map((item) => (
-                <option key={item.name}>{item.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="biz-district">Semt</Label>
-            <Input id="biz-district" value={district} onChange={(event) => setDistrict(event.target.value)} className="h-11" />
-          </div>
+        <div className="grid gap-2 rounded-3xl bg-card p-4 ring-1 ring-foreground/10">
+          <Label>Şehir</Label>
+          <p className="text-xs leading-5 text-muted-foreground">
+            Ülke, il ve semt seç veya istediğin yeri ara. Seçtiğin nokta Google Haritalar üzerinde durur.
+          </p>
+          <PlaceEditor
+            current={place}
+            embedded
+            onChange={(next) => {
+              setPlace(next)
+              if (!districtTouched) setDistrict(next.neighborhood || next.district || "")
+            }}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="biz-district">Semt</Label>
+          <Input
+            id="biz-district"
+            value={district}
+            onChange={(event) => {
+              setDistrictTouched(true)
+              setDistrict(event.target.value)
+            }}
+            className="h-11"
+          />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="biz-phone">Telefon</Label>
@@ -152,13 +194,10 @@ export function ListScreen() {
           />
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button type="submit" className="h-11 rounded-xl">
-          Kaydı oluştur
+        <Button type="submit" className="h-11 rounded-xl" disabled={pending}>
+          {pending ? "Kaydediliyor" : "Kaydı oluştur"}
         </Button>
       </form>
-      {listings.length ? (
-        <p className="mt-4 text-sm text-muted-foreground">{listings.length} kaydın bu tarayıcıda duruyor.</p>
-      ) : null}
       <SectorForm open={sectorOpen} onOpenChange={setSectorOpen} />
     </div>
   )

@@ -34,10 +34,51 @@ export type DayHours = {
   hours: string
 }
 
+export type TimeRange = { start: string; end: string }
+
+export type DayPlan = { closed: boolean; ranges: TimeRange[] }
+
+export type SpecialDay = { date: string; closed: boolean; ranges: TimeRange[]; note: string }
+
+export type ManualMark = { mode: "open" | "closed"; until: string; at: string; by?: string }
+
+export type HourBook = { week: DayPlan[]; specials: SpecialDay[]; manual: ManualMark | null }
+
+export type Presence = {
+  state: "open" | "closed" | "unknown"
+  source: "week" | "special" | "manual" | "unknown"
+  labelKey: "hours.open" | "hours.closed" | "hours.manualOpen" | "hours.manualClosed" | "hours.unknown"
+  detailKey: "" | "hours.nextOpen" | "hours.nextClose"
+  time: string
+  note: string
+  today: number
+  until: string
+}
+
 export type Fact = {
   label: string
   value: string
 }
+
+export type BusinessContacts = Partial<Record<"landline" | "mobile" | "whatsapp", string>>
+
+export type BusinessLinks = Partial<
+  Record<
+    | "website"
+    | "facebook"
+    | "instagram"
+    | "x"
+    | "linkedin"
+    | "youtube"
+    | "tiktok"
+    | "n11"
+    | "sahibinden"
+    | "arabam"
+    | "hepsiemlak"
+    | "emlakjet",
+    string
+  >
+>
 
 export type Business = {
   id: string
@@ -51,6 +92,7 @@ export type Business = {
   lat: number
   lng: number
   phone: string
+  contacts?: BusinessContacts
   rating: number
   reviewCount: number
   priceLevel: 1 | 2 | 3 | 4
@@ -69,11 +111,15 @@ export type Business = {
   photoPosition: string
   booking: BookingKind
   hours: DayHours[]
+  hourBook?: HourBook
+  presence?: Presence
   facts: Fact[]
   source: "katalog" | "senin" | "google"
   website?: string
   googleUrl?: string
+  links?: BusinessLinks
   ownerAccountId?: string
+  profile?: BusinessProfile
 }
 
 export type ChatKind = "musteri-isletme" | "isletme-isletme"
@@ -115,11 +161,68 @@ export type ChatBlock = {
   createdAt: string
 }
 
+export type ProfileChoice = "" | "var" | "yok"
+
+export type ProfileService = {
+  id: string
+  name: string
+  summary: string
+  detail: string
+  price: number
+  unit: string
+  duration: string
+  area: string
+  image: string
+  alt: string
+  seoTags: string[]
+  aiTags: string[]
+  active: boolean
+  order: number
+}
+
+export type GalleryItem = {
+  id: string
+  image: string
+  title: string
+  description: string
+  alt: string
+  seoTags: string[]
+  aiTags: string[]
+  active: boolean
+  order: number
+}
+
+export type BusinessProfile = {
+  shortTitle: string
+  shortBody: string
+  highlights: string[]
+  aboutTitle: string
+  aboutBody: string
+  seoTitle: string
+  seoDescription: string
+  seoTags: string[]
+  aiTags: string[]
+  pendingAiTags: string[]
+  founded: string
+  serviceArea: string
+  staffCount: string
+  payments: string[]
+  parking: ProfileChoice
+  access: ProfileChoice
+  appointment: ProfileChoice
+  online: ProfileChoice
+  onSite: ProfileChoice
+  services: ProfileService[]
+  gallery: GalleryItem[]
+  published: boolean
+}
+
 export type BusinessOverride = Partial<
   Pick<
     Business,
     | "name"
     | "phone"
+    | "contacts"
     | "summary"
     | "about"
     | "verified"
@@ -132,6 +235,13 @@ export type BusinessOverride = Partial<
     | "priceLevel"
     | "booking"
     | "website"
+    | "links"
+    | "hours"
+    | "hourBook"
+    | "services"
+    | "founded"
+    | "photo"
+    | "profile"
   >
 >
 

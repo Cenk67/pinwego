@@ -78,6 +78,8 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useState } from "react"
+import { useLocale } from "@/lib/use-locale"
+import { useGuestGate } from "@/components/auth/guest-gate"
 import { categoryById } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
 import { formatRating } from "@/lib/format"
@@ -224,13 +226,15 @@ export function CategoryGlyph({
 
 export function SaveButton({ business, className }: { business: Business; className?: string }) {
   const { isSaved, toggleSaved } = useDirectory()
+  const { allow } = useGuestGate()
+  const { t } = useLocale()
   const saved = isSaved(business.id)
   return (
     <button
       type="button"
       aria-pressed={saved}
-      aria-label={saved ? `${business.name} kaydı kaldır` : `${business.name} kaydet`}
-      onClick={() => toggleSaved(business.id)}
+      aria-label={saved ? t("card.unsave", { name: business.name }) : t("card.save", { name: business.name })}
+      onClick={() => allow(() => toggleSaved(business.id))}
       className={cn(
         "grid size-9 place-items-center rounded-full bg-white/95 text-foreground shadow-sm ring-1 ring-foreground/10",
         className,
@@ -243,7 +247,7 @@ export function SaveButton({ business, className }: { business: Business; classN
 
 export function RatingBlock({ business }: { business: Business }) {
   return (
-    <div className="text-right">
+    <div className="text-end">
       <div className="font-heading text-lg leading-none">{formatRating(business)}</div>
       <Stars rating={business.reviewCount ? business.rating : 0} className="mt-1 justify-end" />
     </div>
