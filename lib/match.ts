@@ -9,7 +9,7 @@ import {
   formatResponse,
 } from "@/lib/format"
 import { allSectors } from "@/lib/sectors"
-import { correctNeedText, matchNeed } from "@/lib/need"
+import { correctNeedDetailed, matchNeed, type NeedCorrection } from "@/lib/need"
 import { isWorldPhrase, worldAliases, worldFocus } from "@/lib/world-query"
 import type { Business, CategoryId, Filters } from "@/lib/types"
 
@@ -109,6 +109,10 @@ const CITIES = ["İstanbul", "Ankara", "İzmir", "Antalya", "Bursa", "Zonguldak"
 
 export type ParsedQuery = {
   raw: string
+  /** Folded, corrected text the engine actually matched. */
+  text: string
+  /** Typo repairs and synonym swaps applied to the raw text. */
+  changes: NeedCorrection[]
   category?: CategoryId
   categories: CategoryId[]
   labels: string[]
@@ -228,9 +232,11 @@ function knownPlaces(list: Business[]) {
 
 export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
   const raw = query.trim()
-  const text = correctNeedText(fold(raw))
-  const tokens = text.split(" ").filter(Boolean)
   const places = knownPlaces(list)
+  const protectedWords = [...places.map((place) => fold(place.name)), ...places.map((place) => fold(place.city)), ...CITIES.map((name) => fold(name))]
+  const corrected = correctNeedDetailed(fold(raw), protectedWords)
+  const text = corrected.text
+  const tokens = text.split(" ").filter(Boolean)
 
   let district: string | undefined
   let city: string | undefined
@@ -254,7 +260,10 @@ export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
 
   const phrases = categoryPhrases()
   let winners: { id: CategoryId; score: number; focus: string[] }[] = []
+  const strong = matchNeed(text, true)
+  if (strong) winners = strong.categories.map((id) => ({ id, score: 1, focus: [strong.focus] }))
   for (const group of phrases) {
+    if (strong) break
     const hits: string[] = []
     let score = 0
     for (const phrase of group.phrases) {
@@ -271,7 +280,7 @@ export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
   }
   if (!winners.length) {
     const need = matchNeed(text)
-    if (need) winners = [{ id: need.category, score: 1, focus: [need.focus] }]
+    if (need) winners = need.categories.map((id) => ({ id, score: 1, focus: [need.focus] }))
   }
   const category = winners.length === 1 ? winners[0].id : undefined
   const categories = winners.map((item) => item.id)
@@ -316,7 +325,7 @@ export function parseQuery(query: string, list: Business[] = []): ParsedQuery {
     .filter((token) => token.length > 2 && !consumed.has(token))
     .slice(0, 8)
 
-  return { raw, category, categories, labels, focus, city, district, minRating, openNow, tags, terms }
+  return { raw, text, changes: corrected.changes, category, categories, labels, focus, city, district, minRating, openNow, tags, terms }
 }
 
 function identity(business: Business) {
@@ -356,6 +365,12 @@ function haystack(business: Business) {
       business.tags.join(" "),
       business.services.map((service) => service.name).join(" "),
       business.amenities.join(" "),
+      (business.profile?.aiTags ?? []).join(" "),
+      (business.profile?.seoTags ?? []).join(" "),
+      (business.profile?.services ?? [])
+        .filter((service) => service.active)
+        .map((service) => `${service.name} ${(service.aiTags ?? []).join(" ")}`)
+        .join(" "),
     ].join(" "),
   )
 }
