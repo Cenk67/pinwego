@@ -36,7 +36,7 @@ Açılmazsa:
 
 ## Ne var?
 
-- Sektörler: yeme-içme, konaklama, sağlık, temizlik, usta, otomotiv, hukuk, turizm, inşaat ve diğer ticari alanlar dahil 80 civarı hazır sektör. Ana sayfada ara, işletme kaydında seç. Listede yoksa “Sektör ekle” ile yeni sektör yazılır; arama sözcükleri, simge ve kapak seçilir. Özel sektörler bu tarayıcıda kalır.
+- Sektörler: 40 ana sektör ve yaklaşık 100 başlangıç alt sektörü (ör. Usta & tamir › Tesisatçı) sunucuda çok seviyeli bir ağaçta durur. Yönetim → Sektörler sekmesi A–Z Türkçe harf çubuğu, süzgeçler, ekle/düzenle/sırala, görsel yükleme (otomatik ölçekleme), pasife alma, bağlılık denetimli silme veya başka sektöre aktarma, SEO alanları, geçiş raporu ve denetim izi sunar. İşletmeler birden fazla sektörde yer alabilir; kuruluş türü (kamu/özel, yönetici doğrulamalı) ve profil türü (işletme, usta, içerik üreticisi …) ayrı alanlardır. Ana sayfadaki “Sektör ekle” kaldırıldı. Ayrıntı: `docs/sektor-sistemi/`.
 - Doğal dille arama: semt, bütçe, aciliyet ve kategori aynı cümleden okunur.
 - Akıllı ihtiyaç bulucu: “Evimin su tesisatı patladı”, “Kışın evim sıcak olmuyor” gibi cümleler yazım düzeltmesi, eş anlamlı ve ihtiyaç sözlüğüyle kategoriye bağlanır; sonuç sayfası anlaşılan ihtiyacı özetler, gerekirse şehir / aciliyet / bütçe sorar, yakın kategorileri önerir, Pinwego’da kayıt yoksa Google, YouTube ve Haritalar bağlantısı verir. Sponsorlu kayıt alakasız aramada öne geçmez. Yönetim → İhtiyaç araması sekmesi sıfır sonuç dönen cümleleri, eşleşme oranını, dış kaynağa geçişi ve iletişim dönüşümünü gösterir. Ayrıntı: `docs/akilli-ihtiyac/`.
 - İşletme profili: fotoğraf, puan, yorum, saat, hizmet fiyatı, doğrulama ve öne çıkan rozeti.
