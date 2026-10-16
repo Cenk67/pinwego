@@ -346,7 +346,7 @@ export function VoiceSearchRoot({
   return <VoiceContext.Provider value={api}>{children}</VoiceContext.Provider>
 }
 
-export function VoiceMic() {
+export function VoiceMic({ label, className }: { label?: string; className?: string } = {}) {
   const api = useVoiceApi()
   const { t } = useLocale()
   if (!api.enabled) return null
@@ -354,7 +354,8 @@ export function VoiceMic() {
   return (
     <button
       type="button"
-      aria-label={t("voice.aria")}
+      aria-label={label ?? t("voice.aria")}
+      title={label ?? t("voice.aria")}
       aria-pressed={listening}
       onClick={() => {
         if (api.phase === "listening") api.stop()
@@ -367,6 +368,7 @@ export function VoiceMic() {
           : api.appearance === "solid"
             ? "bg-primary text-primary-foreground hover:bg-primary/80"
             : "bg-card text-foreground ring-1 ring-foreground/15 hover:bg-secondary",
+        className,
       )}
     >
       <Mic className="size-5" />
@@ -388,7 +390,7 @@ function Wave() {
   )
 }
 
-export function VoicePanel() {
+export function VoicePanel({ stopLabel }: { stopLabel?: string } = {}) {
   const api = useVoiceApi()
   const { t } = useLocale()
   if (!api.enabled || api.phase === "idle") return null
@@ -419,7 +421,7 @@ export function VoicePanel() {
         </div>
         {api.phase === "listening" ? (
           <button type="button" onClick={api.stop} className="h-11 rounded-full bg-red-600 px-4 text-sm text-white">
-            {t("voice.stop")}
+            {stopLabel ?? t("voice.stop")}
           </button>
         ) : null}
       </div>
