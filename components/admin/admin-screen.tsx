@@ -8,6 +8,7 @@ import { CampaignAdmin } from "@/components/campaigns/campaign-manage"
 import { QrAdmin } from "@/components/qr/qr-center"
 import { DiscoverAdmin } from "@/components/discover/discover-admin"
 import { AnalyticsPanel } from "@/components/admin/analytics-panel"
+import { NeedAdmin } from "@/components/admin/need-admin"
 import { ViewAdmin } from "@/components/directory/view-report"
 import { InboxPanel } from "@/components/admin/inbox-panel"
 import { BulkUpload } from "@/components/admin/bulk-upload"
@@ -58,6 +59,7 @@ const tabs = [
   { id: "crm", label: "CRM" },
   { id: "bildirim", label: "Bildirim" },
   { id: "analitik", label: "Analitik" },
+  { id: "ihtiyac", label: "İhtiyaç araması" },
   { id: "gorunum", label: "Görüntülenme" },
   { id: "icerik", label: "İçerik" },
   { id: "iletisim", label: "İletişim" },
@@ -147,6 +149,7 @@ export function AdminScreen() {
       {tab === "crm" ? <CrmPanel /> : null}
       {tab === "bildirim" ? <NotifyPanel /> : null}
       {tab === "analitik" ? <AnalyticsPanel /> : null}
+      {tab === "ihtiyac" ? <NeedAdmin /> : null}
       {tab === "gorunum" ? <ViewAdmin /> : null}
       {tab === "icerik" ? <PagesPanel /> : null}
       {tab === "iletisim" ? <InboxPanel /> : null}
