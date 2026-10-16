@@ -9,6 +9,7 @@ import {
   campaignCode,
   qrToken,
   resolveQr,
+  resolveQrBook,
   summarizeQr,
   topQrBusinesses,
   vcardFilename,
@@ -44,6 +45,15 @@ for (const campaign of seedCampaigns) {
 assert.equal(resolveQr("nope"), null)
 assert.equal(resolveQr("../admin12"), null)
 assert.equal(resolveQr(yok.toUpperCase())?.businessId, "yokustepe-kahvalti-waffle")
+
+const freshId = "online-sigortalar-yonetici"
+const fresh = businessCode(freshId, "business")
+assert.equal(resolveQr(fresh), null)
+assert.equal(resolveQrBook(fresh, [{ id: freshId }])?.kind, "business")
+assert.equal(resolveQrBook(fresh, [{ id: freshId }])?.businessId, freshId)
+assert.equal(resolveQrBook(businessCode(freshId, "vcard"), [{ id: freshId }])?.kind, "vcard")
+assert.equal(resolveQrBook(fresh, [{ id: freshId, hidden: true }]), null)
+assert.equal(resolveQrBook(yok, [])?.businessId, "yokustepe-kahvalti-waffle")
 
 const hostile = businesses[0]
 const cardBody = buildVCard({

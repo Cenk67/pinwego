@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { connection } from "next/server"
 import { QrLanding, QrMissing, type QrCardBusiness } from "@/components/qr/qr-landing"
 import { liveStatus, seedCampaigns } from "@/lib/campaigns"
-import { findBusiness, resolveQr } from "@/lib/qr"
+import { openQr } from "@/lib/qr-open"
 import type { Business } from "@/lib/types"
 
 function cardOf(business: Business): QrCardBusiness {
@@ -27,16 +27,10 @@ function cardOf(business: Business): QrCardBusiness {
   }
 }
 
-function openCard(code: string) {
-  const hit = resolveQr(code)
-  const business = hit ? findBusiness(hit.businessId) : null
-  if (!hit || !business || business.profile?.published === false) return null
-  return { hit, business }
-}
-
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
+  await connection()
   const { code } = await params
-  const opened = openCard(code)
+  const opened = await openQr(code)
   if (!opened) return { title: "QR kart", robots: { index: false, follow: true } }
   return {
     title: opened.business.name,
@@ -49,7 +43,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
 export default async function Page({ params }: { params: Promise<{ code: string }> }) {
   await connection()
   const { code } = await params
-  const opened = openCard(code)
+  const opened = await openQr(code)
   if (!opened) return <QrMissing />
   const today = new Date().toISOString().slice(0, 10)
   const source = opened.hit.campaignId ? seedCampaigns.find((item) => item.id === opened.hit.campaignId) : undefined

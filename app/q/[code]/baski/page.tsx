@@ -1,23 +1,25 @@
 import type { Metadata } from "next"
+import { connection } from "next/server"
 import { QrMissing } from "@/components/qr/qr-landing"
 import { QrPoster } from "@/components/qr/qr-poster"
-import { findBusiness, resolveQr } from "@/lib/qr"
+import { openQr } from "@/lib/qr-open"
 
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
+  await connection()
   const { code } = await params
-  const hit = resolveQr(code)
-  const business = hit ? findBusiness(hit.businessId) : null
+  const opened = await openQr(code)
   return {
-    title: business ? `${business.name} baskı` : "QR baskı",
+    title: opened ? `${opened.business.name} baskı` : "QR baskı",
     robots: { index: false, follow: true },
   }
 }
 
 export default async function Page({ params }: { params: Promise<{ code: string }> }) {
+  await connection()
   const { code } = await params
-  const hit = resolveQr(code)
-  const business = hit ? findBusiness(hit.businessId) : null
-  if (!hit || !business || business.profile?.published === false) return <QrMissing />
+  const opened = await openQr(code)
+  if (!opened) return <QrMissing />
+  const { hit, business } = opened
   return (
     <QrPoster
       code={hit.code}

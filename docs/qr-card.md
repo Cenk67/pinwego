@@ -4,7 +4,7 @@ Müşteri vitrindeki kodu okutur. Adres `https://pinwego.com/q/{kod}` kısa kart
 
 ## Architecture
 
-Pinwego’da SQL yoktur. İşletme kataloğu paketin içindedir. QR kodları da pakette çözülür: `lib/qr.ts` her katalog işletmesi için profil ve vCard kodu, her örnek kampanya için kampanya kodu üretir. Aynı girdi her zaman aynı kodu verir. Yeni, yalnızca bu tarayıcıda duran bir işletmenin kodu herkese açılmaz; panel bunu söyler.
+Pinwego’da SQL yoktur. `lib/qr.ts` her işletme kimliği için profil ve vCard kodu, her örnek kampanya için kampanya kodu üretir. Aynı girdi her zaman aynı kodu verir. Katalog ve örnek kampanyalar pakette çözülür. Yeni kayıtların kodu işletme defterindeki kimlikten üretilir; gizli kayıt açılmaz. Kısa kart bu deftere bakar. QR için ayrı bir anahtar yazılmaz.
 
 Olaylar `pinwego.qr.v1` anahtarında, kodu açan tarayıcıda durur. IP, ham tarayıcı kimliği ve kişi verisi yazılmaz. Cihaz yalnızca `mobile` veya `desktop` olarak kabaca ayrılır. Örnek okutmalar paketin içindedir; bu tarayıcıdaki okutmalar üzerine eklenir. Başka telefonun okutması işletme sahibinin paneline düşmez. Blog KV ve önbellek KV yazılmaz.
 

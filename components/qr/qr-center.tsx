@@ -2,14 +2,14 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { downloadQrPng, downloadQrSvg, QrMark } from "@/components/qr/qr-mark"
+import { downloadQrPng, downloadQrSvg, QrMark, useQrColors } from "@/components/qr/qr-mark"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth-context"
 import { seedCampaigns } from "@/lib/campaigns"
 import { useDirectory } from "@/lib/directory-context"
 import { fold } from "@/lib/format"
-import { businessCode, campaignCode, posterPath, qrUrl, resolveQr, summarizeQr, topQrBusinesses, vcardPath } from "@/lib/qr"
+import { businessCode, campaignCode, posterPath, qrUrl, summarizeQr, topQrBusinesses, vcardPath } from "@/lib/qr"
 import { useQrEvents } from "@/lib/qr-store"
 import type { Business } from "@/lib/types"
 
@@ -22,8 +22,9 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function QrActions({ code, slug, title }: { code: string; slug: string; title: string }) {
+function QrActions({ code, slug, title, photo }: { code: string; slug: string; title: string; photo?: string }) {
   const [note, setNote] = useState("")
+  const colors = useQrColors(photo)
   const url = qrUrl(code)
   async function copy() {
     try {
@@ -48,14 +49,14 @@ function QrActions({ code, slug, title }: { code: string; slug: string; title: s
   return (
     <div>
       <div className="flex justify-center">
-        <QrMark text={url} label={title} />
+        <QrMark text={url} label={title} colors={colors} />
       </div>
       <p className="mt-2 break-all text-center text-xs text-muted-foreground">{url}</p>
       <div className="mt-3 flex flex-wrap justify-center gap-2">
-        <Button type="button" className="h-11 rounded-full" onClick={() => downloadQrPng(url, `pinwego-${slug}.png`)}>
+        <Button type="button" className="h-11 rounded-full" onClick={() => downloadQrPng(url, `pinwego-${slug}.png`, colors)}>
           PNG
         </Button>
-        <Button type="button" variant="outline" className="h-11 rounded-full" onClick={() => downloadQrSvg(url, `pinwego-${slug}.svg`)}>
+        <Button type="button" variant="outline" className="h-11 rounded-full" onClick={() => downloadQrSvg(url, `pinwego-${slug}.svg`, colors)}>
           SVG
         </Button>
         <Button variant="outline" className="h-11 rounded-full" nativeButton={false} render={<Link href={posterPath(code)} />}>
@@ -79,19 +80,9 @@ function QrActions({ code, slug, title }: { code: string; slug: string; title: s
 function QrDesk({ business }: { business: Business }) {
   const events = useQrEvents().filter((event) => event.businessId === business.id)
   const summary = summarizeQr(events)
-  const profile = resolveQr(businessCode(business.id, "business"))
-  const card = resolveQr(businessCode(business.id, "vcard"))
+  const profile = businessCode(business.id, "business")
+  const card = businessCode(business.id, "vcard")
   const campaigns = seedCampaigns.filter((item) => item.businessId === business.id)
-  if (!profile || !card) {
-    return (
-      <article className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
-        <h3 className="font-heading text-2xl">{business.name}</h3>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Bu kayıt yalnızca bu tarayıcıda. Basılı kod, paketlenmiş katalogdaki işletmelerde çözülür.
-        </p>
-      </article>
-    )
-  }
   return (
     <article className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
       <h3 className="font-heading text-2xl">{business.name}</h3>
@@ -111,11 +102,11 @@ function QrDesk({ business }: { business: Business }) {
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <div>
           <p className="text-center text-sm font-medium">Profil kartı</p>
-          <QrActions code={profile.code} slug={business.slug} title={business.name} />
+          <QrActions code={profile} slug={business.slug} title={business.name} photo={business.photo} />
         </div>
         <div>
           <p className="text-center text-sm font-medium">vCard kartı</p>
-          <QrActions code={card.code} slug={`${business.slug}-vcard`} title={`${business.name} vCard`} />
+          <QrActions code={card} slug={`${business.slug}-vcard`} title={`${business.name} vCard`} photo={business.photo} />
         </div>
       </div>
       {campaigns.length ? (
@@ -123,7 +114,7 @@ function QrDesk({ business }: { business: Business }) {
           {campaigns.map((campaign) => (
             <div key={campaign.id}>
               <p className="text-center text-sm font-medium">{campaign.title}</p>
-              <QrActions code={campaignCode(campaign.id)} slug={campaign.slug} title={campaign.title} />
+              <QrActions code={campaignCode(campaign.id)} slug={campaign.slug} title={campaign.title} photo={campaign.image} />
             </div>
           ))}
         </div>
@@ -172,10 +163,7 @@ export function QrAdmin() {
   const events = useQrEvents()
   const [query, setQuery] = useState("Yokuştepe")
   const [selected, setSelected] = useState("yokustepe-kahvalti-waffle")
-  const catalog = useMemo(
-    () => managedBusinesses.filter((item) => resolveQr(businessCode(item.id, "business"))),
-    [managedBusinesses],
-  )
+  const catalog = managedBusinesses
   const matches = useMemo(() => {
     const needle = fold(query.trim())
     if (!needle) return catalog.slice(0, 8)

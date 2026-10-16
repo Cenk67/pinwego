@@ -1,6 +1,6 @@
 import { businesses } from "@/lib/catalog"
 import { eachDay, percentChange, reportDay, shiftDay } from "@/lib/stats"
-import { resolveQr } from "@/lib/qr"
+import { businessCode, resolveQr } from "@/lib/qr"
 
 export const viewQuietMs = 30 * 60 * 1000
 export const viewCookie = "pinwego_gorunum"
@@ -432,8 +432,10 @@ export function viewSource(input: { search: string; from: string; businessId: st
   const search = input.search.slice(0, 200)
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
   if (params.get("kaynak") === "paylas") return "paylas"
-  const hit = resolveQr(params.get("kart") ?? "")
+  const card = (params.get("kart") ?? "").trim().toLowerCase()
+  const hit = resolveQr(card)
   if (hit && hit.businessId === input.businessId) return hit.kind === "campaign" ? "kampanya" : "qr"
+  if (card === businessCode(input.businessId, "business") || card === businessCode(input.businessId, "vcard")) return "qr"
   try {
     const url = new URL(input.from)
     const host = url.hostname.toLowerCase().replace(/^www\./, "")

@@ -1,9 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
-import { renderSVG } from "uqr"
+import { useEffect, useState } from "react"
 import { BadgeCheck, Share2 } from "lucide-react"
+import { QrMark } from "@/components/qr/qr-mark"
 import { useGuestGate } from "@/components/auth/guest-gate"
 import { formatDay } from "@/components/campaigns/campaign-card"
 import { Cover, Stars } from "@/components/directory/bits"
@@ -124,7 +124,6 @@ function DetailBody({
   const [code, setCode] = useState(campaign.code)
   const [notice, setNotice] = useState("")
   const [copied, setCopied] = useState(false)
-  const svg = useMemo(() => renderSVG(campaignUrl(campaign), { ecc: "M", border: 2, pixelSize: 3, blackColor: "#241c16", whiteColor: "#fffdf8" }), [campaign])
   const digits = campaign.whatsapp.replace(/[^\d]/g, "")
   const badge = campaign.discountPercent > 0 ? `%${campaign.discountPercent}` : campaign.advantage
 
@@ -256,7 +255,9 @@ function DetailBody({
         </form>
         <div className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
           <h2 className="font-heading text-xl">{t("campaign.qr")}</h2>
-          <div className="mt-3 max-w-48" role="img" aria-label={t("campaign.qr")} dangerouslySetInnerHTML={{ __html: svg }} />
+          <div className="mt-3 max-w-48">
+            <QrMark text={campaignUrl(campaign)} label={t("campaign.qr")} photo={campaign.image} />
+          </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button type="button" variant="outline" className="h-11 rounded-full" onClick={onSave}>
               {saved ? t("campaign.saved") : t("campaign.save")}

@@ -3,8 +3,17 @@
 import { useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { resolveQr } from "@/lib/qr"
+import { businessCode, resolveQr, type QrHit } from "@/lib/qr"
 import { recordQrEvent, takeQrReturn } from "@/lib/qr-store"
+
+function qrHit(code: string, businessId: string): QrHit | null {
+  const known = resolveQr(code)
+  if (known?.businessId === businessId) return known
+  const clean = code.trim().toLowerCase()
+  if (clean === businessCode(businessId, "business")) return { code: clean, kind: "business", businessId }
+  if (clean === businessCode(businessId, "vcard")) return { code: clean, kind: "vcard", businessId }
+  return null
+}
 
 export function QrArrival({ businessId }: { businessId: string }) {
   const params = useSearchParams()
@@ -12,8 +21,8 @@ export function QrArrival({ businessId }: { businessId: string }) {
   const code = params.get("kart") ?? ""
 
   useEffect(() => {
-    const hit = resolveQr(code)
-    if (!hit || hit.businessId !== businessId) return
+    const hit = qrHit(code, businessId)
+    if (!hit) return
     const mark = `pinwego.qr.profile.${code}`
     let seen = false
     try {

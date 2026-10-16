@@ -31,7 +31,7 @@ export function QrPoster({
       </p>
       <p className="mt-8 font-heading text-3xl leading-tight">{t("qr.posterTitle")}</p>
       <div className="mt-6 flex justify-center">
-        <QrMark text={qrUrl(code)} label={name} />
+        <QrMark text={qrUrl(code)} label={name} photo={photo} />
       </div>
       <p className="mt-4 text-sm leading-6">{t("qr.posterScan")}</p>
       <p className="mt-2 text-sm text-muted-foreground">{t("qr.posterMore")}</p>

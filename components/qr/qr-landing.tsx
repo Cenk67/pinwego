@@ -146,7 +146,7 @@ export function QrLanding({
       ) : null}
       <p className="mt-4 text-center text-xs text-muted-foreground">{profileUrl(business.slug).replace("https://", "")}</p>
       <div className="mt-4 hidden justify-center md:flex">
-        <QrMark text={qrUrl(hit.code)} label={business.name} />
+        <QrMark text={qrUrl(hit.code)} label={business.name} photo={business.photo} />
       </div>
       <p className="mt-3 text-center text-xs text-muted-foreground">
         <Link href={posterPath(hit.code)}>{t("qr.poster")}</Link>

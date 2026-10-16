@@ -89,6 +89,19 @@ export function resolveQr(code: string): QrHit | null {
   return index.get(clean) ?? null
 }
 
+export function resolveQrBook(code: string, rows: { id: string; hidden?: boolean }[]): QrHit | null {
+  const known = resolveQr(code)
+  if (known) return known
+  const clean = code.trim().toLowerCase()
+  if (!/^[a-z2-9]{10}$/.test(clean)) return null
+  for (const row of rows) {
+    if (row.hidden || !row.id) continue
+    if (businessCode(row.id, "business") === clean) return { code: clean, kind: "business", businessId: row.id }
+    if (businessCode(row.id, "vcard") === clean) return { code: clean, kind: "vcard", businessId: row.id }
+  }
+  return null
+}
+
 export function qrPath(code: string) {
   return `/q/${code}`
 }

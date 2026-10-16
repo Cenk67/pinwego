@@ -143,7 +143,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
           </div>
           <ViewMeter business={business} />
           <div className="mt-4 lg:hidden">
-            <BusinessQr businessId={business.id} name={business.name} />
+            <BusinessQr businessId={business.id} name={business.name} photo={hero} />
           </div>
           {business.source === "google" ? (
             <div className="mt-4 max-w-sm">
@@ -203,7 +203,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
 
         <aside className="min-w-0 space-y-4">
           <div className="hidden lg:block">
-            <BusinessQr businessId={business.id} name={business.name} />
+            <BusinessQr businessId={business.id} name={business.name} photo={hero} />
           </div>
           <div className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10 lg:sticky lg:top-24">
             {business.responseMinutes > 0 ? (
