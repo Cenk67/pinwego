@@ -27,8 +27,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/auth-context"
 import { openStoredDocument } from "@/lib/auth-store"
-import { categoryById, cities, cityCenter, defaultBooking } from "@/lib/catalog"
+import { categoryById, cities, defaultBooking } from "@/lib/catalog"
 import { useDirectory } from "@/lib/directory-context"
+import { PlaceEditor } from "@/components/directory/place-picker"
+import { defaultPlace, placeAddress, placeDistrict, placeProvince, type Place } from "@/lib/place"
 import { ContactEditor } from "@/components/directory/contact-lines"
 import { ProfileEditor } from "@/components/directory/profile-editor"
 import { useListingGallery } from "@/components/directory/saved-media"
@@ -42,7 +44,7 @@ import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
 import { fold, slugify } from "@/lib/format"
 import { maskId } from "@/lib/identity"
 import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
-import { businessLeaf, inSector, providerKindLabel, providerKinds, rootsOf, sortTr, type TaxonomyNode } from "@/lib/taxonomy"
+import { businessLeaf, inSector, orgKinds, providerKindLabel, providerKindsFor, rootsOf, sortTr, type TaxonomyNode } from "@/lib/taxonomy"
 import type { BookingKind, Business, BusinessProfile, HourBook } from "@/lib/types"
 
 const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
@@ -219,7 +221,7 @@ function BusinessAdmin() {
   const [profileTarget, setProfileTarget] = useState<Business | null>(null)
   const [creating, setCreating] = useState(false)
   const [sectorFilter, setSectorFilter] = useState("")
-  const [orgFilter, setOrgFilter] = useState<"" | "kamu" | "ozel" | "beyan">("")
+  const [orgFilter, setOrgFilter] = useState<"" | "kamu" | "ozel" | "stk" | "beyan">("")
   const [providerFilter, setProviderFilter] = useState("")
   const [stateFilter, setStateFilter] = useState<"" | "gizli" | "acik" | "onay">("")
   const now = useMinute()
@@ -231,7 +233,8 @@ function BusinessAdmin() {
       if (needle && !fold(`${item.name} ${item.city} ${item.district} ${item.category} ${item.subcategory} ${item.phone}`).includes(needle)) return false
       if (sectorFilter && !inSector(item, sectorFilter)) return false
       if (orgFilter === "kamu" && item.orgKind !== "kamu") return false
-      if (orgFilter === "ozel" && item.orgKind === "kamu") return false
+      if (orgFilter === "ozel" && (item.orgKind ?? "ozel") !== "ozel") return false
+      if (orgFilter === "stk" && item.orgKind !== "stk") return false
       if (orgFilter === "beyan" && !(item.orgKind === "kamu" && !item.orgVerified)) return false
       if (providerFilter && (item.providerKind ?? "isletme") !== providerFilter) return false
       if (stateFilter) {
@@ -299,17 +302,22 @@ function BusinessAdmin() {
           })}
         </select>
         <select aria-label="Kuruluş türü filtresi" className={fieldClass} value={orgFilter} onChange={(event) => setOrgFilter(event.target.value as typeof orgFilter)}>
-          <option value="">Kamu ve özel</option>
+          <option value="">Tüm kuruluş türleri</option>
+          <option value="ozel">Özel</option>
           <option value="kamu">Kamu</option>
           <option value="beyan">Kamu – doğrulama bekleyen</option>
-          <option value="ozel">Özel</option>
+          <option value="stk">Sivil Toplum Kuruluşu</option>
         </select>
         <select aria-label="Profil türü filtresi" className={fieldClass} value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)}>
           <option value="">Tüm profil türleri</option>
-          {providerKinds.map((kind) => (
-            <option key={kind.id} value={kind.id}>
-              {kind.label}
-            </option>
+          {orgKinds.map((org) => (
+            <optgroup key={org.id} label={org.label}>
+              {providerKindsFor(org.id).map((kind) => (
+                <option key={kind.id} value={kind.id}>
+                  {kind.label}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
         <select aria-label="Durum filtresi" className={fieldClass} value={stateFilter} onChange={(event) => setStateFilter(event.target.value as typeof stateFilter)}>
@@ -337,7 +345,7 @@ function BusinessAdmin() {
                     {business.categories?.filter((id) => id !== leaf?.id).length ? ` +${business.categories.filter((id) => id !== leaf?.id).length}` : ""}
                     {" · "}
                     {business.district}, {business.city} · {sourceLabel(business.source)}
-                    {business.orgKind === "kamu" ? (business.orgVerified ? " · Kamu ✓" : " · Kamu (beyan)") : ""}
+                    {business.orgKind === "kamu" ? (business.orgVerified ? " · Kamu ✓" : " · Kamu (beyan)") : business.orgKind === "stk" ? " · STK" : ""}
                     {business.providerKind && business.providerKind !== "isletme" ? ` · ${providerKindLabel(business.providerKind)}` : ""}
                     {(business as { review?: string }).review === "onay"
                       ? " · onay bekliyor"
@@ -783,8 +791,9 @@ function CreateBusiness({
   const { account } = useAuth()
   const [name, setName] = useState("")
   const [contacts, setContacts] = useState<ContactDraft>({ landline: "", mobile: "", whatsapp: "" })
-  const [city, setCity] = useState("İstanbul")
-  const [district, setDistrict] = useState("")
+  const [place, setPlace] = useState<Place>(defaultPlace)
+  const [address, setAddress] = useState("")
+  const [addressTouched, setAddressTouched] = useState(false)
   const [summary, setSummary] = useState("")
   const [cls, setCls] = useState<Classification>(() => ({
     category: sortTr(rootsOf(nodes))[0]?.id ?? "yeme",
@@ -795,6 +804,10 @@ function CreateBusiness({
   }))
   const category = cls.category
   const [error, setError] = useState("")
+  const city = placeProvince(place)
+  const district = placeDistrict(place)
+  const suggestedAddress = placeAddress(place)
+  const finalAddress = (addressTouched ? address : suggestedAddress).trim()
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
@@ -806,8 +819,16 @@ function CreateBusiness({
           className="grid gap-3"
           onSubmit={(event) => {
             event.preventDefault()
-            if (name.trim().length < 2 || district.trim().length < 2 || summary.trim().length < 12) {
-              setError("Ad, semt ve kısa özet gerekli.")
+            if (name.trim().length < 2 || summary.trim().length < 12) {
+              setError("Ad ve en az 12 karakterlik kısa özet gerekli.")
+              return
+            }
+            if (!place.country || !Number.isFinite(place.lat) || !Number.isFinite(place.lng)) {
+              setError("Konum seç: Yakınımdakiler düğmesini kullan ya da yeri ara.")
+              return
+            }
+            if (!district) {
+              setError("Konumda en az il veya ilçe seçilmeli.")
               return
             }
             const contact = savedContacts(contacts)
@@ -821,7 +842,6 @@ function CreateBusiness({
             }
             const meta = categoryById(category)
             const slug = slugify(name)
-            const center = cityCenter(city)
             void onCreate({
               id: slug,
               slug,
@@ -833,10 +853,10 @@ function CreateBusiness({
               orgVerified: cls.orgKind === "kamu" && cls.orgVerified,
               providerKind: cls.providerKind,
               city,
-              district: district.trim(),
-              address: `${district.trim()}, ${city}`,
-              lat: center.lat + (Math.random() - 0.5) * 0.04,
-              lng: center.lng + (Math.random() - 0.5) * 0.04,
+              district,
+              address: finalAddress || suggestedAddress,
+              lat: place.lat,
+              lng: place.lng,
               phone: contact.phone,
               contacts: contact.contacts,
               rating: 0,
@@ -867,16 +887,35 @@ function CreateBusiness({
         >
           <Field label="Ad" id="new-name" value={name} onChange={setName} />
           <ClassificationFields value={cls} onChange={setCls} nodes={nodes} admin idPrefix="new" />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1.5 text-sm">
-              Şehir
-              <select className={fieldClass} value={city} onChange={(event) => setCity(event.target.value)}>
-                {cities.map((item) => (
-                  <option key={item.name}>{item.name}</option>
-                ))}
-              </select>
-            </label>
-            <Field label="Semt" id="new-district" value={district} onChange={setDistrict} />
+          <div className="grid gap-2 rounded-2xl bg-secondary/40 p-3 ring-1 ring-foreground/10">
+            <p className="text-sm font-medium">Konum</p>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Ana sayfadaki Yakınımdakiler ile aynı: konumunu kullan ya da yeri ara; ülke, il, ilçe ve semt birbirine bağlıdır. Adres buradan alınır.
+            </p>
+            <PlaceEditor
+              current={place}
+              embedded
+              onChange={(next) => {
+                setPlace(next)
+                if (!addressTouched) setAddress(placeAddress(next))
+              }}
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="new-address">Adres</Label>
+            <Input
+              id="new-address"
+              value={addressTouched ? address : suggestedAddress}
+              placeholder="Konum seçince kendiliğinden dolar; sokak ve kapı numarası ekleyebilirsin"
+              onChange={(event) => {
+                setAddressTouched(true)
+                setAddress(event.target.value)
+              }}
+            />
+            <p className="text-xs leading-5 text-muted-foreground">
+              {district ? `${district}, ${city}` : "Henüz konum seçilmedi."}
+              {Number.isFinite(place.lat) && place.country ? ` · ${place.lat.toFixed(4)}, ${place.lng.toFixed(4)}` : ""}
+            </p>
           </div>
           <ContactEditor value={contacts} onChange={setContacts} />
           <div className="grid gap-1.5">

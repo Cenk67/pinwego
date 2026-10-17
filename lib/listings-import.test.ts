@@ -213,16 +213,18 @@ const tree = preview([
   "Usta Hasan;Usta ve tamir > Tesisatçı;;ozel;usta;Zonguldak;Kozlu;03720000101;Kozlu'da su kaçağı ve petek tamiri.",
   "Kent Hastanesi;saglik;Klinik;kamu;kurum;Zonguldak;Merkez;03720000102;Merkezde kamu hastanesi acil ve poliklinik.",
   "Yöre Lokantası;yeme;Çok özel bir mutfak;;;Zonguldak;Merkez;03720000103;Merkezde yöresel yemek ve kahvaltı.",
+  "Kozlu Spor;spor;;Sivil Toplum Kuruluşu;Spor Kulübü;Zonguldak;Kozlu;03720000106;Kozlu'da amatör futbol ve voleybol kulübü.",
+  "Esnaf Odası;danismanlik;;stk;meslek-odasi;Zonguldak;Merkez;03720000107;Esnaf ve sanatkârlar için oda hizmetleri.",
   "Bozuk Satır;yeme;;belediye;;Zonguldak;Merkez;03720000104;Kuruluş türü yanlış yazılmış satır.",
   "Bozuk Profil;yeme;;ozel;astronot;Zonguldak;Merkez;03720000105;Profil türü yanlış yazılmış satır.",
 ].join("\n"))
 assert.equal(tree.view.counts.hata, 2)
-assert.equal(tree.view.counts.yeni, 3)
-assert.equal(tree.view.rows[3]?.note.includes("kamu veya özel"), true)
-assert.equal(tree.view.rows[4]?.note.includes("Profil türü"), true)
+assert.equal(tree.view.counts.yeni, 5)
+assert.equal(tree.view.rows[5]?.note.includes("kamu, özel veya stk"), true)
+assert.equal(tree.view.rows[6]?.note.includes("Profil türü"), true)
 assert.equal(tree.view.rows[2]?.note.includes("ağaçta yok"), true, "unknown sub-sector text is reported but not rejected")
 const treeDone = commitImport(tree.grid, suggestMap(tree.grid.headers), emptyBook(), now, { updates: [], force: [], publish: "yayinda" })
-assert.equal(treeDone.added, 3)
+assert.equal(treeDone.added, 5)
 const hasan = treeDone.listings.find((item) => item.name === "Usta Hasan")
 assert.equal(hasan?.category, "usta")
 assert.deepEqual(hasan?.categories, ["usta-tesisatci"])
@@ -237,4 +239,11 @@ assert.equal(hospital?.providerKind, "kurum")
 const yore = treeDone.listings.find((item) => item.name === "Yöre Lokantası")
 assert.equal(yore?.subcategory, "Çok özel bir mutfak")
 assert.equal(yore?.categories, undefined)
+const club = treeDone.listings.find((item) => item.name === "Kozlu Spor")
+assert.equal(club?.orgKind, "stk", "label text maps to the STK organisation kind")
+assert.equal(club?.orgVerified, undefined, "STK rows carry no public verification flag")
+assert.equal(club?.providerKind, "spor-kulubu", "label text maps to the dashed profile id")
+const chamber = treeDone.listings.find((item) => item.name === "Esnaf Odası")
+assert.equal(chamber?.orgKind, "stk")
+assert.equal(chamber?.providerKind, "meslek-odasi")
 console.log("listings import ok")

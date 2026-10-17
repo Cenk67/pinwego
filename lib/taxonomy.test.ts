@@ -7,7 +7,14 @@ import {
   businessInNode,
   businessLeaf,
   childrenOf,
+  defaultProviderKind,
   emptyTaxonomyState,
+  isOrgKind,
+  isProviderKind,
+  orgKinds,
+  providerKindLabel,
+  providerKinds,
+  providerKindsFor,
   isActive,
   letterGroups,
   letterOf,
@@ -207,5 +214,17 @@ assert.deepEqual(report.unknownCategory, [{ id: "yok-sektor", count: 1 }])
 assert.deepEqual(report.unmatchedSub, [{ category: "usta", subcategory: "Saat tamiri", count: 1 }])
 assert.equal(report.kamuPending, 1)
 assert.equal(report.perRoot.find((r) => r.id === "usta")?.count, 2)
+
+// Organisation kinds: özel, kamu and STK; profile types cover every kind and group by it.
+assert.deepEqual(orgKinds.map((k) => k.id), ["ozel", "kamu", "stk"])
+assert.ok(isOrgKind("stk") && isOrgKind("kamu") && isOrgKind("ozel") && !isOrgKind("dernek"))
+for (const id of ["dernek", "vakif", "birlik", "spor-kulubu", "meslek-odasi", "ticaret-odasi"]) assert.ok(isProviderKind(id), id)
+assert.deepEqual(providerKindsFor("stk").map((k) => k.id), ["dernek", "vakif", "birlik", "spor-kulubu", "meslek-odasi", "ticaret-odasi"])
+assert.deepEqual(providerKindsFor("kamu").map((k) => k.id), ["kurum"])
+assert.equal(defaultProviderKind("stk"), "dernek")
+assert.equal(defaultProviderKind("ozel"), "isletme")
+assert.equal(providerKindLabel("spor-kulubu"), "Spor Kulübü")
+assert.equal(new Set(providerKinds.map((k) => k.id)).size, providerKinds.length)
+assert.equal(providerKinds.length, orgKinds.reduce((sum, org) => sum + providerKindsFor(org.id).length, 0))
 
 console.log("taxonomy ok")
