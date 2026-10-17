@@ -48,6 +48,22 @@ export function placeFromCity(city: string): Place {
   }
 }
 
+/** Listing `city` for a picked place: province, else region, else country. */
+export function placeProvince(place: Place) {
+  return (place.province || place.region || place.country).trim()
+}
+
+/** Listing `district` for a picked place: the finest selected area below the city. */
+export function placeDistrict(place: Place) {
+  return (place.neighborhood || place.district || place.province || place.region).trim()
+}
+
+/** Postal-style address line built from the selected place, finest area first. */
+export function placeAddress(place: Place) {
+  const parts = [place.neighborhood, place.district, place.province, place.country].filter(Boolean)
+  return Array.from(new Set(parts)).join(", ")
+}
+
 export function isPlace(value: unknown): value is Place {
   if (!value || typeof value !== "object") return false
   const place = value as Partial<Place>

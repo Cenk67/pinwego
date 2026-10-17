@@ -46,20 +46,41 @@ export type TaxonomyState = {
 export const orgKinds: { id: OrgKind; label: string; hint: string }[] = [
   { id: "ozel", label: "Özel", hint: "Devlete bağlı olmayan işletme, şirket veya kişi" },
   { id: "kamu", label: "Kamu", hint: "Bakanlık, belediye, kamu hastanesi ve bağlı kuruluşlar" },
+  { id: "stk", label: "Sivil Toplum Kuruluşu", hint: "Dernek, vakıf, birlik, spor kulübü, meslek ve ticaret odaları" },
 ]
 
-export const providerKinds: { id: ProviderKind; label: string; hint: string }[] = [
-  { id: "isletme", label: "İşletme / şirket", hint: "Mağaza, restoran, acente, klinik, ajans" },
-  { id: "kurum", label: "Kamu kurumu", hint: "Belediye, bakanlık birimi, kamu hastanesi" },
-  { id: "usta", label: "Bağımsız usta", hint: "Kendi adına çalışan tesisatçı, elektrikçi, boyacı" },
-  { id: "ulasim", label: "Bireysel ulaşım", hint: "Taksici, bağımsız sürücü, transfer" },
-  { id: "icerik", label: "İçerik üreticisi", hint: "Influencer, YouTuber, yayıncı, podcast" },
-  { id: "serbest", label: "Serbest profesyonel", hint: "Tasarımcı, yazılımcı, fotoğrafçı, danışman" },
-  { id: "diger", label: "Diğer bağımsız", hint: "Yukarıdakilere girmeyen bağımsız hizmet sunucuları" },
+/**
+ * Profile types. `org` is the organisation kind the profile most naturally belongs to; it drives
+ * option grouping and the default picked when the organisation kind changes. Any combination stays valid.
+ */
+export const providerKinds: { id: ProviderKind; label: string; hint: string; org: OrgKind }[] = [
+  { id: "isletme", label: "İşletme / şirket", hint: "Mağaza, restoran, acente, klinik, ajans", org: "ozel" },
+  { id: "usta", label: "Bağımsız usta", hint: "Kendi adına çalışan tesisatçı, elektrikçi, boyacı", org: "ozel" },
+  { id: "ulasim", label: "Bireysel ulaşım", hint: "Taksici, bağımsız sürücü, transfer", org: "ozel" },
+  { id: "icerik", label: "İçerik üreticisi", hint: "Influencer, YouTuber, yayıncı, podcast", org: "ozel" },
+  { id: "serbest", label: "Serbest profesyonel", hint: "Tasarımcı, yazılımcı, fotoğrafçı, danışman", org: "ozel" },
+  { id: "diger", label: "Diğer bağımsız", hint: "Yukarıdakilere girmeyen bağımsız hizmet sunucuları", org: "ozel" },
+  { id: "kurum", label: "Kamu kurumu", hint: "Belediye, bakanlık birimi, kamu hastanesi", org: "kamu" },
+  { id: "dernek", label: "Dernek", hint: "Dernekler Kanunu'na göre kurulmuş dernek ve şubeleri", org: "stk" },
+  { id: "vakif", label: "Vakıf", hint: "Vakıflar Genel Müdürlüğü'ne kayıtlı vakıf ve temsilcilikleri", org: "stk" },
+  { id: "birlik", label: "Birlik", hint: "Dernek ve vakıf üst birlikleri, federasyon ve konfederasyonlar", org: "stk" },
+  { id: "spor-kulubu", label: "Spor Kulübü", hint: "Amatör veya profesyonel spor kulüpleri ve gençlik kulüpleri", org: "stk" },
+  { id: "meslek-odasi", label: "Meslek Odası", hint: "Tabip, baro, mimar-mühendis, esnaf ve sanatkâr odaları", org: "stk" },
+  { id: "ticaret-odasi", label: "Ticaret Odası", hint: "Ticaret, sanayi ve deniz ticaret odaları, ticaret borsaları", org: "stk" },
 ]
 
 export function isOrgKind(value: unknown): value is OrgKind {
-  return value === "kamu" || value === "ozel"
+  return orgKinds.some((item) => item.id === value)
+}
+
+/** Profile types listed under an organisation kind, used for grouped option lists. */
+export function providerKindsFor(org: OrgKind) {
+  return providerKinds.filter((item) => item.org === org)
+}
+
+/** Default profile type when the organisation kind changes and the current one does not fit. */
+export function defaultProviderKind(org: OrgKind): ProviderKind {
+  return providerKindsFor(org)[0]?.id ?? "isletme"
 }
 
 export function isProviderKind(value: unknown): value is ProviderKind {

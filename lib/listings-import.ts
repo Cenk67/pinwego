@@ -264,6 +264,7 @@ function orgKindOf(value: string): OrgKind | null | undefined {
   if (!key) return undefined
   if (key === "kamu" || key === "devlet" || key === "public") return "kamu"
   if (key === "ozel" || key === "private" || key === "sirket") return "ozel"
+  if (key === "stk" || key === "siviltoplum" || key === "siviltoplumkurulusu" || key === "ngo" || key === "nonprofit") return "stk"
   return isOrgKind(key) ? key : null
 }
 
@@ -272,6 +273,8 @@ function providerKindOf(value: string): ProviderKind | null | undefined {
   if (!raw) return undefined
   const key = fold(raw)
   if (isProviderKind(key)) return key
+  const dashed = key.replace(/\s+/g, "-")
+  if (isProviderKind(dashed)) return dashed
   const hit = providerKinds.find((kind) => fold(kind.label) === key || fold(kind.label).split(" / ").includes(key) || fold(kind.hint).split(", ").includes(key))
   return hit?.id ?? null
 }
@@ -335,7 +338,7 @@ function prepareRow(line: number, cells: string[], map: string[]): Prepared {
   if (!matched) return faultRow(line, "Kategori tanınmadı. Sektör adını, kimliğini ya da 'Ana > Alt' yolunu yaz.", bits)
   const sector = matched.root
   const orgKind = mapped(map, "orgKind") ? orgKindOf(cell(cells, map, "orgKind")) : undefined
-  if (orgKind === null) return faultRow(line, "Kuruluş türü kamu veya özel olmalı.", bits)
+  if (orgKind === null) return faultRow(line, "Kuruluş türü kamu, özel veya stk olmalı.", bits)
   const providerKind = mapped(map, "providerKind") ? providerKindOf(cell(cells, map, "providerKind")) : undefined
   if (providerKind === null) return faultRow(line, `Profil türü tanınmadı. Geçerli: ${providerKinds.map((kind) => kind.id).join(", ")}.`, bits)
   if (phoneDigits.length < 10 || phoneDigits.length > 15) return faultRow(line, "Telefon 10 ile 15 rakam olmalı.", bits)

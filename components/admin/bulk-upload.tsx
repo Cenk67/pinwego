@@ -279,7 +279,7 @@ export function BulkUpload({ onImported }: { onImported: (listings: Business[]) 
               {fileName ? <p className="text-sm text-muted-foreground">{fileName}</p> : null}
               <p className="text-xs leading-5 text-muted-foreground">
                 Kategori sütununa sektör adı, kimliği ya da “Ana &gt; Alt” yolu yazılır; alt kategori ağaçtaki alt sektöre bağlanır.
-                İsteğe bağlı sütunlar: kuruluş türü (kamu / özel) ve profil türü (isletme, kurum, usta, ulasim, icerik, serbest, diger).
+                İsteğe bağlı sütunlar: kuruluş türü (kamu / özel / stk) ve profil türü (isletme, kurum, usta, ulasim, icerik, serbest, diger, dernek, vakif, birlik, spor-kulubu, meslek-odasi, ticaret-odasi).
               </p>
               {headers.length ? (
                 <div className="grid gap-2 sm:grid-cols-2">

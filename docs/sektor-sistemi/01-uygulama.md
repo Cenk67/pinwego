@@ -11,8 +11,9 @@
 | Sunucu kaydı | KV anahtarı `taxonomy:v1` → `TaxonomyState { overrides, nodes, remap, log }`. Yalnız **fark** saklanır: çekirdek sektörlere yapılan düzenlemeler `overrides`, yeni düğümler `nodes`, birleştirme yönlendirmeleri `remap`, denetim izi `log`. Ağaç her okumada `seedTaxonomy() + state` ile yeniden kurulur (`buildTaxonomy`). |
 | Kök sektörler | `lib/sectors.ts` → `seedSectors` (≈80, kimlikleri sabit) |
 | Başlangıç alt sektörleri | `lib/taxonomy.ts` → `seedChildren` (~100; `usta-tesisatci`, `saglik-dis-kligini` gibi `kök-slug` kimlikler). Etiketler katalogdaki `subcategory` metinleriyle aynı yazıldı; mevcut işletmeler veri göçü olmadan bağlanır (`businessInNode`, `businessLeaf`). |
-| Kuruluş türü | `Business.orgKind: "kamu" \| "ozel"`, `orgVerified` (yalnız yönetici işaretler). Üye kamu seçerse "beyan" sayılır. |
-| Profil türü | `Business.providerKind`: `isletme`, `kurum`, `usta`, `ulasim`, `icerik`, `serbest`, `diger` (`providerKinds`) |
+| Kuruluş türü | `Business.orgKind: "kamu" \| "ozel" \| "stk"`, `orgVerified` (yalnız yönetici, kamu için işaretler). Üye kamu seçerse "beyan" sayılır. STK = Sivil Toplum Kuruluşu. |
+| Profil türü | `Business.providerKind` (`providerKinds`): özel → `isletme`, `usta`, `ulasim`, `icerik`, `serbest`, `diger`; kamu → `kurum`; STK → `dernek`, `vakif`, `birlik`, `spor-kulubu`, `meslek-odasi`, `ticaret-odasi`. `providerKindsFor(org)` kuruluş türüne göre gruplar, kuruluş türü değişince `defaultProviderKind(org)` uygun varsayılanı seçer. |
+| Yönetici İşletme ekle konumu | `components/admin/admin-screen.tsx` → `CreateBusiness` eski Şehir/Semt alanları yerine ana sayfadaki `PlaceEditor`'ı (`embedded`) kullanır; `lib/place.ts` → `placeProvince`/`placeDistrict`/`placeAddress` ile şehir, ilçe, adres ve koordinatlar seçilen konumdan türetilir. |
 | Çoklu sektör | `Business.categories?: CategoryId[]` (alt sektör ve ek kökler; en fazla 5 + ana). Arama, sayım ve süzgeçler `inSector(business, id)` ile ağaç duyarlı çalışır. |
 | Türkçe sıralama | `collator = new Intl.Collator("tr")`, `sortTr`, `TR_LETTERS`, `letterGroups` |
 
