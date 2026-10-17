@@ -61,6 +61,7 @@ export function SearchScreen() {
   ]
   const [showMap, setShowMap] = useState(false)
   const [limit, setLimit] = useState(9)
+  const [movedFrom, setMovedFrom] = useState<string | null>(null)
   const now = useMinute()
 
   const query = params.get("q") ?? ""
@@ -74,6 +75,9 @@ export function SearchScreen() {
   const kategori = (rawKategori ? resolvedKategori ?? "hepsi" : parsed.category ?? "hepsi") as CategoryId | "hepsi"
   const sectorPath = kategori !== "hepsi" ? pathOf(taxonomy, kategori) : []
   const sectorMoved = Boolean(rawKategori && rawKategori !== "hepsi" && resolvedKategori && resolvedKategori !== rawKategori)
+  // The note survives the URL rewrite until the visitor picks another sector.
+  if (sectorMoved && movedFrom !== rawKategori) setMovedFrom(rawKategori)
+  const movedNote = sectorMoved || (movedFrom !== null && kategori !== "hepsi" && resolveNodeId(taxonomy, remap, movedFrom) === kategori)
   const minRating = Number(params.get("puan") ?? "0")
   const maxPrice = Number(params.get("fiyat") ?? "4")
   const openNow = params.get("acik") === "1"
@@ -350,7 +354,7 @@ export function SearchScreen() {
             {scoped.widened ? ` · ${t("search.widened")}` : ""}
             {query ? ` · ${t("search.reason")}` : ""}
           </p>
-          <SectorPath path={sectorPath} moved={sectorMoved} onPick={(id) => update({ kategori: id })} />
+          <SectorPath path={sectorPath} moved={movedNote} onPick={(id) => update({ kategori: id })} />
           <VoiceTrail count={results.length} query={query} />
         </div>
         <div className="flex items-center gap-2">
