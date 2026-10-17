@@ -9,7 +9,7 @@
 | --- | --- |
 | Ağaç düğümü | `lib/taxonomy.ts` → `TaxonomyNode = Sector & { parentId, status, order, seoTitle, seoDescription, aliases, seed, updatedAt }` |
 | Sunucu kaydı | KV anahtarı `taxonomy:v1` → `TaxonomyState { overrides, nodes, remap, log }`. Yalnız **fark** saklanır: çekirdek sektörlere yapılan düzenlemeler `overrides`, yeni düğümler `nodes`, birleştirme yönlendirmeleri `remap`, denetim izi `log`. Ağaç her okumada `seedTaxonomy() + state` ile yeniden kurulur (`buildTaxonomy`). |
-| Kök sektörler | `lib/sectors.ts` → `seedSectors` (40, kimlikleri sabit) |
+| Kök sektörler | `lib/sectors.ts` → `seedSectors` (≈80, kimlikleri sabit) |
 | Başlangıç alt sektörleri | `lib/taxonomy.ts` → `seedChildren` (~100; `usta-tesisatci`, `saglik-dis-kligini` gibi `kök-slug` kimlikler). Etiketler katalogdaki `subcategory` metinleriyle aynı yazıldı; mevcut işletmeler veri göçü olmadan bağlanır (`businessInNode`, `businessLeaf`). |
 | Kuruluş türü | `Business.orgKind: "kamu" \| "ozel"`, `orgVerified` (yalnız yönetici işaretler). Üye kamu seçerse "beyan" sayılır. |
 | Profil türü | `Business.providerKind`: `isletme`, `kurum`, `usta`, `ulasim`, `icerik`, `serbest`, `diger` (`providerKinds`) |
@@ -85,7 +85,7 @@ Test: `npx tsx lib/listings-import.test.ts`.
 - **Çekirdek sektör silinmez.** Belge "kontrollü silme" ister; kimlikler dış bağlantılarda geçtiği için çekirdek düğümler yalnızca pasife alınır ya da aktarılır. Özel düğümler bağlılık yoksa kalıcı silinir.
 - **Kamu beyanı.** Üye kamu seçebilir ama rozet yönetici doğrulamasından sonra "Kamu kurumu" olur; o ana kadar "Kamu (doğrulanmadı)" görünür. Böylece sahte kamu iddiası görünürlük avantajı sağlamaz.
 - **Yerel sektörler.** Eski akışın tarayıcı kayıtları silinmez; yönetici görür, sunucuya taşır ya da siler.
-- **Çeviri.** Çekirdek 40 sektörün çevirileri korunur; yeni alt sektörler Türkçe etiketleriyle gösterilir (çeviri tablosu sonradan eklenebilir).
+- **Çeviri.** Çekirdek sektörlerin çevirileri korunur; yeni alt sektörler Türkçe etiketleriyle gösterilir (çeviri tablosu sonradan eklenebilir).
 
 ## Canlıya alma
 

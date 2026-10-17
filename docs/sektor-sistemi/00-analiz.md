@@ -8,11 +8,11 @@ uygulama notu `01-uygulama.md` dosyasındadır.
 
 | Katman | Dosya | Durum |
 | --- | --- | --- |
-| Çekirdek liste | `lib/sectors.ts` → `seedSectors` | 40 sabit sektör; `id`, `label`, `blurb`, `photo`, `tint`, `icon`, `booking`, `phrases`. Tek seviye, üst/alt ilişkisi yok. |
+| Çekirdek liste | `lib/sectors.ts` → `seedSectors` | ≈80 sabit sektör; `id`, `label`, `blurb`, `photo`, `tint`, `icon`, `booking`, `phrases`. Tek seviye, üst/alt ilişkisi yok. |
 | Ziyaretçi eklemesi | `components/directory/sector-form.tsx`, `lib/directory-context.tsx` → `addSector` | Ana sayfadaki "Sektör ekle" düğmesi ve `/listele` formundaki "Listede yoksa sektör ekle" bağlantısı sektörü **yalnızca o tarayıcının `localStorage`** kaydına yazıyordu. Başka ziyaretçi, yönetici ve sunucu bunu görmüyordu. |
 | Gizleme | `hideSector`, `hiddenSectorIds` | Yine tarayıcı yerelinde; sunucuda sektör durumu diye bir kavram yoktu. |
 | Yönetim | `components/admin/admin-screen.tsx` → `SectorAdmin` | Arama kutusu + gizle/sil; görsel yükleme, sıra, SEO alanı, alt sektör, silme öncesi bağlılık denetimi yoktu. |
-| Çeviri | `lib/sector-copy.ts` | 40 çekirdek sektörün 11 dilde adı/açıklaması. Özel sektörler çevrilmiyor. |
+| Çeviri | `lib/sector-copy.ts` | 80 çekirdek sektörün 11 dilde adı/açıklaması. Özel sektörler çevrilmiyor. |
 | Kullanım | `lib/match.ts`, `lib/catalog.ts`, `components/directory/search-screen.tsx`, `sector-strip.tsx`, `lib/blog.ts`, `lib/campaigns.ts` | Her yerde `business.category === sector.id` karşılaştırması; sektör düz liste varsayılıyordu. |
 
 ## 2. İşletme veri modeli
@@ -44,7 +44,7 @@ uygulama notu `01-uygulama.md` dosyasındadır.
 | Belge maddesi | Mevcut | Boşluk |
 | --- | --- | --- |
 | Çok seviyeli dinamik ağaç | Düz liste | Üst/alt ilişki, sunucu kaydı |
-| Mevcut sektörler kök olarak korunsun | 40 çekirdek | Kimlikler korunarak kök yapılmalı |
+| Mevcut sektörler kök olarak korunsun | ≈80 çekirdek | Kimlikler korunarak kök yapılmalı |
 | Kuruluş türü kamu/özel + doğrulama | Yok | Alan + yönetici onayı + rozet |
 | Profil / hizmet sunucu türü | Yok | Alan + süzgeç |
 | Birden fazla kategoride işletme | Tek `category` | `categories[]` |
