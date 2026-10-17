@@ -4,7 +4,19 @@ import { X } from "lucide-react"
 import { useState } from "react"
 import { fieldClass } from "@/components/directory/bits"
 import { Label } from "@/components/ui/label"
-import { activeNodes, childrenOf, nodeById, orgKinds, pathOf, providerKinds, rootsOf, sortTr, type TaxonomyNode } from "@/lib/taxonomy"
+import {
+  activeNodes,
+  childrenOf,
+  defaultProviderKind,
+  nodeById,
+  orgKinds,
+  pathOf,
+  providerKinds,
+  providerKindsFor,
+  rootsOf,
+  sortTr,
+  type TaxonomyNode,
+} from "@/lib/taxonomy"
 import type { CategoryId, OrgKind, ProviderKind } from "@/lib/types"
 
 export type Classification = {
@@ -165,14 +177,14 @@ export function ClassificationFields({
       <div className="grid gap-3 sm:grid-cols-2">
         <fieldset className="grid gap-1.5">
           <legend className="text-sm font-medium">Kuruluş türü</legend>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {orgKinds.map((kind) => (
               <label
                 key={kind.id}
                 className={
                   value.orgKind === kind.id
-                    ? "flex-1 cursor-pointer rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground"
-                    : "flex-1 cursor-pointer rounded-xl bg-secondary px-3 py-2 text-sm"
+                    ? "flex-1 cursor-pointer rounded-xl bg-primary px-3 py-2 text-center text-sm text-primary-foreground"
+                    : "flex-1 cursor-pointer rounded-xl bg-secondary px-3 py-2 text-center text-sm"
                 }
                 title={kind.hint}
               >
@@ -181,13 +193,22 @@ export function ClassificationFields({
                   name={`${idPrefix}-org`}
                   value={kind.id}
                   checked={value.orgKind === kind.id}
-                  onChange={() => onChange({ ...value, orgKind: kind.id, orgVerified: kind.id === "kamu" ? value.orgVerified : false })}
+                  onChange={() => {
+                    const fits = providerKindsFor(kind.id).some((item) => item.id === value.providerKind)
+                    onChange({
+                      ...value,
+                      orgKind: kind.id,
+                      providerKind: fits ? value.providerKind : defaultProviderKind(kind.id),
+                      orgVerified: kind.id === "kamu" ? value.orgVerified : false,
+                    })
+                  }}
                   className="sr-only"
                 />
                 {kind.label}
               </label>
             ))}
           </div>
+          <p className="text-xs leading-5 text-muted-foreground">{orgKinds.find((kind) => kind.id === value.orgKind)?.hint}</p>
           {value.orgKind === "kamu" ? (
             admin ? (
               <label className="flex items-center gap-2 text-sm">
@@ -211,10 +232,14 @@ export function ClassificationFields({
             value={value.providerKind}
             onChange={(event) => onChange({ ...value, providerKind: event.target.value as ProviderKind })}
           >
-            {providerKinds.map((kind) => (
-              <option key={kind.id} value={kind.id} title={kind.hint}>
-                {kind.label}
-              </option>
+            {orgKinds.map((org) => (
+              <optgroup key={org.id} label={org.label}>
+                {providerKindsFor(org.id).map((kind) => (
+                  <option key={kind.id} value={kind.id} title={kind.hint}>
+                    {kind.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <p className="text-xs leading-5 text-muted-foreground">

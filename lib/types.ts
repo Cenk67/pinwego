@@ -2,11 +2,24 @@ export type CategoryId = string
 
 export type BookingKind = "randevu" | "rezervasyon" | "teklif"
 
-/** Who runs the record: a public body or a private party. Kept apart from the sector tree. */
-export type OrgKind = "kamu" | "ozel"
+/** Who runs the record: a public body, a private party or a civil-society organisation. Kept apart from the sector tree. */
+export type OrgKind = "kamu" | "ozel" | "stk"
 
 /** Under which structure the service is offered; also independent of the sector tree. */
-export type ProviderKind = "kurum" | "isletme" | "usta" | "ulasim" | "icerik" | "serbest" | "diger"
+export type ProviderKind =
+  | "kurum"
+  | "isletme"
+  | "usta"
+  | "ulasim"
+  | "icerik"
+  | "serbest"
+  | "diger"
+  | "dernek"
+  | "vakif"
+  | "birlik"
+  | "spor-kulubu"
+  | "meslek-odasi"
+  | "ticaret-odasi"
 
 export type Sector = {
   id: CategoryId
