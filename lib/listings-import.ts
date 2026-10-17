@@ -2,16 +2,16 @@ import { businesses } from "@/lib/catalog"
 import { cities } from "@/lib/catalog"
 import { fold } from "@/lib/format"
 import { buildImportedListing, listingCap, type ListingBook, type StoredListing } from "@/lib/listings"
-import { seedSectors } from "@/lib/sectors"
+import { activeNodes, childrenOf, isOrgKind, isProviderKind, labelKey, liveTaxonomy, matchNodeByText, pathOf, providerKinds, type TaxonomyNode } from "@/lib/taxonomy"
 import { bytesFromBase64, readCsvGrid, readXlsxGrid, sheetByteCap, sheetRowCap, type SheetGrid } from "@/lib/sheet-file"
-import type { BookingKind } from "@/lib/types"
+import type { BookingKind, OrgKind, ProviderKind } from "@/lib/types"
 
 export { sheetByteCap, sheetRowCap }
 
 export const listingSheetSample = [
-  "ad;kategori;alt kategori;il;ilce;mahalle;adres;telefon;web;ozet;durum",
-  "Yeşil Çınar;yeme;Balık;Zonguldak;Kozlu;Merkez;Sahil caddesi 4;0372 000 00 01;https://ornek.pinwego.test;Kozlu sahilinde ev yemeği ve kahvaltı.;onay",
-  "Mavi Konak;konaklama;;Zonguldak;Merkez;;Gazipaşa caddesi 8;0372 000 00 02;;Merkezde butik konaklama ve kahvaltı.;yayinda",
+  "ad;kategori;alt kategori;kurulus turu;profil turu;il;ilce;mahalle;adres;telefon;web;ozet;durum",
+  "Yeşil Çınar;yeme;Balık;ozel;isletme;Zonguldak;Kozlu;Merkez;Sahil caddesi 4;0372 000 00 01;https://ornek.pinwego.test;Kozlu sahilinde ev yemeği ve kahvaltı.;onay",
+  "Mavi Konak;konaklama;;;;Zonguldak;Merkez;;Gazipaşa caddesi 8;0372 000 00 02;;Merkezde butik konaklama ve kahvaltı.;yayinda",
 ].join("\n")
 
 export const importLogKey = "listings:import-log"
@@ -20,6 +20,8 @@ export const importFields = [
   ["name", "İşletme adı"],
   ["category", "Kategori"],
   ["subcategory", "Alt kategori"],
+  ["orgKind", "Kuruluş türü"],
+  ["providerKind", "Profil türü"],
   ["city", "İl"],
   ["district", "İlçe"],
   ["neighborhood", "Mahalle"],
@@ -50,6 +52,16 @@ const aliases: Record<string, ImportField> = {
   "alt kategori": "subcategory",
   altkategori: "subcategory",
   subcategory: "subcategory",
+  "alt sektor": "subcategory",
+  "kurulus turu": "orgKind",
+  kurulus: "orgKind",
+  "kamu ozel": "orgKind",
+  "kamu/ozel": "orgKind",
+  orgkind: "orgKind",
+  "profil turu": "providerKind",
+  profil: "providerKind",
+  "hizmet sunucu turu": "providerKind",
+  providerkind: "providerKind",
   sehir: "city",
   il: "city",
   city: "city",
@@ -140,6 +152,10 @@ type Draft = {
   name: string
   category: string
   subcategory: string
+  categories?: string[]
+  orgKind?: OrgKind
+  providerKind?: ProviderKind
+  warn?: string
   city: string
   district: string
   address: string
@@ -158,6 +174,8 @@ type Draft = {
     premium: boolean
     status: boolean
     place: boolean
+    orgKind: boolean
+    providerKind: boolean
   }
 }
 
@@ -173,6 +191,8 @@ type Finger = {
   summary: string
   category: string
   subcategory: string
+  orgKind: string
+  providerKind: string
   verified: boolean
   premium: boolean
   status: PublishState
@@ -221,13 +241,39 @@ function publishOf(value: string | undefined): PublishState | "" | null {
   return null
 }
 
-function sectorOf(value: string) {
-  const key = fold(value)
-  const compact = key.replace(/\s/g, "")
-  return seedSectors.find((sector) => {
-    const label = fold(sector.label)
-    return fold(sector.id) === compact || label === key || label.replace(/\s/g, "") === compact
-  })
+function importTree() {
+  return activeNodes(liveTaxonomy())
+}
+
+/** Resolves the category cell against the live tree; a sub-sector yields its root plus itself. */
+function sectorOf(value: string, nodes: TaxonomyNode[] = importTree()) {
+  const node = matchNodeByText(nodes, value)
+  if (!node) return null
+  const root = pathOf(nodes, node.id)[0] ?? node
+  return { root, leaf: node.id === root.id ? null : node }
+}
+
+function subSectorOf(root: TaxonomyNode, value: string, nodes: TaxonomyNode[] = importTree()) {
+  const key = labelKey(value)
+  if (!key) return null
+  return childrenOf(nodes, root.id).find((item) => labelKey(item.label) === key || item.id === value.trim().toLowerCase()) ?? null
+}
+
+function orgKindOf(value: string): OrgKind | null | undefined {
+  const key = fold(value).replace(/\s/g, "")
+  if (!key) return undefined
+  if (key === "kamu" || key === "devlet" || key === "public") return "kamu"
+  if (key === "ozel" || key === "private" || key === "sirket") return "ozel"
+  return isOrgKind(key) ? key : null
+}
+
+function providerKindOf(value: string): ProviderKind | null | undefined {
+  const raw = value.trim()
+  if (!raw) return undefined
+  const key = fold(raw)
+  if (isProviderKind(key)) return key
+  const hit = providerKinds.find((kind) => fold(kind.label) === key || fold(kind.label).split(" / ").includes(key) || fold(kind.hint).split(", ").includes(key))
+  return hit?.id ?? null
 }
 
 function knownCity(value: string) {
@@ -284,8 +330,14 @@ function prepareRow(line: number, cells: string[], map: string[]): Prepared {
   const phoneDigits = digits(phone)
   const bits = { name, city: cityText, district, phone }
   if (name.length < 2 || district.length < 2 || cityText.length < 2) return faultRow(line, "Ad, il veya ilçe eksik.", bits)
-  const sector = sectorOf(cell(cells, map, "category"))
-  if (!sector) return faultRow(line, "Kategori tanınmadı.", bits)
+  const nodes = importTree()
+  const matched = sectorOf(cell(cells, map, "category"), nodes)
+  if (!matched) return faultRow(line, "Kategori tanınmadı. Sektör adını, kimliğini ya da 'Ana > Alt' yolunu yaz.", bits)
+  const sector = matched.root
+  const orgKind = mapped(map, "orgKind") ? orgKindOf(cell(cells, map, "orgKind")) : undefined
+  if (orgKind === null) return faultRow(line, "Kuruluş türü kamu veya özel olmalı.", bits)
+  const providerKind = mapped(map, "providerKind") ? providerKindOf(cell(cells, map, "providerKind")) : undefined
+  if (providerKind === null) return faultRow(line, `Profil türü tanınmadı. Geçerli: ${providerKinds.map((kind) => kind.id).join(", ")}.`, bits)
   if (phoneDigits.length < 10 || phoneDigits.length > 15) return faultRow(line, "Telefon 10 ile 15 rakam olmalı.", bits)
   if (summary.length < 12) return faultRow(line, "Kısa açıklama en az 12 karakter olmalı.", bits)
   const status = publishOf(mapped(map, "status") ? cell(cells, map, "status") : "")
@@ -312,7 +364,10 @@ function prepareRow(line: number, cells: string[], map: string[]): Prepared {
   const neighborhood = clip(cell(cells, map, "neighborhood"), 80)
   const street = clip(cell(cells, map, "address"), 120)
   const address = clip([neighborhood, street].filter(Boolean).join(", ") || `${district}, ${city?.name ?? cityText}`, 160)
-  const subcategory = clip(cell(cells, map, "subcategory"), 60) || sector.label
+  const subText = clip(cell(cells, map, "subcategory"), 60)
+  const leaf = matched.leaf ?? (subText ? subSectorOf(sector, subText, nodes) : null)
+  const subcategory = leaf?.label ?? (subText || sector.label)
+  const warn = subText && !leaf ? `Alt kategori "${subText}" ağaçta yok; serbest metin olarak yazıldı.` : undefined
   return {
     line,
     kind: "yeni",
@@ -326,6 +381,10 @@ function prepareRow(line: number, cells: string[], map: string[]): Prepared {
       name,
       category: sector.id,
       subcategory,
+      categories: leaf ? [leaf.id] : undefined,
+      orgKind: orgKind ?? undefined,
+      providerKind: providerKind ?? undefined,
+      warn,
       city: city?.name ?? cityText,
       district,
       address,
@@ -344,6 +403,8 @@ function prepareRow(line: number, cells: string[], map: string[]): Prepared {
         premium: mapped(map, "premium"),
         status: mapped(map, "status") && Boolean(status),
         place: hasLat && hasLng,
+        orgKind: mapped(map, "orgKind") && orgKind !== undefined,
+        providerKind: mapped(map, "providerKind") && providerKind !== undefined,
       },
     },
   }
@@ -367,6 +428,8 @@ function fingersOf(book: ListingBook): Finger[] {
     summary: listing.summary,
     category: listing.category,
     subcategory: listing.subcategory,
+    orgKind: listing.orgKind ?? "ozel",
+    providerKind: listing.providerKind ?? "isletme",
     verified: listing.verified,
     premium: listing.premium,
     status: storedStatus(listing),
@@ -384,6 +447,8 @@ function fingersOf(book: ListingBook): Finger[] {
     summary: business.summary,
     category: business.category,
     subcategory: business.subcategory,
+    orgKind: business.orgKind ?? "ozel",
+    providerKind: business.providerKind ?? "isletme",
     verified: business.verified,
     premium: business.premium,
     status: "yayinda" as const,
@@ -423,6 +488,8 @@ function changesFor(draft: Draft, finger: Finger) {
     pairs.push(["premium", finger.premium ? "evet" : "hayır", draft.premium ? "evet" : "hayır"])
   }
   if (draft.provided.status && draft.status && finger.status !== draft.status) pairs.push(["status", finger.status, draft.status])
+  if (draft.provided.orgKind && draft.orgKind && finger.orgKind !== draft.orgKind) pairs.push(["orgKind", finger.orgKind, draft.orgKind])
+  if (draft.provided.providerKind && draft.providerKind && finger.providerKind !== draft.providerKind) pairs.push(["providerKind", finger.providerKind, draft.providerKind])
   return pairs
     .filter((item) => fold(item[1]) !== fold(item[2]) && item[1] !== item[2])
     .map((item) => ({ field: fieldLabel[item[0]] ?? item[0], before: item[1], after: item[2] }))
@@ -466,7 +533,7 @@ function mark(row: Prepared, fingers: Finger[], pending: Draft[], claimed: Set<s
     return { ...row, kind: "olasi", note }
   }
   pending.push(draft)
-  return { ...row, kind: "yeni", note: "Yeni kayıt." }
+  return { ...row, kind: "yeni", note: draft.warn ? `Yeni kayıt. ${draft.warn}` : "Yeni kayıt." }
 }
 
 function safeCell(value: string) {
@@ -477,7 +544,7 @@ function safeCell(value: string) {
 function reportFor(rows: ImportRow[]) {
   const lines = ["satir;sonuc;aciklama;ad;telefon"]
   for (const row of rows) {
-    if (row.kind === "yeni") continue
+    if (row.kind === "yeni" && row.note === "Yeni kayıt.") continue
     lines.push([row.line, row.kind, row.note, row.name, row.phone].map((item) => safeCell(String(item))).join(";"))
   }
   return lines.join("\n")
@@ -562,6 +629,10 @@ export function commitImport(
         name: draft.name,
         category: draft.category,
         subcategory: draft.subcategory,
+        categories: draft.categories ?? (draft.category === target.category ? target.categories : undefined),
+        orgKind: draft.provided.orgKind ? draft.orgKind : target.orgKind,
+        orgVerified: draft.provided.orgKind && draft.orgKind !== target.orgKind ? (draft.orgKind === "kamu" ? true : undefined) : target.orgVerified,
+        providerKind: draft.provided.providerKind ? draft.providerKind : target.providerKind,
         city: draft.city,
         district: draft.district,
         address: draft.address,

@@ -1,7 +1,8 @@
 import { slugifyKey } from "@/lib/format"
 import { hoursFromBook, liveBusiness, publicBook, storedBook } from "@/lib/hours"
 import { storedCover } from "@/lib/listing-media"
-import type { BookingKind, Business, DayHours, HourBook } from "@/lib/types"
+import { isOrgKind, isProviderKind } from "@/lib/taxonomy"
+import type { BookingKind, Business, DayHours, HourBook, OrgKind, ProviderKind } from "@/lib/types"
 
 export const listingsKey = "listings:v1"
 export const listingCap = 1000
@@ -15,6 +16,10 @@ export type StoredListing = {
   name: string
   category: string
   subcategory: string
+  categories?: string[]
+  orgKind?: OrgKind
+  orgVerified?: boolean
+  providerKind?: ProviderKind
   city: string
   district: string
   address: string
@@ -98,6 +103,7 @@ function asListing(value: unknown): StoredListing | null {
     name: row.name,
     category: typeof row.category === "string" ? row.category : "yeme",
     subcategory: typeof row.subcategory === "string" ? row.subcategory : "",
+    ...classification(row),
     city: row.city,
     district: typeof row.district === "string" ? row.district : "",
     address: typeof row.address === "string" ? row.address : "",
@@ -124,6 +130,26 @@ function asListing(value: unknown): StoredListing | null {
     amenities: Array.isArray(row.amenities) ? row.amenities.filter((item) => typeof item === "string").slice(0, 8) : ["Yeni kayıt"],
     website: readSite(row.website),
     review: row.review === "taslak" || row.review === "onay" ? row.review : undefined,
+  }
+}
+
+export function categoryIdList(value: unknown, validIds?: Set<string>) {
+  if (!Array.isArray(value)) return []
+  const ids = value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => /^[a-z0-9-]{1,80}$/.test(item) && (!validIds || validIds.has(item)))
+  return [...new Set(ids)].slice(0, 6)
+}
+
+/** The three classification fields shared by stored listings and public businesses. */
+export function classification(row: { categories?: unknown; orgKind?: unknown; orgVerified?: unknown; providerKind?: unknown }) {
+  const categories = categoryIdList(row.categories)
+  return {
+    categories: categories.length ? categories : undefined,
+    orgKind: isOrgKind(row.orgKind) ? row.orgKind : undefined,
+    orgVerified: row.orgKind === "kamu" && row.orgVerified === true ? true : undefined,
+    providerKind: isProviderKind(row.providerKind) ? row.providerKind : undefined,
   }
 }
 
@@ -169,6 +195,7 @@ export function toBusiness(listing: StoredListing): Business {
     name: listing.name,
     category: listing.category,
     subcategory: listing.subcategory,
+    ...classification(listing),
     city: listing.city,
     district: listing.district,
     address: listing.address,
@@ -205,6 +232,9 @@ export type ImportedInput = {
   name: string
   category: string
   subcategory: string
+  categories?: string[]
+  orgKind?: OrgKind
+  providerKind?: ProviderKind
   city: string
   district: string
   address: string
@@ -230,6 +260,7 @@ export function buildImportedListing(input: ImportedInput, nowIso: string, listi
     name: input.name,
     category: input.category,
     subcategory: input.subcategory,
+    ...classification({ categories: input.categories, orgKind: input.orgKind, orgVerified: true, providerKind: input.providerKind }),
     city: input.city,
     district: input.district,
     address: input.address,
@@ -264,15 +295,23 @@ export function acceptListing(
   nowIso: string,
   book: ListingBook,
   admin: boolean,
-): { ok: true; book: ListingBook; listing: StoredListing } | { ok: false; reason: "invalid" | "dolu" } {
+  validIds?: Set<string>,
+): { ok: true; book: ListingBook; listing: StoredListing } | { ok: false; reason: "invalid" | "dolu" | "kategori" } {
   const name = clip(body.name, 80)
   const district = clip(body.district, 80)
   const city = clip(body.city, 60)
   const summary = clip(body.summary, 400)
   const phone = clip(body.phone, 24)
   const digits = phone.replace(/\D/g, "")
-  const category = clip(body.category, 40).toLowerCase().replace(/[^a-z0-9-]/g, "") || "yeme"
+  const category = clip(body.category, 80).toLowerCase().replace(/[^a-z0-9-]/g, "") || "yeme"
+  if (validIds && !validIds.has(category)) return { ok: false, reason: "kategori" }
   const subcategory = clip(body.subcategory, 60) || category
+  const kinds = classification({
+    categories: categoryIdList(body.categories, validIds).filter((id) => id !== category),
+    orgKind: body.orgKind,
+    orgVerified: admin && body.orgVerified === true,
+    providerKind: body.providerKind,
+  })
   const address = clip(body.address, 160) || `${district}, ${city}`
   const lat = typeof body.lat === "number" ? body.lat : Number.NaN
   const lng = typeof body.lng === "number" ? body.lng : Number.NaN
@@ -289,6 +328,7 @@ export function acceptListing(
     name,
     category,
     subcategory,
+    ...kinds,
     city,
     district,
     address,
@@ -320,6 +360,23 @@ export function acceptListing(
     ? book.listings.map((item) => (item.id === own.id ? draft : item))
     : [draft, ...book.listings].slice(0, listingCap)
   return { ok: true, book: { listings }, listing: draft }
+}
+
+/** Classification edit: owners may reclassify their record; only an admin confirms a public claim. */
+export function applyClassification(listing: StoredListing, body: Record<string, unknown>, admin: boolean, validIds?: Set<string>): StoredListing | null {
+  const category = typeof body.category === "string" ? clip(body.category, 80).toLowerCase().replace(/[^a-z0-9-]/g, "") : listing.category
+  if (!category || (validIds && !validIds.has(category))) return null
+  const orgKind = body.orgKind === undefined ? listing.orgKind : isOrgKind(body.orgKind) ? body.orgKind : undefined
+  const orgChanged = orgKind !== listing.orgKind
+  const orgVerified = admin && typeof body.orgVerified === "boolean" ? body.orgVerified : orgChanged ? false : listing.orgVerified
+  const next = classification({
+    categories: body.categories === undefined ? listing.categories : categoryIdList(body.categories, validIds).filter((id) => id !== category),
+    orgKind,
+    orgVerified,
+    providerKind: body.providerKind === undefined ? listing.providerKind : body.providerKind,
+  })
+  const subcategory = typeof body.subcategory === "string" ? clip(body.subcategory, 60) || listing.subcategory : listing.subcategory
+  return { ...listing, category, subcategory, ...next }
 }
 
 export function applyFlags(listing: StoredListing, body: Record<string, unknown>): StoredListing {

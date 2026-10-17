@@ -16,7 +16,8 @@ import { CustomerPanel } from "@/components/admin/customer-panel"
 import { PagesPanel } from "@/components/admin/pages-panel"
 import { NotifyPanel } from "@/components/admin/notify-panel"
 import { CrmPanel } from "@/components/crm/crm-panel"
-import { SectorForm } from "@/components/directory/sector-form"
+import { SectorAdmin } from "@/components/admin/sector-admin"
+import { ClassificationFields, primarySubLabel, type Classification } from "@/components/directory/classification-fields"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -41,7 +42,8 @@ import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
 import { fold, slugify } from "@/lib/format"
 import { maskId } from "@/lib/identity"
 import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
-import type { BookingKind, Business, BusinessProfile, CategoryId, HourBook } from "@/lib/types"
+import { businessLeaf, inSector, providerKindLabel, providerKinds, rootsOf, sortTr, type TaxonomyNode } from "@/lib/taxonomy"
+import type { BookingKind, Business, BusinessProfile, HourBook } from "@/lib/types"
 
 const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
 const tabs = [
@@ -116,8 +118,8 @@ export function AdminScreen() {
       <p className="text-sm font-medium text-primary">Yönetim paneli</p>
       <h1 className="mt-2 font-heading text-4xl leading-tight">pinwego’yu buradan yönet.</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-        Yeni işletme kayıtları sunucuda durur; arama ve işletme sayfası onları gösterir. Sektör, talep ve belgeler bu
-        tarayıcıda kalır. Gizlenen sektör ve işletme keşif, arama ve talepte görünmez.
+        Yeni işletme kayıtları ve sektör ağacı sunucuda durur; arama ve işletme sayfası onları gösterir. Talep ve
+        belgeler bu tarayıcıda kalır. Pasife alınan sektör ve gizlenen işletme keşif, arama ve talepte görünmez.
       </p>
       <div className="mt-6 flex flex-wrap gap-2">
         {tabs.map((item) => (
@@ -158,15 +160,17 @@ export function AdminScreen() {
 }
 
 function Overview() {
-  const { managedBusinesses, managedSectors, hiddenSectorIds, isBusinessHidden, requests } = useDirectory()
+  const { managedBusinesses, taxonomy, isBusinessHidden, requests } = useDirectory()
   const { accounts } = useAuth()
   const hiddenBusinesses = managedBusinesses.filter((item) => isBusinessHidden(item)).length
+  const passiveSectors = taxonomy.filter((item) => item.status === "pasif").length
+  const kamuPending = managedBusinesses.filter((item) => item.orgKind === "kamu" && !item.orgVerified).length
   return (
     <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {[
         ["İşletme", `${managedBusinesses.length} kayıt`, `${hiddenBusinesses} gizli`],
-        ["Sektör", `${managedSectors.length} sektör`, `${hiddenSectorIds.length} gizli`],
-        ["Talep", `${requests.length} talep`, "Teklif ve randevu"],
+        ["Sektör", `${rootsOf(taxonomy).length} ana, ${taxonomy.length - rootsOf(taxonomy).length} alt`, `${passiveSectors} pasif`],
+        ["Talep", `${requests.length} talep`, kamuPending ? `${kamuPending} kamu beyanı bekliyor` : "Teklif ve randevu"],
         ["Hesap", `${accounts.length} hesap`, `${accounts.filter((item) => item.role === "admin").length} yönetici`],
       ].map(([title, value, hint]) => (
         <article key={title} className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
@@ -199,7 +203,7 @@ async function postListing(body: Record<string, unknown>) {
 function BusinessAdmin() {
   const {
     managedBusinesses,
-    managedSectors,
+    taxonomy,
     isBusinessHidden,
     hideBusiness,
     patchBusiness,
@@ -214,15 +218,32 @@ function BusinessAdmin() {
   const [editor, setEditor] = useState<Business | null>(null)
   const [profileTarget, setProfileTarget] = useState<Business | null>(null)
   const [creating, setCreating] = useState(false)
+  const [sectorFilter, setSectorFilter] = useState("")
+  const [orgFilter, setOrgFilter] = useState<"" | "kamu" | "ozel" | "beyan">("")
+  const [providerFilter, setProviderFilter] = useState("")
+  const [stateFilter, setStateFilter] = useState<"" | "gizli" | "acik" | "onay">("")
   const now = useMinute()
+  const roots = useMemo(() => sortTr(rootsOf(taxonomy)), [taxonomy])
 
   const filtered = useMemo(() => {
     const needle = fold(query)
     return managedBusinesses.filter((item) => {
-      if (!needle) return true
-      return fold(`${item.name} ${item.city} ${item.district} ${item.category} ${item.phone}`).includes(needle)
+      if (needle && !fold(`${item.name} ${item.city} ${item.district} ${item.category} ${item.subcategory} ${item.phone}`).includes(needle)) return false
+      if (sectorFilter && !inSector(item, sectorFilter)) return false
+      if (orgFilter === "kamu" && item.orgKind !== "kamu") return false
+      if (orgFilter === "ozel" && item.orgKind === "kamu") return false
+      if (orgFilter === "beyan" && !(item.orgKind === "kamu" && !item.orgVerified)) return false
+      if (providerFilter && (item.providerKind ?? "isletme") !== providerFilter) return false
+      if (stateFilter) {
+        const review = (item as { review?: string }).review
+        const hidden = isBusinessHidden(item)
+        if (stateFilter === "onay" && review !== "onay" && review !== "taslak") return false
+        if (stateFilter === "gizli" && !hidden) return false
+        if (stateFilter === "acik" && (hidden || review === "onay" || review === "taslak")) return false
+      }
+      return true
     })
-  }, [managedBusinesses, query])
+  }, [managedBusinesses, query, sectorFilter, orgFilter, providerFilter, stateFilter, isBusinessHidden])
 
   return (
     <div className="mt-8">
@@ -252,9 +273,57 @@ function BusinessAdmin() {
           </Button>
         </div>
       </div>
-      <div className="mt-4 grid gap-3">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <select
+          aria-label="Sektör filtresi"
+          className={fieldClass}
+          value={sectorFilter}
+          onChange={(event) => {
+            setSectorFilter(event.target.value)
+            setLimit(12)
+          }}
+        >
+          <option value="">Tüm sektörler</option>
+          {roots.map((root) => {
+            const children = sortTr(taxonomy.filter((item) => item.parentId === root.id))
+            return (
+              <optgroup key={root.id} label={root.label}>
+                <option value={root.id}>{root.label} (tümü)</option>
+                {children.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </optgroup>
+            )
+          })}
+        </select>
+        <select aria-label="Kuruluş türü filtresi" className={fieldClass} value={orgFilter} onChange={(event) => setOrgFilter(event.target.value as typeof orgFilter)}>
+          <option value="">Kamu ve özel</option>
+          <option value="kamu">Kamu</option>
+          <option value="beyan">Kamu – doğrulama bekleyen</option>
+          <option value="ozel">Özel</option>
+        </select>
+        <select aria-label="Profil türü filtresi" className={fieldClass} value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)}>
+          <option value="">Tüm profil türleri</option>
+          {providerKinds.map((kind) => (
+            <option key={kind.id} value={kind.id}>
+              {kind.label}
+            </option>
+          ))}
+        </select>
+        <select aria-label="Durum filtresi" className={fieldClass} value={stateFilter} onChange={(event) => setStateFilter(event.target.value as typeof stateFilter)}>
+          <option value="">Tüm durumlar</option>
+          <option value="acik">Yayında</option>
+          <option value="gizli">Gizli</option>
+          <option value="onay">Onay bekleyen / taslak</option>
+        </select>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">{filtered.length} kayıt</p>
+      <div className="mt-3 grid gap-3">
         {filtered.slice(0, limit).map((business) => {
           const hidden = isBusinessHidden(business)
+          const leaf = businessLeaf(taxonomy, business)
           return (
             <article key={business.id} className="rounded-3xl bg-card p-4 ring-1 ring-foreground/10">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -263,7 +332,13 @@ function BusinessAdmin() {
                     {business.name}
                   </Link>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {categoryById(business.category).label} · {business.district}, {business.city} · {sourceLabel(business.source)}
+                    {categoryById(business.category).label}
+                    {leaf ? ` › ${leaf.label}` : ""}
+                    {business.categories?.filter((id) => id !== leaf?.id).length ? ` +${business.categories.filter((id) => id !== leaf?.id).length}` : ""}
+                    {" · "}
+                    {business.district}, {business.city} · {sourceLabel(business.source)}
+                    {business.orgKind === "kamu" ? (business.orgVerified ? " · Kamu ✓" : " · Kamu (beyan)") : ""}
+                    {business.providerKind && business.providerKind !== "isletme" ? ` · ${providerKindLabel(business.providerKind)}` : ""}
                     {(business as { review?: string }).review === "onay"
                       ? " · onay bekliyor"
                       : (business as { review?: string }).review === "taslak"
@@ -389,11 +464,26 @@ function BusinessAdmin() {
         <BusinessEditor
           key={editor.id}
           business={editor}
-          sectors={managedSectors}
+          nodes={taxonomy}
           onClose={() => setEditor(null)}
-          onSave={(patch) => {
+          onSave={async (patch) => {
+            if (editor.source === "senin") {
+              const { response, data } = await postListing({
+                op: "sinif",
+                id: editor.id,
+                category: patch.category,
+                categories: patch.categories ?? [],
+                subcategory: patch.subcategory,
+                orgKind: patch.orgKind,
+                orgVerified: patch.orgVerified === true,
+                providerKind: patch.providerKind,
+              })
+              if (!response.ok || !data?.listing) return data?.reason === "kategori" ? "Seçilen sektör geçersiz." : "Sınıflandırma sunucuya yazılamadı."
+              rememberListing({ ...data.listing, ...patch, categories: data.listing.categories, orgVerified: data.listing.orgVerified })
+            }
             patchBusiness(editor.id, patch)
             setEditor(null)
+            return null
           }}
         />
       ) : null}
@@ -410,7 +500,7 @@ function BusinessAdmin() {
       ) : null}
       {creating ? (
         <CreateBusiness
-          sectors={managedSectors}
+          nodes={taxonomy}
           onClose={() => setCreating(false)}
           onCreate={async (business) => {
             const { response, data } = await postListing({ op: "create", ...business, verified: true })
@@ -567,24 +657,31 @@ function ProfileForm({
 
 function BusinessEditor({
   business,
-  sectors,
+  nodes,
   onClose,
   onSave,
 }: {
   business: Business
-  sectors: { id: string; label: string }[]
+  nodes: TaxonomyNode[]
   onClose: () => void
-  onSave: (patch: Parameters<ReturnType<typeof useDirectory>["patchBusiness"]>[1]) => void
+  onSave: (patch: Parameters<ReturnType<typeof useDirectory>["patchBusiness"]>[1]) => Promise<string | null>
 }) {
   const [name, setName] = useState(business.name)
   const [contacts, setContacts] = useState<ContactDraft>(() => draftContacts(business))
   const [city, setCity] = useState(business.city)
   const [district, setDistrict] = useState(business.district)
   const [summary, setSummary] = useState(business.summary)
-  const [category, setCategory] = useState<CategoryId>(business.category)
+  const [cls, setCls] = useState<Classification>(() => ({
+    category: business.category,
+    categories: business.categories ?? [],
+    orgKind: business.orgKind ?? "ozel",
+    providerKind: business.providerKind ?? "isletme",
+    orgVerified: business.orgVerified === true,
+  }))
   const [booking, setBooking] = useState<BookingKind>(business.booking)
   const [links, setLinks] = useState<BusinessLinks>(() => draftLinks(business))
   const [linkError, setLinkError] = useState("")
+  const [saving, setSaving] = useState(false)
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
@@ -606,7 +703,9 @@ function BusinessEditor({
               setLinkError(contact.error)
               return
             }
-            onSave({
+            const subLabel = primarySubLabel(nodes, cls)
+            setSaving(true)
+            void onSave({
               name: name.trim(),
               phone: contact.phone,
               contacts: contact.contacts,
@@ -615,25 +714,24 @@ function BusinessEditor({
               address: `${district.trim()}, ${city}`,
               summary: summary.trim(),
               about: summary.trim(),
-              category,
+              category: cls.category,
+              categories: cls.categories,
+              subcategory: subLabel || (cls.category === business.category ? business.subcategory : categoryById(cls.category).label),
+              orgKind: cls.orgKind,
+              orgVerified: cls.orgKind === "kamu" && cls.orgVerified,
+              providerKind: cls.providerKind,
               booking,
               links: social.links,
               website: social.website,
+            }).then((message) => {
+              setSaving(false)
+              if (message) setLinkError(message)
             })
           }}
         >
           <Field label="Ad" id="edit-name" value={name} onChange={setName} />
           <ContactEditor value={contacts} onChange={setContacts} />
-          <label className="grid gap-1.5 text-sm">
-            Sektör
-            <select className={fieldClass} value={category} onChange={(event) => setCategory(event.target.value)}>
-              {sectors.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <ClassificationFields value={cls} onChange={setCls} nodes={nodes} admin idPrefix="edit" />
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1.5 text-sm">
               Şehir
@@ -663,8 +761,8 @@ function BusinessEditor({
             <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={onClose}>
               Vazgeç
             </Button>
-            <Button type="submit" className="h-11 flex-1 rounded-xl">
-              Kaydet
+            <Button type="submit" className="h-11 flex-1 rounded-xl" disabled={saving}>
+              {saving ? "Kaydediliyor" : "Kaydet"}
             </Button>
           </div>
         </form>
@@ -674,11 +772,11 @@ function BusinessEditor({
 }
 
 function CreateBusiness({
-  sectors,
+  nodes,
   onClose,
   onCreate,
 }: {
-  sectors: { id: string; label: string; photo?: string }[]
+  nodes: TaxonomyNode[]
   onClose: () => void
   onCreate: (business: Business) => Promise<string | null>
 }) {
@@ -688,7 +786,14 @@ function CreateBusiness({
   const [city, setCity] = useState("İstanbul")
   const [district, setDistrict] = useState("")
   const [summary, setSummary] = useState("")
-  const [category, setCategory] = useState<CategoryId>(sectors[0]?.id ?? "yeme")
+  const [cls, setCls] = useState<Classification>(() => ({
+    category: sortTr(rootsOf(nodes))[0]?.id ?? "yeme",
+    categories: [],
+    orgKind: "ozel",
+    providerKind: "isletme",
+    orgVerified: false,
+  }))
+  const category = cls.category
   const [error, setError] = useState("")
 
   return (
@@ -722,7 +827,11 @@ function CreateBusiness({
               slug,
               name: name.trim(),
               category,
-              subcategory: meta.label,
+              categories: cls.categories,
+              subcategory: primarySubLabel(nodes, cls) || meta.label,
+              orgKind: cls.orgKind,
+              orgVerified: cls.orgKind === "kamu" && cls.orgVerified,
+              providerKind: cls.providerKind,
               city,
               district: district.trim(),
               address: `${district.trim()}, ${city}`,
@@ -757,16 +866,7 @@ function CreateBusiness({
           }}
         >
           <Field label="Ad" id="new-name" value={name} onChange={setName} />
-          <label className="grid gap-1.5 text-sm">
-            Sektör
-            <select className={fieldClass} value={category} onChange={(event) => setCategory(event.target.value)}>
-              {sectors.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <ClassificationFields value={cls} onChange={setCls} nodes={nodes} admin idPrefix="new" />
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1.5 text-sm">
               Şehir
@@ -795,52 +895,6 @@ function CreateBusiness({
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function SectorAdmin() {
-  const { managedSectors, hiddenSectorIds, hideSector, removeSector } = useDirectory()
-  const [query, setQuery] = useState("")
-  const [open, setOpen] = useState(false)
-  const filtered = managedSectors.filter((item) => fold(`${item.label} ${item.blurb}`).includes(fold(query)))
-
-  return (
-    <div className="mt-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Sektör ara" className="h-11 sm:max-w-72" />
-        <Button type="button" className="h-11 rounded-xl" onClick={() => setOpen(true)}>
-          Sektör ekle
-        </Button>
-      </div>
-      <div className="mt-4 grid gap-2">
-        {filtered.map((sector) => {
-          const hidden = hiddenSectorIds.includes(sector.id)
-          return (
-            <article key={sector.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-card px-4 py-3 ring-1 ring-foreground/10">
-              <div>
-                <p className="font-medium">{sector.label}</p>
-                <p className="text-xs text-muted-foreground">
-                  {sector.blurb}
-                  {sector.custom ? " · özel" : ""}
-                  {hidden ? " · gizli" : ""}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => hideSector(sector.id, !hidden)}>
-                  {hidden ? "Göster" : "Gizle"}
-                </Button>
-                {sector.custom ? (
-                  <Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => removeSector(sector.id)}>
-                    Sil
-                  </Button>
-                ) : null}
-              </div>
-            </article>
-          )
-        })}
-      </div>
-      <SectorForm open={open} onOpenChange={setOpen} />
-    </div>
   )
 }
 

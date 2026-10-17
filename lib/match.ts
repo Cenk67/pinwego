@@ -8,7 +8,8 @@ import {
   formatRating,
   formatResponse,
 } from "@/lib/format"
-import { allSectors } from "@/lib/sectors"
+import { rootSectors } from "@/lib/sectors"
+import { inSector } from "@/lib/taxonomy"
 import { correctNeedDetailed, matchNeed, type NeedCorrection } from "@/lib/need"
 import { isWorldPhrase, worldAliases, worldFocus } from "@/lib/world-query"
 import type { Business, CategoryId, Filters } from "@/lib/types"
@@ -32,7 +33,7 @@ export const defaultFilters: Filters = {
 }
 
 function categoryPhrases() {
-  return allSectors().map((item) => ({
+  return rootSectors().map((item) => ({
     id: item.id,
     label: fold(item.label),
     phrases: [...new Set([...item.phrases, fold(item.label), ...worldAliases(item.id).map((alias) => alias.phrase)])],
@@ -439,13 +440,13 @@ export function searchDirectory(
     parsed.terms.length > 0
   const filtered = list.filter((business) => {
     if (filters.sehir !== "hepsi" && fold(business.city) !== fold(filters.sehir)) return false
-    if (filters.kategori !== "hepsi" && business.category !== filters.kategori) return false
+    if (filters.kategori !== "hepsi" && !inSector(business, filters.kategori)) return false
     if (filters.minRating && business.rating < filters.minRating) return false
     if (filters.maxPrice < 4 && business.priceLevel > filters.maxPrice) return false
     if (filters.openNow && !business.openNow) return false
     if (filters.verified && !business.verified) return false
     if (filters.premium && !business.premium) return false
-    if (filters.kategori === "hepsi" && parsed.categories.length && !parsed.categories.includes(business.category)) {
+    if (filters.kategori === "hepsi" && parsed.categories.length && !parsed.categories.some((id) => inSector(business, id))) {
       return false
     }
     // A sentence the engine could not read at all (no category, place, tag or filter) only keeps
@@ -463,7 +464,7 @@ export function searchDirectory(
     const hasIntent = Boolean(query.trim())
 
     if (hasIntent) {
-      if (parsed.category && parsed.category === business.category) score += 8
+      if (parsed.category && inSector(business, parsed.category)) score += 8
       if (parsed.city) {
         score += fold(business.city) === fold(parsed.city) ? 6 : -4
       }
@@ -490,7 +491,7 @@ export function searchDirectory(
     }
 
     // A sponsored listing only gets its nudge inside its own category; it never climbs over an unrelated organic match.
-    if (business.premium && (!hasIntent || !parsed.category || parsed.category === business.category)) score += 0.35
+    if (business.premium && (!hasIntent || !parsed.category || inSector(business, parsed.category))) score += 0.35
     if (business.verified) score += 0.15
     score += Math.min(business.reviewCount, 400) / 400
 

@@ -15,8 +15,10 @@ import {
   withImportNote,
 } from "@/lib/listings-import"
 import { listingGalleryKey, parseGalleryBook, storedCover, storedGallery } from "@/lib/listing-media"
-import { acceptListing, applyFlags, emptyBook, listingsKey, parseBook, toBusiness, type ListingBook, type StoredListing } from "@/lib/listings"
+import { acceptListing, applyClassification, applyFlags, emptyBook, listingsKey, parseBook, toBusiness, type ListingBook, type StoredListing } from "@/lib/listings"
 import { memberEmail, publicAccount, readMemberCookie } from "@/lib/member-session"
+import { activeNodes, setLiveTaxonomy } from "@/lib/taxonomy"
+import { readTaxonomy } from "@/lib/taxonomy-flow"
 
 async function actor(store: NonNullable<Awaited<ReturnType<typeof accountStore>>>, request: Request) {
   if (await adminSessionOpen(store, readAdminCookie(request.headers.get("cookie")))) return { kind: "admin" as const }
@@ -31,6 +33,11 @@ async function readBook(store: NonNullable<Awaited<ReturnType<typeof accountStor
   const raw = await store.get(listingsKey)
   if (raw === null) return emptyBook()
   return parseBook(raw)
+}
+
+/** Members may only pick visible sectors; admins may also file records under passive ones. */
+function validSectorIds(nodes: Parameters<typeof activeNodes>[0], admin: boolean) {
+  return new Set((admin ? nodes : activeNodes(nodes)).map((item) => item.id))
 }
 
 function shownListing(item: StoredListing, admin: boolean) {
@@ -85,7 +92,8 @@ export async function ilanPostFlow(request: Request, now = Date.now()) {
     if (!(await takeIpSlot(requestIp(request), "ilan", now, 30, 10 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
     if (who.kind === "member" && who.account.role !== "isletme") return jsonReply({ ok: false, reason: "yetki" }, 403)
     const ownerId = who.kind === "admin" ? "yonetici" : who.account.id
-    const saved = acceptListing(body, ownerId, new Date(now).toISOString(), book, who.kind === "admin")
+    const tree = await readTaxonomy(store)
+    const saved = acceptListing(body, ownerId, new Date(now).toISOString(), book, who.kind === "admin", validSectorIds(tree.nodes, who.kind === "admin"))
     if (!saved.ok) return jsonReply({ ok: false, reason: saved.reason })
     await store.put(listingsKey, JSON.stringify(saved.book))
     return jsonReply({ ok: true, listing: toBusiness(saved.listing) })
@@ -99,6 +107,7 @@ export async function ilanPostFlow(request: Request, now = Date.now()) {
     }
     const loaded = await gridFromBody(body)
     if ("error" in loaded) return jsonReply({ ok: false, reason: loaded.error }, 400)
+    setLiveTaxonomy((await readTaxonomy(store)).nodes)
     const map = readMap(body.map, loaded.grid.headers.length) ?? suggestMap(loaded.grid.headers)
     if (preview) return jsonReply({ ok: true, ...classifyGrid(loaded.grid, map, book) })
     if (body.confirm !== true) return jsonReply({ ok: false, reason: "onay" }, 400)
@@ -147,6 +156,18 @@ export async function ilanPostFlow(request: Request, now = Date.now()) {
     await store.put(listingGalleryKey(current.id), JSON.stringify({ gallery }))
     const shown = toBusiness(listing)
     return jsonReply({ ok: true, listing: who.kind === "admin" ? { ...shown, hourLog: listing.hourLog ?? [], review: listing.review } : shown, gallery })
+  }
+  if (body.op === "sinif") {
+    if (!current) return jsonReply({ ok: false, reason: "yok" }, 404)
+    const allowed = who.kind === "admin" || (who.kind === "member" && who.account.role === "isletme" && who.account.id === current.ownerAccountId)
+    if (!allowed) return jsonReply({ ok: false, reason: "yetki" }, 403)
+    if (!(await takeIpSlot(requestIp(request), "ilan-sinif", now, 60, 15 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
+    const tree = await readTaxonomy(store)
+    const listing = applyClassification(current, body, who.kind === "admin", validSectorIds(tree.nodes, who.kind === "admin"))
+    if (!listing) return jsonReply({ ok: false, reason: "kategori" }, 400)
+    const listings = book.listings.map((item) => (item.id === current.id ? listing : item))
+    await store.put(listingsKey, JSON.stringify({ listings }))
+    return jsonReply({ ok: true, listing: shownListing(listing, who.kind === "admin") })
   }
   if (body.op === "saat" || body.op === "durum") {
     if (!current) return jsonReply({ ok: false, reason: "yok" }, 404)

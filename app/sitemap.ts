@@ -3,11 +3,13 @@ import { absoluteUrl, articlePath, categoryPath, subcategoryPath } from "@/lib/b
 import { publishedBlog } from "@/lib/blog-server"
 import { contactPublished } from "@/lib/inbox-flow"
 import { sitemapPages } from "@/lib/pages-flow"
+import { publishedTaxonomy, sectorSearchPath } from "@/lib/taxonomy-server"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const blog = await publishedBlog()
   const pages = await sitemapPages()
   const contact = await contactPublished()
+  const sectors = await publishedTaxonomy()
   const now = new Date("2026-10-10")
   return [
     { url: absoluteUrl("/"), lastModified: now, changeFrequency: "weekly", priority: 1 },
@@ -17,6 +19,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       changeFrequency: "monthly" as const,
       priority: page.legal ? 0.4 : 0.6,
+    })),
+    { url: absoluteUrl("/ara"), lastModified: now, changeFrequency: "daily", priority: 0.8 },
+    ...sectors.nodes.map((node) => ({
+      url: absoluteUrl(sectorSearchPath(node.id)),
+      lastModified: node.updatedAt ? new Date(node.updatedAt) : now,
+      changeFrequency: "weekly" as const,
+      priority: node.parentId ? 0.5 : 0.7,
     })),
     { url: absoluteUrl("/blog"), lastModified: now, changeFrequency: "weekly", priority: 0.8 },
     ...blog.categories.map((category) => ({

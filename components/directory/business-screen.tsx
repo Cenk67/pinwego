@@ -7,6 +7,7 @@ import { BusinessCampaigns } from "@/components/campaigns/business-campaigns"
 import { QrArrival } from "@/components/qr/qr-arrival"
 import { BusinessQr } from "@/components/qr/qr-business"
 import { ClaimPrompt } from "@/components/directory/claim-button"
+import { ClassBadges } from "@/components/directory/class-badges"
 import { Cover, SaveButton, Stars } from "@/components/directory/bits"
 import {
   AboutBlock,
@@ -134,6 +135,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
               <span className="rounded-full bg-primary px-3 py-1 text-xs text-primary-foreground">Öne çıkan</span>
             ) : null}
             <HoursStatus business={business} />
+            <ClassBadges business={business} size="md" />
             {business.source === "senin" ? (
               <span className="rounded-full bg-secondary px-3 py-1 text-xs">Senin kaydın</span>
             ) : null}

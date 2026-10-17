@@ -3,13 +3,11 @@
 import Link from "next/link"
 import { ArrowUpRight } from "lucide-react"
 import { useMemo, useState, useSyncExternalStore } from "react"
-import { useGuestGate } from "@/components/auth/guest-gate"
 import { BusinessCard } from "@/components/directory/business-card"
 import { fieldClass } from "@/components/directory/bits"
 import { MiniMap } from "@/components/directory/mini-map"
 import { NeedMemoryChips } from "@/components/directory/need-memory-chips"
 import { SearchForm } from "@/components/directory/search-form"
-import { SectorForm } from "@/components/directory/sector-form"
 import { HomeCampaigns } from "@/components/campaigns/home-campaigns"
 import { BlogStrip } from "@/components/blog/blog-strip"
 import { SectorStrip } from "@/components/directory/sector-strip"
@@ -26,12 +24,10 @@ import { liveList } from "@/lib/hours"
 import { getSectorClicks, getServerSectorClicks, rankSectors, subscribeSectorClicks } from "@/lib/sector-clicks"
 
 export function HomeScreen() {
-  const { place, sectors, visibleBusinesses, removeSector } = useDirectory()
-  const { allow } = useGuestGate()
+  const { place, sectors, visibleBusinesses } = useDirectory()
   const { locale, t } = useLocale()
   const chips = locale === "tr" ? suggestions : searchSuggestions[locale]
   const [sectorQuery, setSectorQuery] = useState("")
-  const [sectorOpen, setSectorOpen] = useState(false)
   const sectorClicks = useSyncExternalStore(subscribeSectorClicks, getSectorClicks, getServerSectorClicks)
   const now = useMinute()
   const catalog = useMemo(() => liveList(visibleBusinesses, now), [visibleBusinesses, now])
@@ -141,16 +137,10 @@ export function HomeScreen() {
           />
         </div>
         {visibleSectors.length ? (
-          <SectorStrip
-            sectors={visibleSectors}
-            businesses={catalog}
-            onRemove={(id) => allow(() => removeSector(id))}
-            onAdd={() => allow(() => setSectorOpen(true))}
-          />
+          <SectorStrip sectors={visibleSectors} businesses={catalog} />
         ) : (
           <p className="mt-4 text-sm text-muted-foreground">{t("home.sectorEmpty")}</p>
         )}
-        <SectorForm open={sectorOpen} onOpenChange={setSectorOpen} />
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-10">

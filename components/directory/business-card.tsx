@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { BadgeCheck } from "lucide-react"
+import { ClassBadges } from "@/components/directory/class-badges"
 import { useGuestGate } from "@/components/auth/guest-gate"
 import { ClaimPrompt } from "@/components/directory/claim-button"
 import { ContactLines } from "@/components/directory/contact-lines"
@@ -79,6 +80,7 @@ export function BusinessCard({
               <p className="mt-1 text-sm text-muted-foreground">
                 {sector.label} · {business.district}
               </p>
+              <ClassBadges business={business} className="mt-1.5" />
             </div>
             <RatingBlock business={business} />
           </div>

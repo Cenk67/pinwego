@@ -35,6 +35,7 @@ import { useNeedScope } from "@/lib/need-scope"
 import { defaultFilters, parseQuery, searchDirectory } from "@/lib/match"
 import { applyPlace, placeLabel } from "@/lib/place"
 import { sectorCopy } from "@/lib/sector-copy"
+import { childrenOf, pathOf, resolveNodeId, rootsOf, sortTr, type TaxonomyNode } from "@/lib/taxonomy"
 import type { CategoryId, SortKey } from "@/lib/types"
 import { useMinute } from "@/components/directory/hours-view"
 import { liveList } from "@/lib/hours"
@@ -45,7 +46,7 @@ export function SearchScreen() {
   const params = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
-  const { place, sectors, visibleBusinesses } = useDirectory()
+  const { place, sectors, visibleBusinesses, taxonomy, remap } = useDirectory()
   const { locale, t } = useLocale()
   const discoverSettings = useDiscoverSettings()
   const scope = useNeedScope()
@@ -60,6 +61,7 @@ export function SearchScreen() {
   ]
   const [showMap, setShowMap] = useState(false)
   const [limit, setLimit] = useState(9)
+  const [movedFrom, setMovedFrom] = useState<string | null>(null)
   const now = useMinute()
 
   const query = params.get("q") ?? ""
@@ -67,7 +69,15 @@ export function SearchScreen() {
   const parsed = parseQuery(query, catalog)
   const namedCity = params.get("sehir") ?? parsed.city
   const sehir = place.nearMe ? "hepsi" : namedCity ?? "hepsi"
-  const kategori = (params.get("kategori") ?? parsed.category ?? "hepsi") as CategoryId | "hepsi"
+  const rawKategori = params.get("kategori")
+  // Old ids, aliases and sectors merged by the admin resolve to the live node; unknown ids fall back to "all".
+  const resolvedKategori = rawKategori && rawKategori !== "hepsi" ? resolveNodeId(taxonomy, remap, rawKategori) : null
+  const kategori = (rawKategori ? resolvedKategori ?? "hepsi" : parsed.category ?? "hepsi") as CategoryId | "hepsi"
+  const sectorPath = kategori !== "hepsi" ? pathOf(taxonomy, kategori) : []
+  const sectorMoved = Boolean(rawKategori && rawKategori !== "hepsi" && resolvedKategori && resolvedKategori !== rawKategori)
+  // The note survives the URL rewrite until the visitor picks another sector.
+  if (sectorMoved && movedFrom !== rawKategori) setMovedFrom(rawKategori)
+  const movedNote = sectorMoved || (movedFrom !== null && kategori !== "hepsi" && resolveNodeId(taxonomy, remap, movedFrom) === kategori)
   const minRating = Number(params.get("puan") ?? "0")
   const maxPrice = Number(params.get("fiyat") ?? "4")
   const openNow = params.get("acik") === "1"
@@ -162,6 +172,15 @@ export function SearchScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, needCity])
 
+  useEffect(() => {
+    if (!sectorMoved || !resolvedKategori) return
+    const next = new URLSearchParams(params.toString())
+    next.set("kategori", resolvedKategori)
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+    // The redirect depends only on the resolved id; the params object changes identity on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectorMoved, resolvedKategori])
+
   const filters = (
     <div className="grid gap-4">
       <div className="rounded-2xl bg-card px-3 py-3 ring-1 ring-foreground/10">
@@ -177,11 +196,26 @@ export function SearchScreen() {
           onChange={(event) => update({ kategori: event.target.value })}
         >
           <option value="hepsi">{t("home.all")}</option>
-          {sectors.map((item) => (
-            <option key={item.id} value={item.id}>
-              {sectorCopy(locale, item).label}
-            </option>
-          ))}
+          {sortTr(rootsOf(taxonomy).filter((root) => root.status === "aktif").map((root) => ({ ...root, label: sectorCopy(locale, root).label }))).map((root) => {
+            const children = sortTr(childrenOf(taxonomy, root.id).filter((item) => item.status === "aktif"))
+            if (!children.length) {
+              return (
+                <option key={root.id} value={root.id}>
+                  {root.label}
+                </option>
+              )
+            }
+            return (
+              <optgroup key={root.id} label={root.label}>
+                <option value={root.id}>{t("search.sectorAll", { name: root.label })}</option>
+                {children.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </optgroup>
+            )
+          })}
         </select>
       </label>
       <div>
@@ -320,6 +354,7 @@ export function SearchScreen() {
             {scoped.widened ? ` · ${t("search.widened")}` : ""}
             {query ? ` · ${t("search.reason")}` : ""}
           </p>
+          <SectorPath path={sectorPath} moved={movedNote} onPick={(id) => update({ kategori: id })} />
           <VoiceTrail count={results.length} query={query} />
         </div>
         <div className="flex items-center gap-2">
@@ -434,5 +469,25 @@ export function SearchScreen() {
         </aside>
       </div>
     </div>
+  )
+}
+
+function SectorPath({ path, moved, onPick }: { path: TaxonomyNode[]; moved: boolean; onPick: (id: string) => void }) {
+  const { locale, t } = useLocale()
+  if (!path.length) return null
+  const last = path[path.length - 1]
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-1 text-sm">
+      <span className="text-muted-foreground">{t("search.sectorPath")}:</span>
+      {path.map((node, index) => (
+        <span key={node.id} className="flex items-center gap-1">
+          {index ? <span className="text-muted-foreground">›</span> : null}
+          <button type="button" onClick={() => onPick(node.id)} className={node.id === last.id ? "font-medium" : "text-primary"}>
+            {index === 0 ? sectorCopy(locale, node).label : node.label}
+          </button>
+        </span>
+      ))}
+      {moved ? <span className="text-muted-foreground">· {t("search.sectorMoved", { name: last.label })}</span> : null}
+    </p>
   )
 }
