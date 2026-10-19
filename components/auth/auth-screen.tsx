@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Logo } from "@/components/brand/logo"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,7 @@ import { CLAIM_KEY, claimListing } from "@/lib/claim"
 import { adoptListingThreads } from "@/lib/message-store"
 import { useDirectory } from "@/lib/directory-context"
 import { useLocale } from "@/lib/use-locale"
+import type { MessageKey } from "@/lib/messages"
 import type { Business } from "@/lib/types"
 import {
   fileProblem,
@@ -94,6 +95,67 @@ function ErrorList({ errors }: { errors: string[] }) {
       ))}
     </ul>
   )
+}
+
+function adminCodeValue(value: string) {
+  if (/[A-Za-z@]/.test(value)) return ""
+  return value.replace(/\D/g, "").slice(0, 8)
+}
+
+function adminShown(message: string, t: (key: MessageKey) => string) {
+  if (message === "Kod eşleşmedi.") return t("auth.adminCodeBad")
+  if (message === "Yönetici girişi şu an kapalı.") return t("auth.adminClosed")
+  if (message === "Çok fazla deneme. Bir süre sonra tekrar dene.") return t("auth.limited")
+  if (message === "Kullanıcı adı veya şifre eşleşmedi." || message === "E-posta veya şifre eşleşmedi.") return t("auth.adminMismatch")
+  return message
+}
+
+function FillTrap() {
+  return (
+    <div aria-hidden="true" className="absolute -left-[10000px] h-px w-px overflow-hidden">
+      <input tabIndex={-1} type="text" name="username" autoComplete="username" defaultValue="" />
+      <input tabIndex={-1} type="password" name="password" autoComplete="current-password" defaultValue="" />
+    </div>
+  )
+}
+
+function quietField(ready: boolean, arm: () => void) {
+  return {
+    autoComplete: "off" as const,
+    autoCapitalize: "none" as const,
+    autoCorrect: "off" as const,
+    spellCheck: false as const,
+    readOnly: !ready,
+    "data-1p-ignore": "true",
+    "data-lpignore": "true",
+    "data-bwignore": "true",
+    "data-form-type": "other",
+    onFocus: (event: React.FocusEvent<HTMLInputElement>) => {
+      arm()
+      const element = event.currentTarget
+      const wipe = () => {
+        if (element.dataset.typed === "1") return
+        element.value = ""
+      }
+      window.setTimeout(wipe, 60)
+      window.setTimeout(wipe, 400)
+    },
+    onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
+      event.currentTarget.dataset.typed = "1"
+    },
+    onInput: (event: React.FormEvent<HTMLInputElement>) => {
+      const native = event.nativeEvent
+      if (!(native instanceof InputEvent)) return
+      if (native.inputType === "insertReplacementText") {
+        event.currentTarget.value = ""
+        delete event.currentTarget.dataset.typed
+        return
+      }
+      if (native.inputType === "insertText" || native.inputType === "insertFromPaste" || native.inputType === "deleteContentBackward") {
+        event.currentTarget.dataset.typed = "1"
+      }
+    },
+  }
 }
 
 function pendingClaim() {
@@ -247,16 +309,54 @@ function LoginForm({
   const [hold, setHold] = useState<{ email: string; password: string } | null>(null)
   const [codeStep, setCodeStep] = useState(false)
   const [code, setCode] = useState("")
+  const [loginReady, setLoginReady] = useState(false)
+  const [codeReady, setCodeReady] = useState(false)
   const { t, locale } = useLocale()
-  const title = door === "yonetici" ? t("auth.adminIn") : door === "isletme" ? t("auth.businessIn") : t("auth.customerIn")
+  const adminDoor = door === "yonetici"
+  const title = adminDoor ? t("auth.adminIn") : door === "isletme" ? t("auth.businessIn") : t("auth.customerIn")
   const copy =
-    door === "yonetici" ? t("auth.adminCopy") : door === "isletme" ? t("auth.businessCopy") : t("auth.customerCopy")
+    adminDoor ? t("auth.adminCopy") : door === "isletme" ? t("auth.businessCopy") : t("auth.customerCopy")
+
+  useEffect(() => {
+    if (!adminDoor || codeStep) return
+    const wipe = () => {
+      for (const id of ["admin-login", "admin-secret"]) {
+        const element = document.getElementById(id)
+        if (!(element instanceof HTMLInputElement) || element.dataset.typed === "1") continue
+        element.value = ""
+      }
+    }
+    wipe()
+    const timers = [40, 200, 700, 1500].map((delay) => window.setTimeout(wipe, delay))
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer)
+    }
+  }, [adminDoor, codeStep])
+
+  useEffect(() => {
+    if (!codeStep) return
+    const wipe = () => {
+      const element = document.getElementById("admin-code")
+      if (!(element instanceof HTMLInputElement) || !/[A-Za-z@]/.test(element.value)) return
+      element.value = ""
+      setCode("")
+    }
+    wipe()
+    const timers = [40, 200, 700].map((delay) => window.setTimeout(wipe, delay))
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer)
+    }
+  }, [codeStep, codeReady])
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = event.currentTarget
-    const typedEmail = submittedField(form, "username", "login-email", "")
-    const typedPassword = submittedField(form, "password", "login-password", "")
+    const typedEmail = adminDoor
+      ? submittedField(form, "pinwego-admin-login", "admin-login", "")
+      : submittedField(form, "username", "login-email", "")
+    const typedPassword = adminDoor
+      ? submittedField(form, "pinwego-admin-secret", "admin-secret", "")
+      : submittedField(form, "password", "login-password", "")
     setPending(true)
     try {
       const message = await login(typedEmail, typedPassword, door, { turnstile: token, locale })
@@ -271,7 +371,7 @@ function LoginForm({
         return
       }
       if (message) {
-        setErrors([message])
+        setErrors([adminDoor ? adminShown(message, t) : message])
         return
       }
       const account = getSnapshot().account
@@ -298,9 +398,7 @@ function LoginForm({
     try {
       const message = await confirmAdminCode(code)
       if (message) {
-        setErrors([
-          message === "Kod eşleşmedi." ? t("auth.adminCodeBad") : message === "Yönetici girişi şu an kapalı." ? t("auth.adminClosed") : message,
-        ])
+        setErrors([adminShown(message, t)])
         return
       }
       router.push("/yonetim")
@@ -313,7 +411,8 @@ function LoginForm({
 
   if (codeStep) {
     return (
-      <form onSubmit={submitCode} autoComplete="off" className="grid gap-4">
+      <form onSubmit={submitCode} autoComplete="off" className="relative grid gap-4">
+        <FillTrap />
         <div>
           <h1 className="font-heading text-4xl">{t("auth.adminCode")}</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("auth.adminCodeCopy")}</p>
@@ -322,12 +421,13 @@ function LoginForm({
           <Label htmlFor="admin-code">{t("auth.adminCode")}</Label>
           <Input
             id="admin-code"
-            name="one-time-code"
+            name="pinwego-yonetici-kod"
+            type="text"
             inputMode="numeric"
-            autoComplete="one-time-code"
+            {...quietField(codeReady, () => setCodeReady(true))}
             maxLength={8}
             value={code}
-            onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 8))}
+            onChange={(event) => setCode(adminCodeValue(event.target.value))}
             className="h-11 tracking-[0.3em]"
           />
         </div>
@@ -342,6 +442,8 @@ function LoginForm({
           onClick={() => {
             setCodeStep(false)
             setCode("")
+            setCodeReady(false)
+            setLoginReady(false)
             setErrors([])
           }}
         >
@@ -352,34 +454,64 @@ function LoginForm({
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4">
+    <form onSubmit={submit} autoComplete={adminDoor ? "off" : undefined} className="relative grid gap-4">
+      {adminDoor ? <FillTrap /> : null}
       <div>
         <h1 className="font-heading text-4xl">{title}</h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{copy}</p>
       </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor="login-email">{t("auth.email")}</Label>
-        <Input
-          id="login-email"
-          name="username"
-          type="email"
-          autoComplete="username"
-          defaultValue={initialEmail || undefined}
-          className="h-11"
-        />
-      </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor="login-password">{t("auth.password")}</Label>
-        <Input id="login-password" name="password" type="password" autoComplete="current-password" className="h-11" />
-      </div>
-      {door === "yonetici" ? null : (
+      {adminDoor ? (
+        <>
+          <div className="grid gap-1.5">
+            <Label htmlFor="admin-login">{t("auth.username")}</Label>
+            <Input
+              id="admin-login"
+              name="pinwego-admin-login"
+              type="text"
+              defaultValue=""
+              className="h-11"
+              {...quietField(loginReady, () => setLoginReady(true))}
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="admin-secret">{t("auth.password")}</Label>
+            <Input
+              id="admin-secret"
+              name="pinwego-admin-secret"
+              type="password"
+              defaultValue=""
+              className="h-11"
+              {...quietField(loginReady, () => setLoginReady(true))}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="grid gap-1.5">
+            <Label htmlFor="login-email">{t("auth.email")}</Label>
+            <Input
+              id="login-email"
+              name="username"
+              type="email"
+              autoComplete="username"
+              defaultValue={initialEmail || undefined}
+              className="h-11"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="login-password">{t("auth.password")}</Label>
+            <Input id="login-password" name="password" type="password" autoComplete="current-password" className="h-11" />
+          </div>
+        </>
+      )}
+      {adminDoor ? null : (
         <Link href="/sifre" className="text-sm text-primary">
           {t("auth.forgot")}
         </Link>
       )}
-      <TurnstileField siteKey={door === "yonetici" ? "" : siteKey} onToken={setToken} />
+      <TurnstileField siteKey={adminDoor ? "" : siteKey} onToken={setToken} />
       <ErrorList errors={errors} />
-      <Button type="submit" className="h-11 rounded-xl" disabled={pending || (door !== "yonetici" && Boolean(siteKey) && !token)}>
+      <Button type="submit" className="h-11 rounded-xl" disabled={pending || (!adminDoor && Boolean(siteKey) && !token)}>
         {pending ? t("auth.checking") : t("auth.submit")}
       </Button>
       {door === "musteri" ? (

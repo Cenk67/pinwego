@@ -1,20 +1,29 @@
-import { takeEmailSlot } from "@/lib/account-record"
 import { accountStore } from "@/lib/account-kv"
 import {
+  adminAttemptBlocked,
+  adminAttemptPurpose,
+  adminCodeFailLimit,
   adminCodeMail,
+  adminCodeSendLimit,
+  adminCodeSendWindowMs,
+  adminCodeWindowMs,
+  adminPasswordFailLimit,
+  adminPasswordWindowMs,
   adminSessionCookie,
   adminSessionOpen,
+  clearAdminAttempt,
   clearAdminCookie,
   clearAdminOtp,
   closeAdminSession,
   consumeAdminOtp,
   issueAdminOtp,
+  noteAdminAttempt,
   openAdminSession,
   passwordAccepted,
   readAdminCookie,
 } from "@/lib/admin-gate"
 import { adminSecrets } from "@/lib/admin-secrets"
-import { jsonReply, mailReady, readJson, requestIp, sendLogged, takeIpSlot } from "@/lib/account-route"
+import { jsonReply, mailReady, readJson, requestIp, sendLogged } from "@/lib/account-route"
 import { clearMemberCookie, closeMemberSession, readMemberCookie, requestIsSecure } from "@/lib/member-session"
 import { noteAdminLimit, noteAdminSession } from "@/lib/notify-flow"
 
@@ -28,19 +37,23 @@ export async function adminStartFlow(request: Request, now = Date.now()) {
   const secrets = await adminSecrets()
   const store = await accountStore()
   if (!secrets || !store) return jsonReply({ ok: false, reason: "unavailable" }, 503)
-  if (!(await takeIpSlot(requestIp(request), "yonetici", now, 8, 15 * 60 * 1000))) {
+  const ip = requestIp(request)
+  if (await adminAttemptBlocked(store, adminAttemptPurpose.password, ip, now, adminPasswordFailLimit, adminPasswordWindowMs)) {
     await noteAdminLimit(store, now)
     return jsonReply({ ok: false, reason: "limited" })
   }
   const email = typeof body.email === "string" ? body.email : ""
   const password = typeof body.password === "string" ? body.password : ""
-  if (!(await takeEmailSlot(store, "yonetici", email || "bos", now, 8, 15 * 60 * 1000))) {
-    await noteAdminLimit(store, now)
+  if (!(await passwordAccepted(email, password, secrets))) {
+    const open = await noteAdminAttempt(store, adminAttemptPurpose.password, ip, now, adminPasswordFailLimit, adminPasswordWindowMs)
+    if (!open) await noteAdminLimit(store, now)
+    return jsonReply({ ok: false, reason: open ? "mismatch" : "limited" })
+  }
+  await clearAdminAttempt(store, adminAttemptPurpose.password, ip)
+  if (!(await mailReady())) return jsonReply({ ok: false, reason: "unavailable" }, 503)
+  if (!(await noteAdminAttempt(store, adminAttemptPurpose.codeSend, ip, now, adminCodeSendLimit, adminCodeSendWindowMs))) {
     return jsonReply({ ok: false, reason: "limited" })
   }
-  if (!(await passwordAccepted(email, password, secrets))) return jsonReply({ ok: false, reason: "mismatch" })
-  if (!(await mailReady())) return jsonReply({ ok: false, reason: "unavailable" }, 503)
-  if (!(await takeEmailSlot(store, "yonetici-kod", secrets.otpTo, now, 8, 60 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
   const code = await issueAdminOtp(store, now)
   const sent = await sendLogged(store, { to: secrets.otpTo, purpose: "admin", ...adminCodeMail(code) })
   if (!sent.ok) {
@@ -55,9 +68,16 @@ export async function adminCodeFlow(request: Request, now = Date.now()) {
   if (!body || typeof body.code !== "string") return jsonReply({ ok: false, reason: "invalid" }, 400)
   const store = await accountStore()
   if (!store) return jsonReply({ ok: false, reason: "unavailable" }, 503)
-  if (!(await takeIpSlot(requestIp(request), "yonetici-kod", now, 10, 15 * 60 * 1000))) return jsonReply({ ok: false, reason: "limited" })
+  const ip = requestIp(request)
+  if (await adminAttemptBlocked(store, adminAttemptPurpose.codeTry, ip, now, adminCodeFailLimit, adminCodeWindowMs)) {
+    return jsonReply({ ok: false, reason: "limited" })
+  }
   const result = await consumeAdminOtp(store, body.code, now)
-  if (result !== "ok") return jsonReply({ ok: false, reason: result })
+  if (result !== "ok") {
+    const open = await noteAdminAttempt(store, adminAttemptPurpose.codeTry, ip, now, adminCodeFailLimit, adminCodeWindowMs)
+    return jsonReply({ ok: false, reason: open ? result : "limited" })
+  }
+  await clearAdminAttempt(store, adminAttemptPurpose.codeTry, ip)
   const token = await openAdminSession(store)
   await noteAdminSession(store, now, request.headers.get("origin"))
   const response = jsonReply({ ok: true })

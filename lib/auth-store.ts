@@ -414,7 +414,7 @@ export async function login(email: string, password: string, door?: AuthDoor, ex
   if (door === "yonetici") {
     const { status, data } = await postAdmin("/api/yonetici", { email, password, locale: extra?.locale })
     if (data?.ok && data.step === "code") return { code: "sent" }
-    if (data?.reason === "mismatch" || data?.reason === "invalid") return "E-posta veya şifre eşleşmedi."
+    if (data?.reason === "mismatch" || data?.reason === "invalid") return "Kullanıcı adı veya şifre eşleşmedi."
     return adminFailure(status, data?.reason)
   }
   const remote = await postAccount("/api/giris", { email, password, turnstile: extra?.turnstile, locale: extra?.locale })
