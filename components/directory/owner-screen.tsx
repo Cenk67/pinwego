@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
+import { BusinessNewsDesk } from "@/components/blog/business-news"
 import { CampaignOwner } from "@/components/campaigns/campaign-manage"
 import { QrOwner } from "@/components/qr/qr-center"
 import { ContactEditor } from "@/components/directory/contact-lines"
@@ -93,6 +94,7 @@ export function OwnerScreen() {
           </Button>
         </div>
       )}
+      <BusinessNewsDesk />
       <CampaignOwner />
       <QrOwner />
     </div>

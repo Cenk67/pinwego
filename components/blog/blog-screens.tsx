@@ -15,6 +15,7 @@ import {
   type BlogArticle,
 } from "@/lib/blog"
 import { useBlog } from "@/components/blog/blog-context"
+import { ArticleShare } from "@/components/blog/article-share"
 import { Button } from "@/components/ui/button"
 import { useLocale } from "@/lib/use-locale"
 
@@ -27,10 +28,10 @@ export function BlogIndex() {
       <h1 className="mt-2 max-w-3xl font-heading text-4xl leading-tight md:text-5xl">Kategori, alt kategori, görsel, yazı.</h1>
       <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
         Rehber yazıları editörden gelir. Şehir sayfaları, aynı sektörde en az üç kayıt varsa katalogdan üretilir.
-        Her sayfanın adresi kategori ve alt kategoriye bağlıdır.
+        İşletme haberleri ancak pinwego onayından sonra bu listede görünür.
       </p>
       <div className="mt-8 grid gap-4 md:grid-cols-2">
-        {document.categories.map((category) => {
+        {document.categories.filter((category) => articles.some((article) => article.categoryId === category.id)).map((category) => {
           const count = articles.filter((article) => article.categoryId === category.id).length
           return (
             <Link key={category.id} href={categoryPath(category.slug)} className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
@@ -44,11 +45,24 @@ export function BlogIndex() {
       <section className="mt-12">
         <h2 className="font-heading text-3xl">Son yazılar</h2>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
-          {articles.slice(0, 9).map((article) => (
+          {articles.filter((article) => article.source !== "business").slice(0, 9).map((article) => (
             <ArticleCard key={article.id} article={article} />
           ))}
         </div>
       </section>
+      {articles.some((article) => article.source === "business") ? (
+        <section className="mt-12">
+          <h2 className="font-heading text-3xl">İşletmelerden haberler</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            İşletmelerin kendi duyuruları. Her yazı ilgili işletme kaydına bağlıdır.
+          </p>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {articles.filter((article) => article.source === "business").slice(0, 9).map((article) => (
+              <ArticleCard key={article.id} article={article} />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }
@@ -145,9 +159,31 @@ export function ArticleScreen({
           {formatBlogDate(article.publishedAt)}
           {article.updatedAt !== article.publishedAt ? ` · güncellendi ${formatBlogDate(article.updatedAt)}` : ""}
         </time>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <ArticleShare
+            title={article.title}
+            text={article.description}
+            path={articlePath(article)}
+            businessSlug={article.businessSlug}
+          />
+          {article.source === "business" && article.businessSlug ? (
+            <Link href={`/isletme/${article.businessSlug}`} className="text-sm text-primary">
+              {article.businessName || "İşletme kaydı"}
+            </Link>
+          ) : null}
+        </div>
       </header>
-      <figure className="mt-6 overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10">
+      <figure className="relative mt-6 overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10">
         <img src={article.image} alt={article.imageAlt} className="aspect-[16/9] w-full object-cover" />
+        <div className="absolute top-3 right-3">
+          <ArticleShare
+            compact
+            title={article.title}
+            text={article.description}
+            path={articlePath(article)}
+            businessSlug={article.businessSlug}
+          />
+        </div>
         <figcaption className="px-4 py-3 text-sm text-muted-foreground">{article.imageAlt}</figcaption>
       </figure>
       <div className="mt-8 grid gap-4 text-base leading-7">
@@ -265,7 +301,14 @@ function articleJsonLd(article: BlogArticle) {
         keywords: article.subcategoryName,
         ...(image ? { image } : {}),
         mainEntityOfPage: url,
-        author: { "@type": "Organization", name: "pinwego", url: "https://pinwego.com" },
+        author:
+          article.source === "business" && article.businessName
+            ? {
+                "@type": "Organization",
+                name: article.businessName,
+                url: absoluteUrl(`/isletme/${article.businessSlug ?? ""}`),
+              }
+            : { "@type": "Organization", name: "pinwego", url: "https://pinwego.com" },
         publisher: { "@type": "Organization", name: "pinwego", url: "https://pinwego.com" },
       },
       {

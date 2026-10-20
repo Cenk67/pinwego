@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { BadgeCheck, Clock, MapPin, Navigation } from "lucide-react"
 import { Suspense, useState } from "react"
+import { BusinessNewsStrip } from "@/components/blog/business-news"
 import { BusinessCampaigns } from "@/components/campaigns/business-campaigns"
 import { QrArrival } from "@/components/qr/qr-arrival"
 import { BusinessQr } from "@/components/qr/qr-business"
@@ -264,6 +265,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
         </aside>
       </div>
 
+      <BusinessNewsStrip businessId={business.id} businessSlug={business.slug} />
       <AiPicks business={business} list={visibleBusinesses} />
 
       <div className="fixed inset-x-0 bottom-16 z-30 border-t border-foreground/10 bg-card/95 p-3 backdrop-blur md:hidden">
