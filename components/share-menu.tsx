@@ -4,7 +4,7 @@ import { Check, Copy, Share2 } from "lucide-react"
 import { useState, useSyncExternalStore } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { shareTargets } from "@/lib/share"
+import { shareTargets, startSystemShare } from "@/lib/share"
 import { useLocale } from "@/lib/use-locale"
 import { cn } from "cn"
 
@@ -14,16 +14,6 @@ function subscribe() {
 
 function canShareNow() {
   return typeof navigator !== "undefined" && typeof navigator.share === "function"
-}
-
-async function nativeShare(share: { title: string; text: string; url: string }) {
-  if (typeof navigator === "undefined" || typeof navigator.share !== "function") return "unsupported" as const
-  try {
-    await navigator.share({ title: share.title, text: share.text, url: share.url })
-    return "shared" as const
-  } catch (error) {
-    return error instanceof Error && error.name === "AbortError" ? "abort" as const : "fail" as const
-  }
 }
 
 export function ShareMenu({
@@ -58,17 +48,19 @@ export function ShareMenu({
     onRecord?.()
   }
 
-  async function shareNow() {
+  function shareNow() {
+    const pending = startSystemShare(share)
     setCopied(false)
     setManual(false)
     setInstagram(false)
-    const result = await nativeShare(share)
-    if (result === "shared") {
-      recorded()
-      return
-    }
-    if (result === "abort") return
-    setOpen(true)
+    void pending.then((result) => {
+      if (result === "shared") {
+        recorded()
+        return
+      }
+      if (result === "abort") return
+      setOpen(true)
+    })
   }
 
   async function copyLink() {
@@ -91,7 +83,7 @@ export function ShareMenu({
         <button
           type="button"
           aria-label={ariaLabel}
-          onClick={() => void shareNow()}
+          onClick={shareNow}
           className={cn(
             "grid size-9 place-items-center rounded-full bg-white/95 text-foreground shadow-sm ring-1 ring-foreground/10",
             className,
@@ -100,7 +92,7 @@ export function ShareMenu({
           <Share2 className="size-4" />
         </button>
       ) : (
-        <Button type="button" variant="outline" className={cn("h-11 rounded-xl", className)} onClick={() => void shareNow()}>
+        <Button type="button" variant="outline" className={cn("h-11 rounded-xl", className)} onClick={shareNow}>
           <Share2 className="size-4" />
           {t("views.share")}
         </Button>
@@ -144,7 +136,7 @@ export function ShareMenu({
                 type="button"
                 className="h-11 rounded-xl"
                 onClick={() => {
-                  void nativeShare(share).then((result) => {
+                  void startSystemShare(share).then((result) => {
                     if (result === "shared") recorded()
                   })
                 }}
