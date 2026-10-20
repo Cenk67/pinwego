@@ -160,7 +160,12 @@ export function ArticleScreen({
           {article.updatedAt !== article.publishedAt ? ` · güncellendi ${formatBlogDate(article.updatedAt)}` : ""}
         </time>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <ArticleShare title={article.title} text={article.description} path={articlePath(article)} />
+          <ArticleShare
+            title={article.title}
+            text={article.description}
+            path={articlePath(article)}
+            businessSlug={article.businessSlug}
+          />
           {article.source === "business" && article.businessSlug ? (
             <Link href={`/isletme/${article.businessSlug}`} className="text-sm text-primary">
               {article.businessName || "İşletme kaydı"}
@@ -168,8 +173,17 @@ export function ArticleScreen({
           ) : null}
         </div>
       </header>
-      <figure className="mt-6 overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10">
+      <figure className="relative mt-6 overflow-hidden rounded-3xl bg-card ring-1 ring-foreground/10">
         <img src={article.image} alt={article.imageAlt} className="aspect-[16/9] w-full object-cover" />
+        <div className="absolute top-3 right-3">
+          <ArticleShare
+            compact
+            title={article.title}
+            text={article.description}
+            path={articlePath(article)}
+            businessSlug={article.businessSlug}
+          />
+        </div>
         <figcaption className="px-4 py-3 text-sm text-muted-foreground">{article.imageAlt}</figcaption>
       </figure>
       <div className="mt-8 grid gap-4 text-base leading-7">
