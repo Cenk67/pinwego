@@ -1,10 +1,10 @@
 import type { Metadata } from "next"
 import { SubcategoryScreen } from "@/components/blog/blog-screens"
 import { findSubcategory, subcategoryPath } from "@/lib/blog"
-import { publishedBlog } from "@/lib/blog-server"
+import { publishedBlog, publishedBlogAt } from "@/lib/blog-server"
 
 export async function generateStaticParams() {
-  const blog = await publishedBlog()
+  const blog = await publishedBlogAt(Date.now())
   return blog.subcategories.flatMap((subcategory) => {
     const category = blog.categories.find((item) => item.id === subcategory.categoryId)
     return category ? [{ category: category.slug, subcategory: subcategory.slug }] : []

@@ -1,12 +1,12 @@
 import type { MetadataRoute } from "next"
-import { absoluteUrl, articlePath, categoryPath, subcategoryPath } from "@/lib/blog"
-import { publishedBlog } from "@/lib/blog-server"
+import { NEWS_CATEGORY_ID, absoluteUrl, articlePath, categoryPath, subcategoryPath } from "@/lib/blog"
+import { publishedBlogAt } from "@/lib/blog-server"
 import { contactPublished } from "@/lib/inbox-flow"
 import { sitemapPages } from "@/lib/pages-flow"
 import { publishedTaxonomy, sectorSearchPath } from "@/lib/taxonomy-server"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const blog = await publishedBlog()
+  const blog = await publishedBlogAt(0)
   const pages = await sitemapPages()
   const contact = await contactPublished()
   const sectors = await publishedTaxonomy()
@@ -28,12 +28,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: node.parentId ? 0.5 : 0.7,
     })),
     { url: absoluteUrl("/blog"), lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    ...blog.categories.map((category) => ({
-      url: absoluteUrl(categoryPath(category.slug)),
-      lastModified: now,
-      changeFrequency: "weekly" as const,
-      priority: 0.7,
-    })),
+    ...blog.categories
+      .filter((category) => category.id !== NEWS_CATEGORY_ID || blog.articles.some((article) => article.categoryId === category.id))
+      .map((category) => ({
+        url: absoluteUrl(categoryPath(category.slug)),
+        lastModified: now,
+        changeFrequency: "weekly" as const,
+        priority: 0.7,
+      })),
     ...blog.subcategories.flatMap((subcategory) => {
       const category = blog.categories.find((item) => item.id === subcategory.categoryId)
       if (!category) return []

@@ -26,10 +26,11 @@ import {
   type BlogSubcategory,
 } from "@/lib/blog"
 import { businesses } from "@/lib/catalog"
+import { NewsModeration } from "@/components/blog/news-moderation"
 import { scaleImageFile } from "@/lib/image-scale"
 import { seedSectors } from "@/lib/sectors"
 
-type Panel = "yazilar" | "kategoriler" | "alt"
+type Panel = "yazilar" | "haberler" | "kategoriler" | "alt"
 
 export function BlogAdmin() {
   const blog = useBlog()
@@ -58,6 +59,7 @@ export function BlogAdmin() {
   const articles = useMemo(() => {
     const needle = query.toLocaleLowerCase("tr-TR")
     return blog.document.articles.filter((article) => {
+      if (article.source === "business") return false
       if (!needle) return true
       return `${article.title} ${article.categoryName} ${article.subcategoryName}`.toLocaleLowerCase("tr-TR").includes(needle)
     })
@@ -74,6 +76,7 @@ export function BlogAdmin() {
         {(
           [
             ["yazilar", "Yazılar"],
+            ["haberler", "İşletme yazıları"],
             ["kategoriler", "Kategoriler"],
             ["alt", "Alt kategoriler"],
           ] as const
@@ -89,6 +92,8 @@ export function BlogAdmin() {
         ))}
       </div>
       {notice ? <p className="mt-4 text-sm text-primary">{notice}</p> : null}
+
+      {panel === "haberler" ? <NewsModeration /> : null}
 
       {panel === "yazilar" ? (
         <div className="mt-6">

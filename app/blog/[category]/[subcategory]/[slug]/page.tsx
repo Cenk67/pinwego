@@ -1,10 +1,10 @@
 import type { Metadata } from "next"
 import { ArticleScreen } from "@/components/blog/blog-screens"
 import { absoluteUrl, articlePath, findArticle } from "@/lib/blog"
-import { publishedBlog } from "@/lib/blog-server"
+import { publishedBlog, publishedBlogAt } from "@/lib/blog-server"
 
 export async function generateStaticParams() {
-  const blog = await publishedBlog()
+  const blog = await publishedBlogAt(Date.now())
   return blog.articles.map((article) => ({
     category: article.categorySlug,
     subcategory: article.subcategorySlug,
@@ -31,6 +31,12 @@ export async function generateMetadata({
       type: "article",
       url: absoluteUrl(articlePath(article)),
       images: image,
+    },
+    twitter: {
+      card: image ? "summary_large_image" : "summary",
+      title: article.title,
+      description: article.description,
+      images: image?.map((item) => item.url),
     },
   }
 }

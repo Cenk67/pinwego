@@ -5,6 +5,7 @@ import { LocaleBoot } from "@/components/directory/locale-boot"
 import { Shell } from "@/components/directory/shell"
 import { localeBootScript } from "@/lib/i18n"
 import { AuthProvider } from "@/lib/auth-context"
+import { deskDay, projectPublicState } from "@/lib/blog-desk"
 import { readBlogState } from "@/lib/blog-file"
 import { DirectoryProvider } from "@/lib/directory-context"
 import { MessageProvider } from "@/lib/message-context"
@@ -31,7 +32,8 @@ export const metadata: Metadata = {
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const blogState = await readBlogState()
+  // Epoch keeps this render cacheable. A scheduled post becomes public after the blog API marks it published.
+  const blogState = projectPublicState(await readBlogState(), deskDay(0))
   return (
     <html lang="tr" suppressHydrationWarning className={`${outfit.variable} ${fraunces.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">

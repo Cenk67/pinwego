@@ -11,6 +11,40 @@ export const MIN_CLUSTER = 3
 
 export type BlogKind = "editorial" | "programmatic" | "custom"
 
+export const NEWS_CATEGORY_ID = "cat-haber"
+
+export type BlogStatus =
+  | "draft"
+  | "pending_review"
+  | "revision_requested"
+  | "approved"
+  | "published"
+  | "rejected"
+  | "archived"
+
+/** Last publicly visible copy of a business post. A newer draft stays private until it is approved again. */
+export type BlogLive = {
+  slug: string
+  title: string
+  description: string
+  body: string
+  image: string
+  imageAlt: string
+  tags: string[]
+  publishedAt: string
+  updatedAt: string
+}
+
+export type BlogAuditEntry = {
+  id: string
+  at: string
+  actorRole: "admin" | "business"
+  actorId: string
+  postId: string
+  action: string
+  note: string
+}
+
 export type BlogCategory = {
   id: string
   slug: string
@@ -53,6 +87,19 @@ export type BlogPost = {
   keywords?: string[]
   /** The sentence the "find a business" button searches with. */
   needQuery?: string
+  /** Pinwego editorial posts omit this. Business posts always set "business". */
+  source?: "pinwego" | "business"
+  status?: BlogStatus
+  ownerAccountId?: string
+  businessId?: string
+  businessSlug?: string
+  businessName?: string
+  tags?: string[]
+  reviewNote?: string
+  /** Istanbul calendar day. Empty means publish as soon as the post is approved. */
+  scheduledAt?: string
+  submittedAt?: string
+  live?: BlogLive
 }
 
 export type BlogArticle = BlogPost & {
@@ -72,6 +119,7 @@ export type BlogState = {
   customCategories: BlogCategory[]
   customSubcategories: BlogSubcategory[]
   customPosts: BlogPost[]
+  audit: BlogAuditEntry[]
 }
 
 export type BlogDocument = {
@@ -96,6 +144,7 @@ export function emptyBlogState(): BlogState {
     customCategories: [],
     customSubcategories: [],
     customPosts: [],
+    audit: [],
   }
 }
 
@@ -111,6 +160,7 @@ export function normalizeBlogState(value: unknown): BlogState {
     customCategories: Array.isArray(raw.customCategories) ? raw.customCategories.filter(isCategory) : [],
     customSubcategories: Array.isArray(raw.customSubcategories) ? raw.customSubcategories.filter(isSubcategory) : [],
     customPosts: Array.isArray(raw.customPosts) ? raw.customPosts.filter(isPost) : [],
+    audit: Array.isArray(raw.audit) ? raw.audit.filter(isAudit).slice(0, 200) : [],
   }
 }
 
@@ -222,7 +272,7 @@ export function searchGuides(articles: BlogArticle[], query: string, limit = 3):
   if (need && !tokens.includes(need.focus)) tokens.push(need.focus)
   if (!tokens.length) return []
   const ranked = articles
-    .filter((article) => article.published)
+    .filter((article) => article.published && article.source !== "business")
     .map((article) => ({ article, score: guideScore(article, tokens, text) }))
     .filter((item) => item.score >= 4)
     .sort((a, b) => b.score - a.score || b.article.updatedAt.localeCompare(a.article.updatedAt))
@@ -268,7 +318,7 @@ function guideHit(field: string, token: string) {
 }
 
 export function stripArticles(document: BlogDocument, limit = 12) {
-  const published = publicArticles(document).filter((article) => article.image)
+  const published = publicArticles(document).filter((article) => article.image && article.source !== "business")
   const editorial = published.filter((article) => article.kind !== "programmatic")
   const programmatic = published.filter((article) => article.kind === "programmatic")
   const lead: BlogArticle[] = []
@@ -403,6 +453,7 @@ export function saveCategory(state: BlogState, category: BlogCategory, businesse
 }
 
 export function removeCategory(state: BlogState, id: string) {
+  if (id === NEWS_CATEGORY_ID) return state
   if (state.customCategories.some((item) => item.id === id)) {
     return {
       ...state,
@@ -460,6 +511,7 @@ export function removeSubcategory(state: BlogState, id: string) {
 
 export function seedCategories(): BlogCategory[] {
   return [
+    newsCategory(),
     {
       id: GUIDE_CATEGORY,
       slug: "rehber",
@@ -504,6 +556,16 @@ export function seedSubcategories(): BlogSubcategory[] {
       order: 2,
     },
   ]
+}
+
+export function newsCategory(): BlogCategory {
+  return {
+    id: NEWS_CATEGORY_ID,
+    slug: "isletmelerden-haberler",
+    name: "İşletmelerden haberler",
+    description: "İşletmelerin yazdığı, pinwego onayından geçen duyuru ve haberler. Taslaklar bu listede görünmez.",
+    order: 2,
+  }
 }
 
 export function editorialPosts(): BlogPost[] {
@@ -827,6 +889,20 @@ function isSubcategory(value: unknown): value is BlogSubcategory {
   if (!value || typeof value !== "object") return false
   const item = value as BlogSubcategory
   return typeof item.id === "string" && typeof item.categoryId === "string" && typeof item.name === "string"
+}
+
+function isAudit(value: unknown): value is BlogAuditEntry {
+  if (!value || typeof value !== "object") return false
+  const item = value as BlogAuditEntry
+  return (
+    typeof item.id === "string" &&
+    typeof item.at === "string" &&
+    (item.actorRole === "admin" || item.actorRole === "business") &&
+    typeof item.actorId === "string" &&
+    typeof item.postId === "string" &&
+    typeof item.action === "string" &&
+    typeof item.note === "string"
+  )
 }
 
 function isPost(value: unknown): value is BlogPost {

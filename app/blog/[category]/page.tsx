@@ -1,10 +1,10 @@
 import type { Metadata } from "next"
 import { CategoryScreen } from "@/components/blog/blog-screens"
 import { categoryPath, findCategory } from "@/lib/blog"
-import { publishedBlog } from "@/lib/blog-server"
+import { publishedBlog, publishedBlogAt } from "@/lib/blog-server"
 
 export async function generateStaticParams() {
-  const blog = await publishedBlog()
+  const blog = await publishedBlogAt(Date.now())
   return blog.categories.map((category) => ({ category: category.slug }))
 }
 
