@@ -293,7 +293,13 @@ export async function latestMarketing(store: NonNullable<Awaited<ReturnType<type
   return items.at(-1)?.accepted === true
 }
 
-export async function setMarketingConsent(store: NonNullable<Awaited<ReturnType<typeof accountStore>>>, accountId: string, accepted: boolean, now = Date.now()) {
+export async function setMarketingConsent(
+  store: NonNullable<Awaited<ReturnType<typeof accountStore>>>,
+  accountId: string,
+  accepted: boolean,
+  now = Date.now(),
+  context: Consent["context"] = "hesap",
+) {
   const book = await readBook(store)
   if (!book) return false
   const promo = book.pages.find((item) => item.id === "pazarlama-politikasi")
@@ -307,7 +313,7 @@ export async function setMarketingConsent(store: NonNullable<Awaited<ReturnType<
     kind: "pazarlama",
     accepted,
     at,
-    context: "hesap",
+    context,
   }
   const current = parseConsents(await store.get(consentsKey))
   await store.put(consentsKey, JSON.stringify({ items: [...current, row].slice(-500) }))
