@@ -61,7 +61,7 @@ export type Consent = {
   kind: "uyelik" | "pazarlama"
   accepted: boolean
   at: string
-  context: "kayit" | "hesap"
+  context: "kayit" | "hesap" | "cikis" | "kanit"
 }
 
 export const pageStatuses: PageStatus[] = ["taslak", "incelemede", "yayinda", "arsiv"]

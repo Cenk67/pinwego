@@ -18,6 +18,7 @@ export function AccountScreen({ siteKey = "" }: { siteKey?: string }) {
   const params = useSearchParams()
   const [message, setMessage] = useState("")
   const [marketing, setMarketing] = useState(false)
+  const [channels, setChannels] = useState({ sms: false, whatsapp: false })
   const [prefNote, setPrefNote] = useState("")
   const redirected = useRef(false)
   const kayit = params.get("kayit")
@@ -37,8 +38,11 @@ export function AccountScreen({ siteKey = "" }: { siteKey?: string }) {
     void fetch("/api/musteri", { credentials: "include" })
       .then((response) => response.json())
       .then((data: unknown) => {
-        const row = data as { ok?: boolean; own?: { marketing?: boolean } }
-        if (!gone && row.ok && row.own) setMarketing(row.own.marketing === true)
+        const row = data as { ok?: boolean; own?: { marketing?: boolean; channels?: { sms?: boolean; whatsapp?: boolean } } }
+        if (!gone && row.ok && row.own) {
+          setMarketing(row.own.marketing === true)
+          setChannels({ sms: row.own.channels?.sms === true, whatsapp: row.own.channels?.whatsapp === true })
+        }
       })
       .catch(() => undefined)
     return () => {
@@ -86,26 +90,32 @@ export function AccountScreen({ siteKey = "" }: { siteKey?: string }) {
     }
   }
 
-  async function saveMarketing(accepted: boolean) {
+  async function saveMarketing(accepted: boolean, kanal: "eposta" | "sms" | "whatsapp" = "eposta") {
     setPrefNote("")
-    setMarketing(accepted)
+    const previous = { marketing, channels }
+    if (kanal === "eposta") setMarketing(accepted)
+    else setChannels({ ...channels, [kanal]: accepted })
+    const label = kanal === "eposta" ? "Kampanya postası" : kanal === "sms" ? "SMS kampanyası" : "WhatsApp kampanyası"
     try {
       const response = await fetch("/api/musteri", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ op: "pazarlama", accepted }),
+        body: JSON.stringify({ op: "pazarlama", accepted, kanal }),
       })
-      const data = (await response.json().catch(() => null)) as { ok?: boolean; marketing?: boolean } | null
+      const data = (await response.json().catch(() => null)) as { ok?: boolean; marketing?: boolean; channels?: { sms?: boolean; whatsapp?: boolean } } | null
       if (!data?.ok) {
-        setMarketing(!accepted)
+        setMarketing(previous.marketing)
+        setChannels(previous.channels)
         setPrefNote("Tercih kaydedilemedi. Hesaba yeniden girince dene.")
         return
       }
       setMarketing(data.marketing === true)
-      setPrefNote(data.marketing ? "Kampanya postası açık." : "Kampanya postası kapalı. Eski onay kaydı durur.")
+      setChannels({ sms: data.channels?.sms === true, whatsapp: data.channels?.whatsapp === true })
+      setPrefNote(accepted ? `${label} açık.` : `${label} kapalı. Eski onay kaydı durur.`)
     } catch {
-      setMarketing(!accepted)
+      setMarketing(previous.marketing)
+      setChannels(previous.channels)
       setPrefNote("Tercih kaydedilemedi. Hesaba yeniden girince dene.")
     }
   }
@@ -160,10 +170,22 @@ export function AccountScreen({ siteKey = "" }: { siteKey?: string }) {
         ))}
       </dl>
       {account.role === "musteri" ? (
-        <label className="mt-6 flex items-start gap-2 text-sm leading-6">
-          <input type="checkbox" checked={marketing} onChange={(event) => void saveMarketing(event.target.checked)} className="mt-1" />
-          <span>Kampanya ve duyuru e-postası almak istiyorum. Bu kutu üyelik şartı değildir.</span>
-        </label>
+        <fieldset className="mt-6 grid gap-2">
+          <legend className="text-sm font-medium">İletişim tercihleri</legend>
+          <p className="text-xs leading-5 text-muted-foreground">Hiçbiri üyelik şartı değildir. Hesap güvenliği ve zorunlu hizmet bildirimleri bu tercihlerden bağımsızdır.</p>
+          <label className="flex items-start gap-2 text-sm leading-6">
+            <input type="checkbox" checked={marketing} onChange={(event) => void saveMarketing(event.target.checked, "eposta")} className="mt-1" />
+            <span>Kampanya ve duyuru e-postası almak istiyorum.</span>
+          </label>
+          <label className="flex items-start gap-2 text-sm leading-6">
+            <input type="checkbox" checked={channels.sms} onChange={(event) => void saveMarketing(event.target.checked, "sms")} className="mt-1" />
+            <span>Kampanya SMS’i almak istiyorum.</span>
+          </label>
+          <label className="flex items-start gap-2 text-sm leading-6">
+            <input type="checkbox" checked={channels.whatsapp} onChange={(event) => void saveMarketing(event.target.checked, "whatsapp")} className="mt-1" />
+            <span>WhatsApp üzerinden kampanya mesajı almak istiyorum.</span>
+          </label>
+        </fieldset>
       ) : null}
       {prefNote ? <p className="mt-2 text-sm text-muted-foreground">{prefNote}</p> : null}
       {account.documents.length ? <h2 className="mt-8 font-heading text-2xl">Yüklenen belgeler</h2> : null}
