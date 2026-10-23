@@ -1,4 +1,5 @@
 import handler from "vinext/server/fetch-handler"
+import { commsQueueSweep } from "@/lib/comms-flow"
 import { crmRemindSweep } from "@/lib/crm-flow"
 import { notifyDigestSweep } from "@/lib/notify-flow"
 
@@ -13,6 +14,7 @@ const worker = {
   scheduled(_event, _env, ctx) {
     ctx.waitUntil(Promise.all([
       crmRemindSweep().catch(() => undefined),
+      commsQueueSweep().catch(() => undefined),
       notifyDigestSweep().catch(() => undefined),
     ]))
   },

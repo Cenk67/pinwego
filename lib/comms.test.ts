@@ -12,7 +12,6 @@ import {
   e164Digits,
   eligibility,
   emptyComms,
-  enrichCustomers,
   ensureOptOutToken,
   filterCustomers,
   finishIfDone,
@@ -192,15 +191,15 @@ if (offline.ok) throw new Error("bağlantısız gönderim başarılı göründü
 assert.equal(offline.reason, "unconfigured")
 const badName = await sendWhatsAppTemplate(waConfig, { to: "905551234567", name: "Büyük Harf", language: "tr", params: [] })
 assert.equal(!badName.ok && badName.reason, "invalid")
-let captured: { url: string; body: string } | null = null
+const calls: Array<{ url: string; body: string }> = []
 const okSend = await sendWhatsAppTemplate(waConfig, { to: "905551234567", name: "hosgeldin", language: "tr", params: ["Ece"] }, (async (url: string | URL | Request, init?: RequestInit) => {
-  captured = { url: String(url), body: String(init?.body) }
+  calls.push({ url: String(url), body: String(init?.body) })
   return new Response(JSON.stringify({ messages: [{ id: "wamid.1" }] }), { status: 200 })
 }) as typeof fetch)
 assert.deepEqual(okSend, { ok: true, id: "wamid.1" })
-assert.ok(captured)
-assert.equal(captured!.url, "https://graph.facebook.com/v21.0/123456789/messages")
-assert.deepEqual(JSON.parse(captured!.body), whatsappPayload({ to: "905551234567", name: "hosgeldin", language: "tr", params: ["Ece"] }))
+assert.equal(calls.length, 1)
+assert.equal(calls[0].url, "https://graph.facebook.com/v21.0/123456789/messages")
+assert.deepEqual(JSON.parse(calls[0].body), whatsappPayload({ to: "905551234567", name: "hosgeldin", language: "tr", params: ["Ece"] }))
 const failSend = await sendWhatsAppTemplate(waConfig, { to: "905551234567", name: "hosgeldin", language: "tr", params: [] }, (async () =>
   new Response(JSON.stringify({ error: { code: 131026, message: "Message undeliverable" } }), { status: 400 })) as typeof fetch)
 assert.equal(!failSend.ok && failSend.reason, "failed")
@@ -224,6 +223,8 @@ function call(path: string, body?: unknown, cookie = "") {
 }
 
 async function json(response: Response) {
+  // Test gövdesi iç içe alanlara serbestçe bakar; tip denetimi akış dosyalarında yapılır.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (await response.json()) as Record<string, any>
 }
 

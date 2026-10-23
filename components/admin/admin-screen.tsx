@@ -12,7 +12,7 @@ import { NeedAdmin } from "@/components/admin/need-admin"
 import { ViewAdmin } from "@/components/directory/view-report"
 import { InboxPanel } from "@/components/admin/inbox-panel"
 import { BulkUpload } from "@/components/admin/bulk-upload"
-import { CustomerPanel } from "@/components/admin/customer-panel"
+import { CustomerCenter } from "@/components/admin/customer-center"
 import { PagesPanel } from "@/components/admin/pages-panel"
 import { NotifyPanel } from "@/components/admin/notify-panel"
 import { CrmPanel } from "@/components/crm/crm-panel"
@@ -54,7 +54,7 @@ const tabs = [
   { id: "sektorler", label: "Sektörler" },
   { id: "talepler", label: "Talepler" },
   { id: "hesaplar", label: "Hesaplar" },
-  { id: "musteriler", label: "Müşteriler" },
+  { id: "musteriler", label: "Müşteri Yönetimi" },
   { id: "blog", label: "Blog" },
   { id: "ses", label: "Sesli arama" },
   { id: "kampanya", label: "Kampanyalar" },
@@ -144,7 +144,7 @@ export function AdminScreen() {
       {tab === "sektorler" ? <SectorAdmin /> : null}
       {tab === "talepler" ? <RequestAdmin /> : null}
       {tab === "hesaplar" ? <AccountAdmin /> : null}
-      {tab === "musteriler" ? <CustomerPanel /> : null}
+      {tab === "musteriler" ? <CustomerCenter /> : null}
       {tab === "blog" ? <BlogAdmin /> : null}
       {tab === "ses" ? <VoiceAdmin /> : null}
       {tab === "kampanya" ? <CampaignAdmin /> : null}
