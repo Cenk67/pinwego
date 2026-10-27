@@ -11,6 +11,7 @@ import {
 import { rootSectors } from "@/lib/sectors"
 import { inSector } from "@/lib/taxonomy"
 import { correctNeedDetailed, matchNeed, type NeedCorrection } from "@/lib/need"
+import { matchPhoneLine, parsePhoneQuery, type PhoneLine, type PhoneQuery } from "@/lib/phone-lookup"
 import { isWorldPhrase, worldAliases, worldFocus } from "@/lib/world-query"
 import type { Business, CategoryId, Filters } from "@/lib/types"
 
@@ -421,12 +422,65 @@ function explain(business: Business, parsed: ParsedQuery, km: number) {
   return parts.join(" · ")
 }
 
+const PHONE_LINE: Record<PhoneLine, string> = {
+  mobile: "GSM",
+  landline: "sabit telefon",
+  whatsapp: "WhatsApp",
+  phone: "telefon",
+}
+
+/**
+ * A phone query matches published listing numbers only. City, sector and other
+ * filters stay out of this path: the number is the identity, and hiding the
+ * only listing would look like "this business is not on Pinwego".
+ */
+function rankByPhone(
+  list: Business[],
+  phone: PhoneQuery,
+  filters: Filters,
+  origin: { lat: number; lng: number },
+): RankedBusiness[] {
+  if (!phone.complete) return []
+  const found: { business: Business; line: PhoneLine }[] = []
+  for (const business of list) {
+    const line = matchPhoneLine(business, phone)
+    if (line) found.push({ business, line })
+  }
+  const many = found.length > 1
+  const ranked = found.map(({ business, line }) => {
+    const km = distanceKm(origin, business)
+    const score = 20 + (business.verified ? 2 : 0) + (business.orgVerified ? 1 : 0) + business.rating / 5
+    const shared = many ? " · aynı numara birden fazla kayıtta" : ""
+    return {
+      business,
+      score,
+      distanceKm: km,
+      reason: `Bu numara kayıttaki ${PHONE_LINE[line]} ile aynı · ${business.district}, ${business.city}${shared}`,
+    }
+  })
+  const sorters: Record<Filters["sort"], (a: RankedBusiness, b: RankedBusiness) => number> = {
+    ilgili: (a, b) =>
+      Number(b.business.verified) - Number(a.business.verified) ||
+      Number(Boolean(b.business.orgVerified)) - Number(Boolean(a.business.orgVerified)) ||
+      b.score - a.score ||
+      a.business.name.localeCompare(b.business.name, "tr"),
+    puan: (a, b) => b.business.rating - a.business.rating || b.score - a.score,
+    yorum: (a, b) => b.business.reviewCount - a.business.reviewCount || b.score - a.score,
+    mesafe: (a, b) => a.distanceKm - b.distanceKm,
+    yanit: (a, b) => a.business.responseMinutes - b.business.responseMinutes,
+    fiyat: (a, b) => a.business.priceLevel - b.business.priceLevel || b.score - a.score,
+  }
+  return ranked.sort(sorters[filters.sort] ?? sorters.ilgili)
+}
+
 export function searchDirectory(
   list: Business[],
   query: string,
   filters: Filters,
   origin = cityCenter(filters.sehir === "hepsi" ? "İstanbul" : filters.sehir),
 ): RankedBusiness[] {
+  const phone = parsePhoneQuery(query)
+  if (phone) return rankByPhone(list, phone, filters, origin)
   const parsed = parseQuery(query, list)
   const distanceOrigin = parsed.city ? cityCenter(parsed.city) : origin
   const unstructured =

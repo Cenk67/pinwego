@@ -1,4 +1,5 @@
 import { fold } from "@/lib/format"
+import { parsePhoneQuery } from "@/lib/phone-lookup"
 
 export const DISCOVER_ORIGIN = "https://www.google.com/maps/search/"
 
@@ -51,6 +52,9 @@ export function cleanDiscoverText(value: string, max = 80) {
 export function discoverQuery(value: string) {
   const clean = cleanDiscoverText(value, 80)
   if (/[<>`]|https?:|javascript:|data:/i.test(clean)) return ""
+  // A phone number must not be sent to the paid Places text search. The lookup
+  // stays on published Pinwego numbers; Maps opens only when the visitor clicks.
+  if (parsePhoneQuery(clean)) return ""
   const letters = fold(clean).replace(/[^a-z0-9\u00c0-\u024f\u0400-\u04ff\u0600-\u06ff\u0900-\u097f\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]+/gi, "")
   if (letters.length < 2) return ""
   return clean

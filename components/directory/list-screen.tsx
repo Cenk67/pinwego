@@ -14,12 +14,15 @@ import { PlaceEditor } from "@/components/directory/place-picker"
 import { categoryById, defaultBooking } from "@/lib/catalog"
 import { defaultPlace, type Place } from "@/lib/place"
 import { useDirectory } from "@/lib/directory-context"
+import { useLocale } from "@/lib/use-locale"
 import { cleanDiscoverText } from "@/lib/discover"
+import { parsePhoneQuery } from "@/lib/phone-lookup"
 import { recordDiscoverEvent, takeDiscoverLead } from "@/lib/discover-store"
 import type { Business } from "@/lib/types"
 
 export function ListScreen() {
   const router = useRouter()
+  const { t } = useLocale()
   const { account } = useAuth()
   const { addListing, rememberListing, taxonomy } = useDirectory()
   const [cls, setCls] = useState<Classification>(defaultClassification)
@@ -27,9 +30,10 @@ export function ListScreen() {
   const [place, setPlace] = useState<Place>(defaultPlace)
   const [district, setDistrict] = useState("")
   const [districtTouched, setDistrictTouched] = useState(false)
-  const [phone, setPhone] = useState("")
   const [summary, setSummary] = useState("")
   const params = useSearchParams()
+  const draftPhone = parsePhoneQuery(params.get("tel") ?? "")
+  const [phone, setPhone] = useState(() => (draftPhone?.complete ? draftPhone.display : ""))
   const draftAddress = cleanDiscoverText(params.get("adres") ?? "", 120)
   const [error, setError] = useState("")
   const [pending, setPending] = useState(false)
@@ -170,7 +174,10 @@ export function ListScreen() {
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="biz-phone">Telefon</Label>
-          <Input id="biz-phone" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="h-11" />
+          <Input id="biz-phone" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="h-11" />
+          {draftPhone?.complete && phone === draftPhone.display ? (
+            <p className="text-sm leading-6 text-muted-foreground">{t("phone.draft")}</p>
+          ) : null}
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="biz-summary">Kısa özet</Label>
