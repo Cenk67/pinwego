@@ -147,18 +147,44 @@ export function matchPhoneLine(business: Pick<Business, "phone" | "contacts">, p
   return legacy
 }
 
-export function phoneMapsUrl(phone: PhoneQuery) {
+/**
+ * The number the visitor already sees. A spaced or punctuated query is kept as
+ * typed so Maps searches that same text. A compact +90 string is not sent:
+ * Maps regroups +90372… as +90372 280… and the confirmed number disappears.
+ */
+export function confirmedPhoneText(phone: PhoneQuery) {
+  const stripped = phone.raw.trim().replace(/^(?:tel|telefon|gsm|whatsapp|phone|numara|no)\s+/i, "").trim()
+  const body = stripped.startsWith("+") ? stripped.slice(1) : stripped
+  if (/^[0-9][0-9\s().-]{6,24}$/.test(body) && /[\s().-]/.test(body)) return stripped
+  return phone.display
+}
+
+function usesTurkeyMaps(phone: PhoneQuery) {
+  if (phone.national || phone.shortCode) return true
+  if (phone.e164.startsWith("+90")) return true
+  return !phone.e164 && phone.digits.length === 7
+}
+
+function externalPhoneUrl(phone: PhoneQuery, kind: "maps" | "web") {
   if (!phone.complete) return ""
-  const text = phone.e164 || phone.display
-  if (!/^\+?[0-9][0-9\s()-]{6,20}$/.test(text)) return ""
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(text)}`
+  const text = confirmedPhoneText(phone)
+  if (!/^\+?[0-9][0-9\s().-]{6,24}$/.test(text)) return ""
+  const turkey = usesTurkeyMaps(phone)
+  const query = encodeURIComponent(text)
+  if (kind === "maps") {
+    const host = turkey ? "https://www.google.com.tr/maps/search/" : "https://www.google.com/maps/search/"
+    return `${host}?api=1&query=${query}${turkey ? "&hl=tr" : ""}`
+  }
+  const host = turkey ? "https://www.google.com.tr/search" : "https://www.google.com/search"
+  return `${host}?q=${query}${turkey ? "&hl=tr" : ""}`
+}
+
+export function phoneMapsUrl(phone: PhoneQuery) {
+  return externalPhoneUrl(phone, "maps")
 }
 
 export function phoneWebUrl(phone: PhoneQuery) {
-  if (!phone.complete) return ""
-  const text = phone.e164 || phone.display
-  if (!/^\+?[0-9][0-9\s()-]{6,20}$/.test(text)) return ""
-  return `https://www.google.com/search?q=${encodeURIComponent(text)}`
+  return externalPhoneUrl(phone, "web")
 }
 
 export function phoneRegisterPath(phone: PhoneQuery) {
