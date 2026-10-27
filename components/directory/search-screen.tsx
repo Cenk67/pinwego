@@ -13,6 +13,7 @@ import { NeedAlternatives, NeedBrief, NeedFeedback } from "@/components/director
 import { SearchForm } from "@/components/directory/search-form"
 import { VoiceTrail } from "@/components/directory/voice-search"
 import { DiscoverOffer } from "@/components/discover/discover-offer"
+import { PhoneLookupNote } from "@/components/directory/phone-lookup-note"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -33,6 +34,7 @@ import { rememberNeedContext, trackNeed } from "@/lib/need-client"
 import { rememberNeed } from "@/lib/need-memory"
 import { useNeedScope } from "@/lib/need-scope"
 import { defaultFilters, parseQuery, searchDirectory } from "@/lib/match"
+import { parsePhoneQuery } from "@/lib/phone-lookup"
 import { applyPlace, placeLabel } from "@/lib/place"
 import { sectorCopy } from "@/lib/sector-copy"
 import { childrenOf, pathOf, resolveNodeId, rootsOf, sortTr, type TaxonomyNode } from "@/lib/taxonomy"
@@ -65,6 +67,8 @@ export function SearchScreen() {
   const now = useMinute()
 
   const query = params.get("q") ?? ""
+  const phoneQuery = parsePhoneQuery(query)
+  const trackedQuery = phoneQuery ? "numara" : query
   const catalog = useMemo(() => liveList(visibleBusinesses, now), [visibleBusinesses, now])
   const parsed = parseQuery(query, catalog)
   const namedCity = params.get("sehir") ?? parsed.city
@@ -122,6 +126,7 @@ export function SearchScreen() {
       },
       origin,
     )
+    if (parsePhoneQuery(query)) return { items: ranked, widened: false, adsFilled: false as const }
     const placed = namedCity && !place.nearMe ? { items: ranked, widened: false } : applyPlace(ranked, place)
     if (premium && !placed.items.length) {
       const relaxed = searchDirectory(
@@ -161,12 +166,14 @@ export function SearchScreen() {
 
   useEffect(() => {
     if (!query.trim()) return
+    const phone = parsePhoneQuery(query)
+    const tracked = phone ? "numara" : query
     const voice = getVoiceTrail()?.mark === voiceQueryMark(query)
-    rememberNeedContext(query, needCategory, needCity)
-    rememberNeed(query)
+    rememberNeedContext(tracked, needCategory, needCity)
+    if (!phone) rememberNeed(query)
     trackNeed(
-      { kind: "search", q: query, category: needCategory, city: needCity, count: results.length, voice, stage, intent },
-      `search.${query}.${needCity}`,
+      { kind: "search", q: tracked, category: needCategory, city: needCity, count: results.length, voice, stage, intent },
+      `search.${tracked}.${needCity}`,
     )
     // Only a new sentence or city should count as a new search; result churn from filters should not.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -294,14 +301,14 @@ export function SearchScreen() {
     </div>
   )
 
-  const safeQuery = discoverQuery(query)
+  const safeQuery = phoneQuery ? "" : discoverQuery(query)
   const thin = showDiscover(results.length, discoverSettings, Boolean(safeQuery))
   const showOutside = Boolean(safeQuery) && discoverSettings.enabled && scope !== "pinwego" && (thin || scope === "rehber")
   const guideHits = Boolean(safeQuery) && (thin || scope === "rehber" || intent === "bilgi") ? searchGuides(publicArticles(blog.document), query) : []
   const guideList = guideHits.length ? (
     <GuideList hits={guideHits} onOpen={() => trackNeed({ kind: "guide", q: query, category: needCategory, city: needCity })} />
   ) : null
-  const alternatives = query && results.length < 3 ? (
+  const alternatives = query && !phoneQuery && results.length < 3 ? (
     <NeedAlternatives
       parsed={parsed}
       sectors={sectors}
@@ -341,7 +348,9 @@ export function SearchScreen() {
             update({ q: value || null, sehir: null, kategori: null })
           }}
         />
-        <NeedBrief parsed={parsed} sectors={sectors} count={results.length} widened={scoped.widened} hasPlace={hasPlace} onPatch={update} />
+        {phoneQuery ? null : (
+          <NeedBrief parsed={parsed} sectors={sectors} count={results.length} widened={scoped.widened} hasPlace={hasPlace} onPatch={update} />
+        )}
       </div>
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -406,6 +415,19 @@ export function SearchScreen() {
               <MiniMap label={t("search.resultsLabel")} points={results.slice(0, 30).map((item) => item.business)} focus={place} />
             </div>
           ) : null}
+          {phoneQuery ? (
+            <PhoneLookupNote
+              query={phoneQuery}
+              count={results.length}
+              filters={
+                activeCount > 0 ||
+                Boolean(params.get("sehir") && params.get("sehir") !== "hepsi") ||
+                place.nearMe ||
+                Boolean(place.district || place.neighborhood)
+              }
+              allowOutside={scope !== "pinwego"}
+            />
+          ) : null}
           {intent === "bilgi" && visible.length ? <div className="mb-4">{guideList}</div> : null}
           {visible.length ? (
             <div className="grid gap-4">
@@ -419,7 +441,7 @@ export function SearchScreen() {
                 />
               ))}
             </div>
-          ) : (
+          ) : phoneQuery ? null : (
             <>
               {alternatives}
               {guideList}
@@ -458,7 +480,7 @@ export function SearchScreen() {
               {alternatives}
               {intent === "bilgi" ? null : guideList}
               {discoverOffer}
-              <NeedFeedback key={query} query={query} category={needCategory} city={needCity} />
+              <NeedFeedback key={query} query={trackedQuery} category={needCategory} city={needCity} />
             </>
           ) : null}
         </div>

@@ -103,6 +103,7 @@ export function SearchForm({
         <VoicePanel />
         <div className="grid gap-2 px-1 pb-1">
           {large ? null : <p className="text-xs text-muted-foreground">{t("need.lead")}</p>}
+          <p className="text-xs text-muted-foreground">{t("phone.hint")}</p>
           <div className="flex flex-wrap gap-2" role="group" aria-label={t("need.scope")}>
             {needScopes.map((item) => (
               <button

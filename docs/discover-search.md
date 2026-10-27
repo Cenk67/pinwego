@@ -10,6 +10,8 @@ Haritalar adresi `https://www.google.com/maps/search/?api=1&query=` biçimindedi
 
 Yayındaki blog yazıları asistanın kaynağıdır. Başlık, özet veya metin cümleyle örtüşürse en fazla üç Pinwego rehberi kartı açılır. Yayında olmayan yazı gelmez. Dış bağlantıdan önce durur.
 
+Telefon numarası bu keşif yoluna girmez. `05xx`, `+90`, alan kodlu sabit hat ve `444` kısa numarası önce Pinwego’daki yayımlanmış işletme telefonunda birebir aranır. Eşleşme yoksa ücretli Places isteği atılmaz; Haritalar ve web bağlantısı ancak ziyaretçi tıklayınca açılır. Sonuç kataloğa yazılmaz.
+
 Arama kutusunun altında üç kapsam vardır. “Pinwego ve gerektiğinde dış kaynaklar” az sonuçta Haritalar, Google araması ve YouTube bağlantısını açar. “Önce yalnızca Pinwego işletmeleri” bu bağlantıları gizler. “Bilgi, rehber ve video içerikleri de ara” kayıt çok olsa da aynı bağlantıları gösterir. Dönen sayfalar Pinwego kaydı değildir; içerik kopyalanmaz. Kombi gibi iş adı geçmeyen ihtiyaç cümlesi, mevcut sektör eşleşmesi yoksa enerji gibi ilgili sektöre gider. Sesli arama aynı kutudadır. Sponsor sıralaması değişmez.
 
 ## Keşif sayfası
