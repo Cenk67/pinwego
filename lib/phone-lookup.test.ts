@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { businesses } from "./catalog.ts"
 import { defaultFilters, searchDirectory } from "./match.ts"
 import {
+  confirmedPhoneText,
   matchPhoneLine,
   parsePhoneQuery,
   phoneMapsUrl,
@@ -81,9 +82,28 @@ assert.equal(searchDirectory([combined], "322 11 11", filters).length, 0)
 const local: Business = { ...shared, id: "local", slug: "local", phone: "322 11 11" }
 assert.equal(searchDirectory([local], "322 11 11", filters)[0]?.business.slug, "local")
 
-const maps = phoneMapsUrl(mobile!)
-assert.equal(maps.startsWith("https://www.google.com/maps/search/?api=1&query=%2B905325550415"), true)
-assert.equal(phoneWebUrl(mobile!)?.startsWith("https://www.google.com/search?q="), true)
+const maps = new URL(phoneMapsUrl(mobile!))
+assert.equal(maps.origin, "https://www.google.com.tr")
+assert.equal(maps.pathname, "/maps/search/")
+assert.equal(maps.searchParams.get("api"), "1")
+assert.equal(maps.searchParams.get("hl"), "tr")
+assert.equal(maps.searchParams.get("query"), "0532 555 04 15")
+assert.equal(maps.search.includes("%2B90532"), false)
+
+const typedLandline = parsePhoneQuery("+90 372 280 15 39")
+assert.equal(confirmedPhoneText(typedLandline!), "+90 372 280 15 39")
+assert.equal(new URL(phoneMapsUrl(typedLandline!)).searchParams.get("query"), "+90 372 280 15 39")
+const compactLandline = parsePhoneQuery("+903722801539")
+assert.equal(new URL(phoneMapsUrl(compactLandline!)).searchParams.get("query"), "0372 280 15 39")
+
+const web = new URL(phoneWebUrl(mobile!))
+assert.equal(web.origin, "https://www.google.com.tr")
+assert.equal(web.searchParams.get("q"), "0532 555 04 15")
+
+const abroad = parsePhoneQuery("+1 650 253 0000")
+assert.equal(new URL(phoneMapsUrl(abroad!)).origin, "https://www.google.com")
+assert.equal(new URL(phoneMapsUrl(abroad!)).searchParams.get("query"), "+1 650 253 0000")
+assert.equal(new URL(phoneMapsUrl(abroad!)).searchParams.get("hl"), null)
 const draft = phoneRegisterPath(mobile!)
 assert.equal(draft.startsWith("/listele?tel="), true)
 assert.equal(draft.includes("<"), false)

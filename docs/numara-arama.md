@@ -10,7 +10,7 @@ Müşteri hesaplarındaki kişisel GSM bu aramaya girmez. Numara eksikse hiçbir
 
 ## Ne yapılmaz
 
-Google Places API numarayla otomatik sorgulanmaz. Telefon numarası `/api/kesif` metin aramasına da gitmez. Haritalar ve web bağlantısı yalnızca ziyaretçi tıklayınca açılır ve dönen sayfa kataloğa yazılmaz. Analitik ve “son aramalar” ham numarayı saklamaz; sayaç `numara` etiketiyle tutulur.
+Google Places API numarayla otomatik sorgulanmaz. Telefon numarası `/api/kesif` metin aramasına da gitmez. Haritalar ve web bağlantısı yalnızca ziyaretçi tıklayınca açılır ve dönen sayfa kataloğa yazılmaz. Bağlantı, sayfada duran numarayı olduğu gibi taşır: `0372 280 15 38` veya `+90 372 280 15 39`. Bitişik `+90372…` gönderilmez; Haritalar bu yazımı `+90372 280…` diye bölüp teyit edilen numarayı göstermez. Türkiye numarası `google.com.tr` üzerinde açılır. Analitik ve “son aramalar” ham numarayı saklamaz; sayaç `numara` etiketiyle tutulur.
 
 Kayıt düğmesi `/listele?tel=` ile yalnızca biçimlenmiş numarayı taslak olarak taşır. İlan, işletme hesabı formu gönderince oluşur.
 
