@@ -14,6 +14,7 @@ import { SearchForm } from "@/components/directory/search-form"
 import { VoiceTrail } from "@/components/directory/voice-search"
 import { DiscoverOffer } from "@/components/discover/discover-offer"
 import { PhoneLookupNote } from "@/components/directory/phone-lookup-note"
+import { PinLookupNote } from "@/components/directory/pin-lookup-note"
 import { fieldClass } from "@/components/directory/bits"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -34,6 +35,7 @@ import { rememberNeedContext, trackNeed } from "@/lib/need-client"
 import { rememberNeed } from "@/lib/need-memory"
 import { useNeedScope } from "@/lib/need-scope"
 import { defaultFilters, parseQuery, searchDirectory } from "@/lib/match"
+import { parsePinQuery } from "@/lib/business-pin"
 import { parsePhoneQuery } from "@/lib/phone-lookup"
 import { applyPlace, placeLabel } from "@/lib/place"
 import { sectorCopy } from "@/lib/sector-copy"
@@ -67,8 +69,9 @@ export function SearchScreen() {
   const now = useMinute()
 
   const query = params.get("q") ?? ""
-  const phoneQuery = parsePhoneQuery(query)
-  const trackedQuery = phoneQuery ? "numara" : query
+  const pinQuery = parsePinQuery(query)
+  const phoneQuery = pinQuery ? null : parsePhoneQuery(query)
+  const trackedQuery = pinQuery ? "pin" : phoneQuery ? "numara" : query
   const catalog = useMemo(() => liveList(visibleBusinesses, now), [visibleBusinesses, now])
   const parsed = parseQuery(query, catalog)
   const namedCity = params.get("sehir") ?? parsed.city
@@ -126,7 +129,7 @@ export function SearchScreen() {
       },
       origin,
     )
-    if (parsePhoneQuery(query)) return { items: ranked, widened: false, adsFilled: false as const }
+    if (parsePinQuery(query) || parsePhoneQuery(query)) return { items: ranked, widened: false, adsFilled: false as const }
     const placed = namedCity && !place.nearMe ? { items: ranked, widened: false } : applyPlace(ranked, place)
     if (premium && !placed.items.length) {
       const relaxed = searchDirectory(
@@ -166,11 +169,12 @@ export function SearchScreen() {
 
   useEffect(() => {
     if (!query.trim()) return
-    const phone = parsePhoneQuery(query)
-    const tracked = phone ? "numara" : query
+    const pin = parsePinQuery(query)
+    const phone = pin ? null : parsePhoneQuery(query)
+    const tracked = pin ? "pin" : phone ? "numara" : query
     const voice = getVoiceTrail()?.mark === voiceQueryMark(query)
     rememberNeedContext(tracked, needCategory, needCity)
-    if (!phone) rememberNeed(query)
+    if (!phone && !pin) rememberNeed(query)
     trackNeed(
       { kind: "search", q: tracked, category: needCategory, city: needCity, count: results.length, voice, stage, intent },
       `search.${tracked}.${needCity}`,
@@ -301,14 +305,14 @@ export function SearchScreen() {
     </div>
   )
 
-  const safeQuery = phoneQuery ? "" : discoverQuery(query)
+  const safeQuery = phoneQuery || pinQuery ? "" : discoverQuery(query)
   const thin = showDiscover(results.length, discoverSettings, Boolean(safeQuery))
   const showOutside = Boolean(safeQuery) && discoverSettings.enabled && scope !== "pinwego" && (thin || scope === "rehber")
   const guideHits = Boolean(safeQuery) && (thin || scope === "rehber" || intent === "bilgi") ? searchGuides(publicArticles(blog.document), query) : []
   const guideList = guideHits.length ? (
     <GuideList hits={guideHits} onOpen={() => trackNeed({ kind: "guide", q: query, category: needCategory, city: needCity })} />
   ) : null
-  const alternatives = query && !phoneQuery && results.length < 3 ? (
+  const alternatives = query && !phoneQuery && !pinQuery && results.length < 3 ? (
     <NeedAlternatives
       parsed={parsed}
       sectors={sectors}
@@ -348,9 +352,10 @@ export function SearchScreen() {
             update({ q: value || null, sehir: null, kategori: null })
           }}
         />
-        {phoneQuery ? null : (
+        {phoneQuery || pinQuery ? null : (
           <NeedBrief parsed={parsed} sectors={sectors} count={results.length} widened={scoped.widened} hasPlace={hasPlace} onPatch={update} />
         )}
+        {query ? null : <p className="mt-2 text-xs text-muted-foreground">{t("pin.searchHint")}</p>}
       </div>
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -415,6 +420,17 @@ export function SearchScreen() {
               <MiniMap label={t("search.resultsLabel")} points={results.slice(0, 30).map((item) => item.business)} focus={place} />
             </div>
           ) : null}
+          {pinQuery ? (
+            <PinLookupNote
+              query={pinQuery}
+              count={results.length}
+              filters={
+                activeCount > 0 ||
+                Boolean(params.get("sehir") && params.get("sehir") !== "hepsi") ||
+                place.nearMe
+              }
+            />
+          ) : null}
           {phoneQuery ? (
             <PhoneLookupNote
               query={phoneQuery}
@@ -441,7 +457,7 @@ export function SearchScreen() {
                 />
               ))}
             </div>
-          ) : phoneQuery ? null : (
+          ) : phoneQuery || pinQuery ? null : (
             <>
               {alternatives}
               {guideList}

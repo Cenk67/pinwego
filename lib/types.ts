@@ -102,6 +102,8 @@ export type BusinessLinks = Partial<
 export type Business = {
   id: string
   slug: string
+  /** Public permanent Pinwego id (`PW-` + 9 digits). Not a login secret. */
+  pin?: string
   name: string
   category: CategoryId
   subcategory: string

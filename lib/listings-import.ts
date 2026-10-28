@@ -661,7 +661,12 @@ export function commitImport(
       held += 1
       continue
     }
-    const listing = buildImportedListing({ ...draft, ...state }, nowIso, current.listings)
+    const listing = buildImportedListing(
+      { ...draft, ...state },
+      nowIso,
+      current.listings,
+      businesses.map((item) => item.pin ?? ""),
+    )
     current = { listings: [listing, ...current.listings] }
     written.push(listing)
     added += 1

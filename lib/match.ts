@@ -11,6 +11,7 @@ import {
 import { rootSectors } from "@/lib/sectors"
 import { inSector } from "@/lib/taxonomy"
 import { correctNeedDetailed, matchNeed, type NeedCorrection } from "@/lib/need"
+import { businessPin, displayPin, parsePinQuery, type PinQuery } from "@/lib/business-pin"
 import { matchPhoneLine, parsePhoneQuery, type PhoneLine, type PhoneQuery } from "@/lib/phone-lookup"
 import { isWorldPhrase, worldAliases, worldFocus } from "@/lib/world-query"
 import type { Business, CategoryId, Filters } from "@/lib/types"
@@ -473,12 +474,25 @@ function rankByPhone(
   return ranked.sort(sorters[filters.sort] ?? sorters.ilgili)
 }
 
+function rankByPin(list: Business[], pin: PinQuery, origin: { lat: number; lng: number }): RankedBusiness[] {
+  if (!pin.valid) return []
+  const found = list.filter((business) => businessPin(business).replace(/\D/g, "") === pin.digits)
+  return found.map((business) => ({
+    business,
+    score: 30,
+    distanceKm: distanceKm(origin, business),
+    reason: `Pinwego numarası eşleşti · ${displayPin(pin.pin)} · ${business.district}, ${business.city}`,
+  }))
+}
+
 export function searchDirectory(
   list: Business[],
   query: string,
   filters: Filters,
   origin = cityCenter(filters.sehir === "hepsi" ? "İstanbul" : filters.sehir),
 ): RankedBusiness[] {
+  const pin = parsePinQuery(query)
+  if (pin) return rankByPin(list, pin, origin)
   const phone = parsePhoneQuery(query)
   if (phone) return rankByPhone(list, phone, filters, origin)
   const parsed = parseQuery(query, list)

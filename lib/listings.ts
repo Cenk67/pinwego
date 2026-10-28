@@ -1,3 +1,4 @@
+import { assignPin, parsePinQuery } from "@/lib/business-pin"
 import { slugifyKey } from "@/lib/format"
 import { hoursFromBook, liveBusiness, publicBook, storedBook } from "@/lib/hours"
 import { storedCover } from "@/lib/listing-media"
@@ -13,6 +14,8 @@ const days = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartes
 export type StoredListing = {
   id: string
   slug: string
+  /** Public permanent id. Set once. Renames and imports must not replace it. */
+  pin?: string
   name: string
   category: string
   subcategory: string
@@ -100,6 +103,7 @@ function asListing(value: unknown): StoredListing | null {
   return {
     id: row.id,
     slug: row.slug,
+    pin: readPin(row.pin, row.id),
     name: row.name,
     category: typeof row.category === "string" ? row.category : "yeme",
     subcategory: typeof row.subcategory === "string" ? row.subcategory : "",
@@ -153,6 +157,14 @@ export function classification(row: { categories?: unknown; orgKind?: unknown; o
   }
 }
 
+function readPin(value: unknown, id: string) {
+  if (typeof value === "string") {
+    const parsed = parsePinQuery(value)
+    if (parsed?.valid) return parsed.pin
+  }
+  return assignPin(id)
+}
+
 function readSite(value: unknown) {
   if (typeof value !== "string") return undefined
   const site = value.trim().slice(0, 160)
@@ -192,6 +204,7 @@ export function toBusiness(listing: StoredListing): Business {
   return liveBusiness({
     id: listing.id,
     slug: listing.slug,
+    pin: listing.pin,
     name: listing.name,
     category: listing.category,
     subcategory: listing.subcategory,
@@ -250,13 +263,19 @@ export type ImportedInput = {
   website?: string
 }
 
-export function buildImportedListing(input: ImportedInput, nowIso: string, listings: StoredListing[]): StoredListing {
+export function buildImportedListing(
+  input: ImportedInput,
+  nowIso: string,
+  listings: StoredListing[],
+  reserved: Iterable<string> = [],
+): StoredListing {
   const base = listingSlug(input.name, "yonetici")
   const slug = uniqueSlug(base, listings)
   const year = Number(nowIso.slice(0, 4))
   return {
     id: slug,
     slug,
+    pin: assignPin(slug, [...listings.map((item) => item.pin ?? ""), ...reserved]),
     name: input.name,
     category: input.category,
     subcategory: input.subcategory,
@@ -296,6 +315,7 @@ export function acceptListing(
   book: ListingBook,
   admin: boolean,
   validIds?: Set<string>,
+  reserved: Iterable<string> = [],
 ): { ok: true; book: ListingBook; listing: StoredListing } | { ok: false; reason: "invalid" | "dolu" | "kategori" } {
   const name = clip(body.name, 80)
   const district = clip(body.district, 80)
@@ -322,9 +342,13 @@ export function acceptListing(
   const base = listingSlug(name, ownerId)
   const own = book.listings.find((item) => item.ownerAccountId === ownerId && (item.slug === base || item.name === name))
   const year = Number(nowIso.slice(0, 4))
+  const id = own?.id ?? uniqueSlug(base, book.listings)
+  const parsedPin = own?.pin ? parsePinQuery(own.pin) : null
+  const kept = parsedPin?.valid ? parsedPin.pin : ""
   const draft: StoredListing = {
-    id: own?.id ?? uniqueSlug(base, book.listings),
-    slug: own?.slug ?? uniqueSlug(base, book.listings),
+    id,
+    slug: own?.slug ?? id,
+    pin: kept || assignPin(id, [...book.listings.map((item) => item.pin ?? ""), ...reserved]),
     name,
     category,
     subcategory,

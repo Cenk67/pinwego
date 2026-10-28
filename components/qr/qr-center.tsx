@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth-context"
 import { seedCampaigns } from "@/lib/campaigns"
 import { useDirectory } from "@/lib/directory-context"
 import { fold } from "@/lib/format"
+import { businessPin, displayPin } from "@/lib/business-pin"
 import { businessCode, campaignCode, posterPath, qrUrl, summarizeQr, topQrBusinesses, vcardPath } from "@/lib/qr"
 import { useQrEvents } from "@/lib/qr-store"
 import type { Business } from "@/lib/types"
@@ -86,6 +87,10 @@ function QrDesk({ business }: { business: Business }) {
   return (
     <article className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10">
       <h3 className="font-heading text-2xl">{business.name}</h3>
+      <p className="mt-2 font-heading text-lg tracking-wide">{displayPin(businessPin(business))}</p>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+        Bu numara kalıcı kimliktir. QR kodu ayrıdır; okutma sayacı işletme kaydına yazılır. Numara panele girmez.
+      </p>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">
         Camdaki kod işletme sayfasının tamamına gitmez. Kısa kartı açar. İkinci kod aynı kartın vCard türüdür.
       </p>
@@ -167,7 +172,12 @@ export function QrAdmin() {
   const matches = useMemo(() => {
     const needle = fold(query.trim())
     if (!needle) return catalog.slice(0, 8)
-    return catalog.filter((item) => fold(item.name).includes(needle) || fold(item.city).includes(needle)).slice(0, 8)
+    return catalog
+      .filter((item) => {
+        const pin = businessPin(item)
+        return fold(`${item.name} ${item.city} ${pin} ${displayPin(pin)}`).includes(needle)
+      })
+      .slice(0, 8)
   }, [catalog, query])
   if (!account || account.role !== "admin") return null
   const summary = summarizeQr(events)

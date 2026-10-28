@@ -1,3 +1,4 @@
+import { pinFromKey } from "@/lib/business-pin"
 import { allSectors, seedSectors } from "@/lib/sectors"
 import type {
   BookingKind,
@@ -1810,7 +1811,7 @@ export const businesses: Business[] = [
   ...sectorBusinesses,
   ...generatedSectorBusinesses,
   ...zonguldakBusinesses,
-]
+].map((business) => ({ ...business, pin: business.pin ?? pinFromKey(business.id) }))
 
 export function categoryById(id: CategoryId) {
   return allSectors().find((category) => category.id === id) ?? seedSectors[0]

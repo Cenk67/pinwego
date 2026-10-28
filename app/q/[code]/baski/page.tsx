@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { connection } from "next/server"
 import { QrMissing } from "@/components/qr/qr-landing"
 import { QrPoster } from "@/components/qr/qr-poster"
+import { businessPin } from "@/lib/business-pin"
 import { openQr } from "@/lib/qr-open"
 
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
@@ -27,6 +28,7 @@ export default async function Page({ params }: { params: Promise<{ code: string 
       photo={business.photo}
       city={business.city}
       district={business.district}
+      pin={businessPin(business)}
     />
   )
 }

@@ -20,6 +20,7 @@ import {
   ShortRead,
   SummaryGrid,
 } from "@/components/directory/profile-view"
+import { PinBadge } from "@/components/directory/pin-badge"
 import { ShareButton } from "@/components/directory/share-button"
 import { MessageButton } from "@/components/messages/message-button"
 import { MiniMap } from "@/components/directory/mini-map"
@@ -30,6 +31,7 @@ import { ViewMeter } from "@/components/directory/view-meter"
 import { SocialLinks } from "@/components/directory/social-links"
 import { Button } from "@/components/ui/button"
 import { useGuestGate } from "@/components/auth/guest-gate"
+import { businessPin, pinMatches } from "@/lib/business-pin"
 import { useDirectory } from "@/lib/directory-context"
 import { useListingGallery } from "@/components/directory/saved-media"
 import { coverImage, withListingMedia } from "@/lib/listing-media"
@@ -48,7 +50,8 @@ import {
 export function BusinessScreen({ slug }: { slug: string }) {
   const { ready, remoteReady, place, visibleBusinesses } = useDirectory()
   const { member, allow } = useGuestGate()
-  const listed = visibleBusinesses.find((item) => item.slug === slug)
+  const bySlug = visibleBusinesses.find((item) => item.slug === slug)
+  const listed = bySlug ?? visibleBusinesses.find((item) => pinMatches(businessPin(item), slug))
   const media = useListingGallery(listed?.id, listed?.source === "senin")
   const business = listed ? withListingMedia(listed, media.ready ? media : null) : undefined
   const [note, setNote] = useState("")
@@ -112,6 +115,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
               <p className="mt-2 text-muted-foreground">
                 {business.subcategory} · {business.district}, {business.city}
               </p>
+              <PinBadge business={business} />
               <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
                 <Stars rating={business.reviewCount ? business.rating : 0} />
                 <span className="font-medium">{formatRating(business)}</span>
@@ -146,7 +150,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
           </div>
           <ViewMeter business={business} />
           <div className="mt-4 lg:hidden">
-            <BusinessQr businessId={business.id} name={business.name} photo={hero} />
+            <BusinessQr businessId={business.id} pin={business.pin} name={business.name} photo={hero} />
           </div>
           {business.source === "google" ? (
             <div className="mt-4 max-w-sm">
@@ -206,7 +210,7 @@ export function BusinessScreen({ slug }: { slug: string }) {
 
         <aside className="min-w-0 space-y-4">
           <div className="hidden lg:block">
-            <BusinessQr businessId={business.id} name={business.name} photo={hero} />
+            <BusinessQr businessId={business.id} pin={business.pin} name={business.name} photo={hero} />
           </div>
           <div className="rounded-3xl bg-card p-5 ring-1 ring-foreground/10 lg:sticky lg:top-24">
             {business.responseMinutes > 0 ? (

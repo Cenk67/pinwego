@@ -4,6 +4,7 @@ import { Logo } from "@/components/brand/logo"
 import { Cover } from "@/components/directory/bits"
 import { QrMark } from "@/components/qr/qr-mark"
 import { Button } from "@/components/ui/button"
+import { displayPin } from "@/lib/business-pin"
 import { qrUrl } from "@/lib/qr"
 import { useLocale } from "@/lib/use-locale"
 
@@ -13,12 +14,14 @@ export function QrPoster({
   photo,
   city,
   district,
+  pin,
 }: {
   code: string
   name: string
   photo: string
   city: string
   district: string
+  pin?: string
 }) {
   const { t } = useLocale()
   return (
@@ -33,6 +36,8 @@ export function QrPoster({
       <div className="mt-6 flex justify-center">
         <QrMark text={qrUrl(code)} label={name} photo={photo} />
       </div>
+      {pin ? <p className="mt-4 font-heading text-2xl tracking-wide">{displayPin(pin)}</p> : null}
+      {pin ? <p className="mt-1 text-sm text-muted-foreground">{t("pin.poster")}</p> : null}
       <p className="mt-4 text-sm leading-6">{t("qr.posterScan")}</p>
       <p className="mt-2 text-sm text-muted-foreground">{t("qr.posterMore")}</p>
       <Button type="button" className="mt-8 h-11 rounded-full px-5 print:hidden" onClick={() => window.print()}>

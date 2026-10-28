@@ -41,6 +41,7 @@ import type { ManualAction } from "@/lib/hours"
 import { mediaReason } from "@/lib/listing-media"
 import { listingFields, normalizeProfile, resolveProfile } from "@/lib/profile"
 import { draftContacts, savedContacts, type ContactDraft } from "@/lib/contacts"
+import { businessPin, displayPin, pinPath } from "@/lib/business-pin"
 import { fold, slugify } from "@/lib/format"
 import { maskId } from "@/lib/identity"
 import { draftLinks, savedLinks, type BusinessLinks } from "@/lib/social-links"
@@ -230,7 +231,9 @@ function BusinessAdmin() {
   const filtered = useMemo(() => {
     const needle = fold(query)
     return managedBusinesses.filter((item) => {
-      if (needle && !fold(`${item.name} ${item.city} ${item.district} ${item.category} ${item.subcategory} ${item.phone}`).includes(needle)) return false
+      const pin = businessPin(item)
+      const haystack = fold(`${item.name} ${item.city} ${item.district} ${item.category} ${item.subcategory} ${item.phone} ${pin} ${displayPin(pin)}`)
+      if (needle && !haystack.includes(needle)) return false
       if (sectorFilter && !inSector(item, sectorFilter)) return false
       if (orgFilter === "kamu" && item.orgKind !== "kamu") return false
       if (orgFilter === "ozel" && (item.orgKind ?? "ozel") !== "ozel") return false
@@ -257,7 +260,7 @@ function BusinessAdmin() {
             setQuery(event.target.value)
             setLimit(12)
           }}
-          placeholder="İşletme, semt, telefon ara"
+          placeholder="İşletme, semt, telefon veya Pinwego ID"
           className="h-11 sm:max-w-72"
         />
         <div className="flex flex-wrap gap-2">
@@ -332,6 +335,7 @@ function BusinessAdmin() {
         {filtered.slice(0, limit).map((business) => {
           const hidden = isBusinessHidden(business)
           const leaf = businessLeaf(taxonomy, business)
+          const pin = businessPin(business)
           return (
             <article key={business.id} className="rounded-3xl bg-card p-4 ring-1 ring-foreground/10">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -339,6 +343,14 @@ function BusinessAdmin() {
                   <Link href={`/isletme/${business.slug}`} className="font-medium hover:text-primary">
                     {business.name}
                   </Link>
+                  <p className="mt-1 font-heading text-sm tracking-wide">
+                    <Link href={pinPath(pin)} className="hover:text-primary">
+                      {displayPin(pin)}
+                    </Link>
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Kalıcıdır, değiştirilemez. Doğrulama rozeti ayrıdır. Bu numara yönetim yetkisi vermez.
+                  </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {categoryById(business.category).label}
                     {leaf ? ` › ${leaf.label}` : ""}

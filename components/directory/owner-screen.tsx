@@ -9,6 +9,7 @@ import { ContactEditor } from "@/components/directory/contact-lines"
 import { ProfileEditor } from "@/components/directory/profile-editor"
 import { useListingGallery } from "@/components/directory/saved-media"
 import { SocialLinkEditor } from "@/components/directory/social-links"
+import { PinBadge } from "@/components/directory/pin-badge"
 import { ViewReport } from "@/components/directory/view-report"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
@@ -229,6 +230,7 @@ function OwnerForm({
 
   return (
     <div className="grid gap-3">
+    <PinBadge business={business} />
     <ViewReport slug={business.slug} />
     <form
       className="grid gap-3 rounded-3xl bg-card p-5 ring-1 ring-foreground/10"
