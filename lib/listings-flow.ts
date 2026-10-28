@@ -1,4 +1,5 @@
 import { adminSessionOpen, readAdminCookie } from "@/lib/admin-gate"
+import { businesses } from "@/lib/catalog"
 import { accountStore } from "@/lib/account-kv"
 import { jsonReply, readJson, requestIp, takeIpSlot } from "@/lib/account-route"
 import { applyManual, bookFromHours, hoursFromBook, istanbulParts, storedBook } from "@/lib/hours"
@@ -93,7 +94,15 @@ export async function ilanPostFlow(request: Request, now = Date.now()) {
     if (who.kind === "member" && who.account.role !== "isletme") return jsonReply({ ok: false, reason: "yetki" }, 403)
     const ownerId = who.kind === "admin" ? "yonetici" : who.account.id
     const tree = await readTaxonomy(store)
-    const saved = acceptListing(body, ownerId, new Date(now).toISOString(), book, who.kind === "admin", validSectorIds(tree.nodes, who.kind === "admin"))
+    const saved = acceptListing(
+      body,
+      ownerId,
+      new Date(now).toISOString(),
+      book,
+      who.kind === "admin",
+      validSectorIds(tree.nodes, who.kind === "admin"),
+      businesses.map((item) => item.pin ?? ""),
+    )
     if (!saved.ok) return jsonReply({ ok: false, reason: saved.reason })
     await store.put(listingsKey, JSON.stringify(saved.book))
     return jsonReply({ ok: true, listing: toBusiness(saved.listing) })

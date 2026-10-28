@@ -5,6 +5,7 @@ import { loginFlow } from "./account-flow"
 import { openAdminSession } from "./admin-gate"
 import { listingGalleryKey } from "./listing-media"
 import { ilanGetFlow, ilanPostFlow } from "./listings-flow"
+import { parsePinQuery } from "./business-pin"
 import { listingsKey } from "./listings"
 
 const holder = globalThis as typeof globalThis & { __pinwegoAccounts?: Map<string, unknown> }
@@ -66,6 +67,7 @@ const draft = {
   ownerAccountId: "baskasi",
   nationalId: "10000000146",
   taxId: "0100000007",
+  pin: "PW-111111110",
 }
 
 const anonymous = await ilanPostFlow(call("/api/ilan", draft))
@@ -76,21 +78,26 @@ const customer = await ilanPostFlow(call("/api/ilan", draft, customerCookie))
 assert.equal(customer.status, 403)
 
 const created = await ilanPostFlow(call("/api/ilan", draft, cookie))
-const createdBody = (await created.json()) as { ok?: boolean; listing?: { slug: string; verified: boolean; premium: boolean; photo: string; ownerAccountId?: string } }
+const createdBody = (await created.json()) as { ok?: boolean; listing?: { slug: string; pin?: string; verified: boolean; premium: boolean; photo: string; ownerAccountId?: string } }
 assert.equal(createdBody.ok, true)
 assert.equal(createdBody.listing?.verified, false)
 assert.equal(createdBody.listing?.premium, false)
 assert.equal(createdBody.listing?.photo, "/photos/office.jpg")
 assert.equal(createdBody.listing?.ownerAccountId, signedBody.account?.id)
 assert.equal(createdBody.listing?.slug.includes("yesil-cinar"), true)
+assert.equal(parsePinQuery(createdBody.listing?.pin ?? "")?.valid, true)
+assert.notEqual(createdBody.listing?.pin, "PW-111111110")
 const saved = await store.get(listingsKey)
 assert.equal(saved?.includes("10000000146"), false)
 assert.equal(saved?.includes("0100000007"), false)
 assert.equal(saved?.includes("baskasi"), false)
+assert.equal(saved?.includes("PW-111111110"), false)
+assert.equal(saved?.includes(createdBody.listing?.pin ?? "yok"), true)
 
 const again = await ilanPostFlow(call("/api/ilan", { ...draft, summary: "Kozlu'da güncellenmiş ev yemeği servisi." }, cookie))
-const againBody = (await again.json()) as { listing?: { slug: string; summary: string; verified: boolean } }
+const againBody = (await again.json()) as { listing?: { slug: string; pin?: string; summary: string; verified: boolean } }
 assert.equal(againBody.listing?.slug, createdBody.listing?.slug)
+assert.equal(againBody.listing?.pin, createdBody.listing?.pin)
 assert.equal(againBody.listing?.summary, "Kozlu'da güncellenmiş ev yemeği servisi.")
 const book = JSON.parse((await store.get(listingsKey)) ?? "{}") as { listings: unknown[] }
 assert.equal(book.listings.length, 1)

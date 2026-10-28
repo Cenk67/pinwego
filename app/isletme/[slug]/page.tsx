@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { BusinessScreen } from "@/components/directory/business-screen"
+import { pinMatches } from "@/lib/business-pin"
 import { businesses } from "@/lib/catalog"
 import { PROFILE_ORIGIN, resolveProfile } from "@/lib/profile"
 
@@ -14,7 +15,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const business = businesses.find((item) => item.slug === slug)
+  const business =
+    businesses.find((item) => item.slug === slug) ?? businesses.find((item) => pinMatches(item.pin, slug))
   if (!business) return { title: "İşletme", robots: { index: false, follow: false } }
   const profile = resolveProfile(business)
   const url = `/isletme/${business.slug}`

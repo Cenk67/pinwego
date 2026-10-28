@@ -72,6 +72,7 @@ export function HomeScreen() {
             </p>
             <div className="mt-6">
               <SearchForm large />
+              <p className="mt-2 max-w-xl text-xs text-muted-foreground">{t("pin.searchHint")}</p>
             </div>
             <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
               {chips.map((item) => (
